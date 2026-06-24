@@ -16,6 +16,103 @@ function normalizeHtmlDataNotes(raw) {
     });
 }
 
+/** 讀取 LaTeX 大括號區塊（支援巢狀 {}） */
+function readBraced(tex, start) {
+  if (tex[start] !== '{') return null;
+  let depth = 0;
+  for (let j = start; j < tex.length; j++) {
+    if (tex[j] === '\\' && j + 1 < tex.length) { j++; continue; }
+    if (tex[j] === '{') depth++;
+    else if (tex[j] === '}') {
+      depth--;
+      if (depth === 0) return tex.slice(start, j + 1);
+    }
+  }
+  return null;
+}
+
+/** 暫存 \\htmlData{…}{…}（body 可含巢狀括號），避免 regex 截斷破壞 KaTeX */
+function stashHtmlData(tex, saved, tag) {
+  let out = '';
+  let i = 0;
+  const s = String(tex || '');
+  while (i < s.length) {
+    if (s.startsWith('\\htmlData', i)) {
+      let pos = i + '\\htmlData'.length;
+      const attr = readBraced(s, pos);
+      if (!attr) { out += s[i]; i++; continue; }
+      pos += attr.length;
+      const body = readBraced(s, pos);
+      if (!body) { out += s[i]; i++; continue; }
+      saved.push(s.slice(i, pos + body.length));
+      out += `\x00${tag}${saved.length - 1}\x00`;
+      i = pos + body.length;
+      continue;
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
+function restoreStashed(tex, saved, tag) {
+  let t = tex;
+  saved.forEach((m, idx) => { t = t.replace(`\x00${tag}${idx}\x00`, m); });
+  return t;
+}
+
+/** 暫存 \\mathrm{…}、\\text{…} 等單一參數巨集（支援巢狀 {}） */
+function stashLatexCmd(tex, saved, tag, cmd) {
+  let out = '';
+  let i = 0;
+  const needle = `\\${cmd}`;
+  const s = String(tex || '');
+  while (i < s.length) {
+    if (s.startsWith(needle, i)) {
+      const body = readBraced(s, i + needle.length);
+      if (body) {
+        saved.push(s.slice(i, i + needle.length + body.length));
+        out += `\x00${tag}${saved.length - 1}\x00`;
+        i += needle.length + body.length;
+        continue;
+      }
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
+const TRIVIAL_HTMLDATA_NOTES = new Set(['代入數值', '待補', '數值', '分子', '分母']);
+
+function stripTrivialHtmlDataNotes(tex) {
+  let out = '';
+  let i = 0;
+  const t = String(tex || '');
+  while (i < t.length) {
+    if (t.startsWith('\\htmlData', i)) {
+      let pos = i + '\\htmlData'.length;
+      const attrBr = readBraced(t, pos);
+      if (!attrBr) { out += t[i]; i++; continue; }
+      const attr = attrBr.slice(1, -1);
+      pos += attrBr.length;
+      const bodyBr = readBraced(t, pos);
+      if (!bodyBr) { out += t[i]; i++; continue; }
+      const noteMatch = attr.match(/^note=(.*)$/s);
+      if (noteMatch && TRIVIAL_HTMLDATA_NOTES.has(noteMatch[1].trim())) {
+        out += bodyBr.slice(1, -1);
+      } else {
+        out += t.slice(i, pos + bodyBr.length);
+      }
+      i = pos + bodyBr.length;
+      continue;
+    }
+    out += t[i];
+    i++;
+  }
+  return out;
+}
+
 /** 判斷一行是否像 LaTeX／代數算式（非中文敘述） */
 function isMathContentLine(line) {
   const t = String(line || '').trim();
@@ -51,7 +148,20 @@ function repairBrokenMathDelimiters(raw) {
       return `\x00D${displayChunks.length - 1}\x00`;
     });
 
-  const lines = s.split('\n');
+  let lines = s.split('\n');
+  lines = lines.reduce((acc, line) => {
+    const prev = acc[acc.length - 1];
+    const expOnly = String(line || '').match(/^\s*(?:\$|\\\(|\\\[)?\s*\^?\{?\s*[-−]\s*1\s*\}?\s*(?:\$|\\\)|\\\])?\s*([。.．，,；;]?)\s*$/);
+    if (prev !== undefined && expOnly && /(?:\\mathrm\{\s*Ms\s*\}|\\mathrm\{\s*M\s*s\s*\}|\\mathrm\{M\\,s\}|\\text\{\s*M\s*s?\s*\}|M\s*s|Ms)\s*(?:\$|\\\)|\\\])?\s*$/.test(prev)) {
+      acc[acc.length - 1] = prev.replace(
+        /((?:\\mathrm\{\s*Ms\s*\}|\\mathrm\{\s*M\s*s\s*\}|\\mathrm\{M\\,s\}|\\text\{\s*M\s*s?\s*\}|M\s*s|Ms))(\s*)(\$|\\\)|\\\])?\s*$/,
+        (_, unit, space, close = '') => `${unit}^{-1}${space}${close}${expOnly[1] || ''}`
+      );
+      return acc;
+    }
+    acc.push(line);
+    return acc;
+  }, []);
   const out = [];
   let i = 0;
 
@@ -171,31 +281,20 @@ function toggleAnno(id) {
 }
 
 function fixSlashFractions(tex) {
-  let t = tex;
   const saved = [];
-  t = t.replace(/\\htmlData\{note=[^}]*\}\{[^}]*\}/g, m => {
-    saved.push(m);
-    return `\x00S${saved.length - 1}\x00`;
-  });
-
+  let t = stashHtmlData(tex, saved, 'S');
   let prev;
   do {
     prev = t;
     t = t.replace(/(\d+)\s*\/\s*(\d+)/g, '\\dfrac{$1}{$2}');
   } while (t !== prev);
-
-  saved.forEach((m, i) => { t = t.replace(`\x00S${i}\x00`, m); });
-  return t;
+  return restoreStashed(t, saved, 'S');
 }
 
 function enrichMathNotes(tex) {
   if (!/^\$/.test(tex)) return tex;
-  let t = tex;
   const saved = [];
-  t = t.replace(/\\htmlData\{note=[^}]*\}\{[^}]*\}/g, m => {
-    saved.push(m);
-    return `\x00H${saved.length - 1}\x00`;
-  });
+  let t = stashHtmlData(tex, saved, 'H');
 
   // 分壓式中 ×1 代表總壓 P
   if (/P_|分壓|K_p|M_\{avg\}/.test(t)) {
@@ -222,8 +321,7 @@ function enrichMathNotes(tex) {
     });
   }
 
-  saved.forEach((m, i) => { t = t.replace(`\x00H${i}\x00`, m); });
-  return t;
+  return restoreStashed(t, saved, 'H');
 }
 
 const SUP_DIGIT_MAP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
@@ -297,12 +395,8 @@ function isIonChargeSuperscript(body) {
 
 /** LaTeX 上標中的價數正負號加粗（^{3+}、^{-} 等）；不處理 10^{-4} 科學記號 */
 function emphasizeIonCharges(tex) {
-  let t = tex;
   const saved = [];
-  t = t.replace(/\\htmlData\{note=[^}]*\}\{[^}]*\}/g, m => {
-    saved.push(m);
-    return `\x00I${saved.length - 1}\x00`;
-  });
+  let t = stashHtmlData(tex, saved, 'I');
   t = t.replace(/\^\{([^}]*)\}/g, (m, body) => {
     if (!isIonChargeSuperscript(body)) return m;
     const emphasized = body.replace(/([+\-−])/g, (_, s) => `\\boldsymbol{${s === '−' ? '-' : s}}`);
@@ -312,18 +406,180 @@ function emphasizeIonCharges(tex) {
     const sign = s === '−' ? '-' : s;
     return `^{\\boldsymbol{${sign}}}`;
   });
-  saved.forEach((m, i) => { t = t.replace(`\x00I${i}\x00`, m); });
-  return t;
+  return restoreStashed(t, saved, 'I');
 }
 
 /** 統一科學記號寫法為 {10}^{-n}，避免 1 與 0 分離 */
 function fixScientificNotation(tex) {
-  let t = tex;
+  let t = String(tex || '');
+  t = t.replace(/\{\s*10\s*\^\s*\{(-?\d+)\}\s*\}/g, '{10}^{$1}');
+  t = t.replace(/10\s*\^\s*\{(-?\d+)\}/g, '{10}^{$1}');
   t = t.replace(/10\s*\^\s*\{?\s*(-\d+)\s*\}?/g, '{10}^{$1}');
   t = t.replace(/10\s*\^\s*\{?\s*(\d+)\s*\}?/g, '{10}^{$1}');
-  // 離子濃度如 10^{-4}M、10^{-4} mol
   t = t.replace(/\{10\}\^\{(-?\d+)\}\s*M\b/g, '{10}^{$1}\\,\\mathrm{M}');
   return t;
+}
+
+/** 反應速率／莫耳濃度單位：一律 \\mathrm，與化學式同字體 */
+function normalizeChemUnitsInMath(tex) {
+  let t = String(tex || '');
+  t = t.replace(/\\text\{\s*M\s*s\s*\}\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\text\{\s*M\s*s?\s*\}\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{\s*M\s*s\s*\}\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{\s*M\s*s\s*\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{\s*Ms\s*\}\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{\s*Ms\s*\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\text\{\s*Ms\s*\}(\s*\^\{-1\})?/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/Ms\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/M\s*s\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{M\}\s*s\s*\^\{-1\}/gi, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\mathrm\{M\\,s\}\s*\^\{-1\}/g, '\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/(\d+(?:\.\d+)?)\s*(\\mathrm\{M\\,s\^\{-1\}\})/g, '$1\\,$2');
+  t = t.replace(/(\d+(?:\.\d+)?)\s*\\text\{\s*M\s*s?\s*\}(?:\s*\^\{-1\})?/gi, '$1\\,\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/(\d+(?:\.\d+)?)\s*\\mathrm\{\s*Ms\s*\}/gi, '$1\\,\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/(\d+(?:\.\d+)?)\s+Ms\s*\^\{-1\}/gi, '$1\\,\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/(\d+(?:\.\d+)?)\s+Ms\b/gi, '$1\\,\\mathrm{M\\,s^{-1}}');
+  t = t.replace(/\\text\{\s*M\s*\}/g, '\\mathrm{M}');
+  t = t.replace(/(\d+(?:\.\d+)?)(\s+)M(\s*[。.．，,；;]|$)/g, '$1$2\\mathrm{M}$3');
+  t = t.replace(/\\Delta\s*\[([A-Za-z0-9_^+\-−]+)\]/g, (m, sp) => {
+    if (!/[A-Z]/.test(sp)) return m;
+    return `\\Delta[\\mathrm{${sp}}]`;
+  });
+  return t;
+}
+
+function isChemFormulaPartText(text) {
+  const raw = String(text || '');
+  const t = raw.replace(/\s/g, '');
+  if (/Δ\[|Δ\(/.test(raw) && /[A-Z]{2,}/.test(t)) return true;
+  if (/\[.*[A-Z]{2,}.*\]/.test(raw)) return true;
+  if (/^Δ?[A-Z][a-z]?([A-Z][a-z]?)+[\d_^+\-−]*/.test(t)) return true;
+  if (/HSO|H_2O|O_2|CO_2|Na_|SO_|OH|Cl_|NO_/.test(t) && /[A-Za-z]{2,}/.test(t)) return true;
+  return false;
+}
+
+/** 從行文中推斷離子／物種標籤（供 NOTE 用） */
+function inferChemSpeciesLabel(lineText) {
+  const t = String(lineText || '');
+  if (/HSO[\s_₃3⁻\-]|亞硫酸氫/.test(t)) return 'HSO₃⁻';
+  if (/SO[\s_₄4]|硫酸根/.test(t)) return 'SO₄²⁻';
+  if (/\[?\s*OH[\s_⁻\-]|氫氧根/.test(t)) return 'OH⁻';
+  if (/\[?\s*H\^?\+|氫離子/.test(t)) return 'H⁺';
+  if (/Cl[\s_⁻\-]|氯離子/.test(t)) return 'Cl⁻';
+  const m = t.match(/\[([A-Z][A-Za-z0-9_^+\-−]+)\]/);
+  if (m) {
+    return m[1]
+      .replace(/_(\d+)/g, (_, d) => d)
+      .replace(/\^-/g, '⁻')
+      .replace(/\^(\d+)/g, (_, d) => d);
+  }
+  return '';
+}
+
+function inferFullSciNotationNote(lineText, coef, exp) {
+  const sp = inferChemSpeciesLabel(lineText);
+  if (sp && (/濃度|莫耳濃度|\[/.test(lineText) || /HSO|SO_|OH|反應速率|速率/.test(lineText))) {
+    return `${sp}濃度`;
+  }
+  if (/莫耳數/.test(lineText)) return '莫耳數';
+  if (/速率|反應速度/.test(lineText)) return '濃度（用於速率計算）';
+  if (/K_|平衡常數|pH/.test(lineText)) return `平衡常數相關（${coef}×10^${exp}）`;
+  return `${coef}×10^${exp}`;
+}
+
+function inferVariableNote(el, lineText) {
+  const txt = (el.textContent || '').trim();
+  if (!/^[a-zA-Z]$/.test(txt)) return null;
+  if (el.closest('.mord.mathrm, .mathrm')) return null;
+  const t = String(lineText || '');
+  if ((txt === 'x' || txt === 'X') && /Fe|鐵/.test(t) && /百分|w_|質量分率|質量百分/.test(t)) {
+    return 'Fe 質量百分率';
+  }
+  if (txt === 'y' && /乙酸|酯|莫耳分率|混合|碳原子/.test(t)) return '待求莫耳分率 y';
+  if (txt === 'y' && /百分|質量/.test(t)) return '待求質量百分率 y';
+  return null;
+}
+
+function isInsideChemFormula(el) {
+  if (!el) return false;
+  if (el.closest('.mord.mathrm, .mathrm')) return true;
+  const vlistTop = el.closest('.mfrac .vlist-t');
+  if (vlistTop && isChemFormulaPartText(vlistTop.textContent || '')) return true;
+  const line = el.closest('.plain-line-inner, .board-line-inner')?.textContent || '';
+  const t = (el.textContent || '').trim();
+  if (/^[A-Za-z]$/.test(t) && /HSO|H_2O|O_2|CO_2|Na_|SO_|Cl_|NO_|Δ\[/.test(line)) return true;
+  if (/^[A-Za-z0-9+\-−^]+$/.test(t) && /HSO|OH|SO_/.test(t)) return true;
+  return false;
+}
+
+function stripChemFormulaNotes(root) {
+  root.querySelectorAll('.katex .mord.mathrm, .katex .mathrm').forEach(el => {
+    el.classList.remove('math-note', 'active');
+    el.removeAttribute('data-note');
+    el.removeAttribute('note');
+    el.querySelectorAll('.math-note, [data-note], [note]').forEach(c => {
+      c.classList.remove('math-note', 'active');
+      c.removeAttribute('data-note');
+      c.removeAttribute('note');
+    });
+  });
+  root.querySelectorAll('.katex .mfrac .vlist-t').forEach(vt => {
+    if (!isChemFormulaPartText(vt.textContent || '')) return;
+    vt.querySelectorAll('.mord, .mathnormal, .mord.mathrm, .mbin, .mrel, [data-note], .math-note').forEach(el => {
+      el.classList.remove('math-note', 'active');
+      el.removeAttribute('data-note');
+      el.removeAttribute('note');
+    });
+  });
+  root.querySelectorAll('.katex .mord, .katex .mathnormal').forEach(el => {
+    if (!isInsideChemFormula(el)) return;
+    el.classList.remove('math-note', 'active');
+    el.removeAttribute('data-note');
+    el.removeAttribute('note');
+  });
+  root.querySelectorAll('.katex .mfrac.math-note').forEach(mfrac => {
+    const raw = (mfrac.textContent || '').replace(/\s/g, '');
+    if (/^[A-Za-z0-9+\-−^_().\[\]\\mathrm{}]+$/.test(raw) && /[A-Z]{2,}/.test(raw) && !/\d+\.?\d*×|×10|\{10\}/.test(raw)) {
+      mfrac.classList.remove('math-note', 'active');
+      mfrac.removeAttribute('data-note');
+    }
+  });
+}
+
+/** 化學式在數學模式中改為 \\mathrm，避免 H、S、O 等被 KaTeX 拆開顯示 */
+function normalizeChemSpeciesInMath(tex) {
+  const saved = [];
+  let t = stashHtmlData(tex, saved, 'P');
+  t = stashLatexCmd(t, saved, 'P', 'mathrm');
+  t = stashLatexCmd(t, saved, 'P', 'text');
+  t = stashLatexCmd(t, saved, 'P', 'textbf');
+
+  function looksLikeChemSpecies(s) {
+    const x = String(s || '').trim();
+    if (!x || x.length > 48 || /\x00P/.test(x)) return false;
+    if (!/[A-Z]/.test(x)) return false;
+    if (/[A-Z][a-z]?[A-Z]/.test(x)) return true;
+    if (/[_\^]/.test(x) && /[A-Za-z]{1,}/.test(x)) return true;
+    return false;
+  }
+
+  t = t.replace(/\[([A-Za-z0-9_^{}\-+−\\boldsymbol{}]+)\]/g, (m, species) => {
+    if (!looksLikeChemSpecies(species)) return m;
+    return `[\\mathrm{${species}}]`;
+  });
+
+  t = t.replace(/\(([A-Z][A-Za-z0-9_^{}\-+−\\boldsymbol{}]+)\)/g, (m, species) => {
+    if (!looksLikeChemSpecies(species)) return m;
+    return `(\\mathrm{${species}})`;
+  });
+
+  const commonFormulas = ['H_2O', 'O_2', 'CO_2', 'N_2', 'Cl_2', 'H_2', 'Na_2S_2O_5', 'NaHSO_3', 'SO_2', 'NH_3'];
+  for (const f of commonFormulas) {
+    const re = new RegExp(`(?<![A-Za-z\\\\])${f.replace(/_/g, '_')}(?![A-Za-z])`, 'g');
+    t = t.replace(re, `\\mathrm{${f}}`);
+  }
+
+  return restoreStashed(t, saved, 'P');
 }
 
 /** 反應變化表：拉開欄距與列距，hline 不壓到分母 */
@@ -348,8 +604,8 @@ function enhanceMath(tex) {
   let t = normalizeHtmlDataNotes(ensureRenderableInlineMath(tex))
     .replace(/\\frac\b/g, '\\dfrac')
     .replace(/\\tfrac\b/g, '\\dfrac')
-    .replace(/\\htmlData\{data-note\s*=/g, '\\htmlData{note=')
-    .replace(/\\htmlData\{note=(?:代入數值|待補|數值|分子|分母)\}\{([^}]*)\}/g, '$1')
+    .replace(/\\htmlData\{data-note\s*=/g, '\\htmlData{note=');
+  t = stripTrivialHtmlDataNotes(t)
     .replace(/⇌/g, '\\rightleftharpoons ')
     .replace(/↔/g, '\\leftrightarrow ')
     .replace(/→/g, '\\rightarrow ');
@@ -359,6 +615,8 @@ function enhanceMath(tex) {
   });
   t = fixSlashFractions(t);
   t = fixScientificNotation(t);
+  t = normalizeChemUnitsInMath(t);
+  t = normalizeChemSpeciesInMath(t);
   t = prepareArrayMath(t);
   t = enrichMathNotes(t);
   t = emphasizeIonCharges(t);
@@ -489,7 +747,8 @@ function extractPlainAnswer(raw) {
 function buildAnswerBoxHtml(answerText) {
   const t = String(answerText || '').trim();
   if (!t) return '';
-  const safe = /\$/.test(t) ? t : esc(t);
+  const body = /^答[：:]/.test(t) ? t : `答：${t}`;
+  const safe = /\$/.test(body) ? body : esc(body);
   return `<div class="answer-box answer-box--final">${safe}</div>`;
 }
 
@@ -798,6 +1057,9 @@ function enhanceMathSolve(tex) {
     .replace(/\\frac\b/g, '\\dfrac')
     .replace(/\\tfrac\b/g, '\\dfrac');
   t = fixSlashFractions(t);
+  t = fixScientificNotation(t);
+  t = normalizeChemUnitsInMath(t);
+  t = normalizeChemSpeciesInMath(t);
   const isInline = t.startsWith('$') && !t.startsWith('$$');
   if (isInline && /\\dfrac/.test(t) && !/\\displaystyle/.test(t) && !/\\begin\{/.test(t)) {
     t = t.replace(/^\$/, '$\\displaystyle ');
@@ -864,6 +1126,22 @@ function wrapPlainLines(html) {
   }).join('');
 }
 
+function unknownVariableInFormula(formula) {
+  const inner = String(formula || '').replace(/^\$\$?|\$\$?$/g, '');
+  const m = inner.match(/(^|[^A-Za-z\\])([xyz])([^A-Za-z]|$)/i);
+  return m ? m[2] : '';
+}
+
+function shouldCommaAfterUnknownEquation(formula, punct, rest) {
+  if (!/[。.．]/.test(punct || '')) return false;
+  const v = unknownVariableInFormula(formula);
+  if (!v) return false;
+  const next = String(rest || '').trimStart();
+  if (!next.startsWith('$')) return false;
+  const re = new RegExp(`^\\$\\s*(?:\\\\displaystyle\\s*)?${v}\\s*=`, 'i');
+  return re.test(next);
+}
+
 /** 對齊 solve.html 的 render()：先保護數學式、再 esc／分行 */
 function renderSolveStyle(raw) {
   const { body: rawBody, answerText } = extractPlainAnswer(raw);
@@ -877,7 +1155,9 @@ function renderSolveStyle(raw) {
     )
   ));
 
-  s = s.replace(mathPattern, (m, formula, punct = '') => {
+  s = s.replace(mathPattern, (m, formula, punct = '', offset, src) => {
+    const rest = String(src || '').slice(offset + m.length);
+    if (shouldCommaAfterUnknownEquation(formula, punct, rest)) punct = '，';
     const enhanced = enhanceMathSolve(formula);
     if (typeof splitPlainReactionArray === 'function') {
       const stacked = splitPlainReactionArray(enhanced);
@@ -911,7 +1191,7 @@ function renderSolveStyle(raw) {
   s = s.replace(/(<strong>答[：:][^<]*<\/strong>)/g, '');
   s = s.replace(/^\s*答[：:][^\n]*$/gm, '');
   if (isMobileViewport()) s = splitPlainTextAtPeriod(s);
-  s = wrapPlainLines(s);
+  s = (typeof layoutPlainSolveText === 'function') ? layoutPlainSolveText(s) : wrapPlainLines(s);
   math.forEach((m, i) => { s = s.replace(`\x00M${i}\x00`, m); });
   annos.forEach((html, i) => { s = s.replace(`\x00A${i}\x00`, html); });
   if (hasAnno) s = '<div class="anno-hint">點擊標籤查看意義</div>' + s;
@@ -989,17 +1269,58 @@ function hideMathNote() {
   ensureMathNotePopover().classList.remove('show');
 }
 
+function isRawLatexNote(note) {
+  const s = String(note || '').trim();
+  if (!s) return true;
+  return /\\[a-zA-Z@]|mskip|\{10\}|\\times|\\frac|\\mathrm|\\text|\\!/.test(s);
+}
+
+function resolveMathNote(el) {
+  const lineText = el.closest('.board-line-inner, .plain-line-inner')?.innerText || '';
+  let note = (el.dataset?.note || el.getAttribute('data-note') || el.getAttribute('note') || '').trim();
+
+  const sciWrap = el.classList?.contains('math-note--sci') ? el : el.closest('.math-note--sci');
+  if (sciWrap) {
+    const readable = sciWrap.dataset?.note || sciWrap.getAttribute('data-note') || '';
+    if (readable && !isRawLatexNote(readable)) return readable;
+    const raw = (sciWrap.textContent || '').replace(/\s/g, '');
+    const m = raw.match(/^(\d+(?:\.\d+)?)[×x]?10[−-]?(\d+)/i);
+    if (m) return inferFullSciNotationNote(lineText, m[1], `-${m[2]}`);
+    return inferChemSpeciesLabel(lineText) ? `${inferChemSpeciesLabel(lineText)}濃度` : '數值';
+  }
+
+  if (note && !isRawLatexNote(note)) return note;
+
+  const fracPart = el.closest('.math-note--frac-part');
+  if (fracPart?.dataset?.note && !isRawLatexNote(fracPart.dataset.note)) return fracPart.dataset.note;
+
+  const mord = el.closest('.mord');
+  if (mord?.dataset?.note && !isRawLatexNote(mord.dataset.note)) return mord.dataset.note;
+
+  const vlistB = el.closest('.vlist-b');
+  const vlistT = el.closest('.vlist-t');
+  const txt = (mord?.textContent || el.textContent || '').trim();
+  if (vlistB && /^-?\d+(\.\d+)?$/.test(txt)) {
+    return inferFractionPartNote(lineText, 'bot', vlistB.textContent || '') || '分母';
+  }
+  if (vlistT && /^-?\d+(\.\d+)?$/.test(txt)) {
+    return inferFractionPartNote(lineText, 'top', vlistT.textContent || '') || '分子';
+  }
+  return note && !isRawLatexNote(note) ? note : '';
+}
+
 function showMathNote(el) {
   const pop = ensureMathNotePopover();
-  const note = el.dataset.note || el.getAttribute('data-note') || el.getAttribute('note');
+  const note = resolveMathNote(el);
   if (!note) return;
   document.querySelectorAll('.math-note.active').forEach(item => {
-    if (item !== el) item.classList.remove('active');
+    if (item !== el && !el.contains(item) && !item.contains(el)) item.classList.remove('active');
   });
   el.classList.add('active');
   pop.textContent = note;
   pop.classList.add('show');
-  const rect = el.getBoundingClientRect();
+  const anchor = el.closest('.math-note--frac-part, .math-note--sci') || el;
+  const rect = anchor.getBoundingClientRect();
   const popRect = pop.getBoundingClientRect();
   let left = rect.left + rect.width / 2 - popRect.width / 2;
   left = Math.max(12, Math.min(left, window.innerWidth - popRect.width - 12));
@@ -1009,13 +1330,40 @@ function showMathNote(el) {
   pop.style.top = `${top}px`;
 }
 
+function findMathNoteClickTarget(e, root) {
+  const hit = e.target;
+  if (!root.contains(hit)) return null;
+
+  const vlistB = hit.closest('.katex .vlist-b');
+  if (vlistB) {
+    const part = hit.closest('.math-note--frac-part');
+    if (part && vlistB.contains(part)) return part;
+    const mord = hit.closest('.mord');
+    if (mord && vlistB.contains(mord)) return mord.closest('.math-note--frac-part') || mord;
+  }
+  const vlistT = hit.closest('.katex .vlist-t');
+  if (vlistT) {
+    const part = hit.closest('.math-note--frac-part');
+    if (part && vlistT.contains(part)) return part;
+    const mord = hit.closest('.mord');
+    if (mord && vlistT.contains(mord)) return mord.closest('.math-note--frac-part') || mord;
+  }
+
+  const sci = hit.closest('.math-note--sci');
+  if (sci) return sci;
+
+  const marked = hit.closest('.math-note--frac-part, [data-note], .math-note');
+  if (marked && !isInsideChemFormula(marked)) return marked;
+  return null;
+}
+
 function inferNoteFromKatexEl(el) {
   const txt = (el.textContent || '').trim();
   if (!/^-?\d+(\.\d+)?$/.test(txt)) return null;
   if (el.getAttribute('data-note') || el.hasAttribute('note')) return null;
 
   const katexRoot = el.closest('.katex');
-  const lineText = el.closest('.board-line-inner')?.innerText || '';
+  const lineText = el.closest('.board-line-inner, .plain-line-inner')?.innerText || '';
   const formulaText = katexRoot?.textContent || '';
 
   let prev = '';
@@ -1092,6 +1440,18 @@ function inferNoteFromKatexEl(el) {
 
   if (/莫耳數/.test(lineText) && txt === '1') return '莫耳數';
   if (/原子數/.test(lineText) && /[×]/.test(prev)) return '每分子原子數';
+  if (/W$/.test(txt) || txt === 'W') {
+    const prevTxt = el.previousElementSibling?.textContent?.trim() || '';
+    if (/溶質/.test(lineText)) return '溶質質量';
+    if (/溶劑/.test(lineText)) return '溶劑質量';
+    if (/總重|溶液/.test(lineText)) return '溶液總重';
+    if (/濃度/.test(lineText)) return /^\d/.test(prevTxt) ? '質量' : '溶液組成';
+  }
+  if (/^\d/.test(txt) && /W/.test(next)) {
+    if (/溶質/.test(lineText)) return '溶質質量';
+    if (/溶劑/.test(lineText)) return '溶劑質量';
+    if (/總重|溶液/.test(lineText)) return '溶液總重';
+  }
 
   return null;
 }
@@ -1117,14 +1477,35 @@ function inferFractionPartNote(lineText, part, blockText) {
   if (/莫耳數|分子數|原子數/.test(t) && /分子量|質量/.test(t)) {
     return part === 'top' ? '總質量' : '分子量';
   }
-  if (/混合|稀釋/.test(t)) {
+  if (/反應速率|反應速度|速率/.test(t) || /\bv\s*=/.test(t)) {
+    if (part === 'bot' && /^\d/.test(bt)) return '反應時間（秒）';
+    if (part === 'top' && /^\d/.test(bt)) return '濃度變化量';
+  }
+  if (/濃度|莫耳濃度/.test(t)) {
+    if (part === 'top' && (/\{10\}|10|\\times|×/.test(bt))) {
+      const sp = inferChemSpeciesLabel(t);
+      return sp ? `${sp}濃度` : '離子濃度';
+    }
+    if (part === 'bot' && /^\d/.test(bt) && !/\{10\}|×/.test(bt)) {
+      if (/總體積|體積|混合後/.test(t)) return '混合後總體積';
+      return '分母';
+    }
+  }
+  if (/(?:取用|取出).{0,8}體積|稀釋.{0,8}體積/.test(t) && !/濃度/.test(t)) {
     return part === 'top' ? '取用體積' : '混合後總體積';
   }
-  if (/反應速率|反應速度|速率/.test(t) || /\bv\s*=/.test(t)) {
-    if (part === 'bot') return '時間（秒）';
-    if (part === 'top') return '濃度變化量';
+  if (/Δ\s*\[|Δ\[/.test(t) && part === 'top' && /^\d/.test(bt)) return '濃度變化量';
+  if (/濃度/.test(t)) {
+    if (part === 'top' && /\{10\}|×|10\^/.test(bt)) {
+      const sp = inferChemSpeciesLabel(t);
+      return sp ? `${sp}濃度` : '分子';
+    }
+    if (part === 'top') return /W/.test(bt) ? '溶質質量' : '分子';
+    if (part === 'bot') return /W/.test(bt) ? '溶液總重' : '分母';
   }
-  if (/Δ\s*\[|Δ\[/.test(t) && part === 'top') return '濃度變化量';
+  if (/溶質/.test(t) && part === 'top') return '溶質質量';
+  if (/溶劑/.test(t) && part === 'top') return '溶劑質量';
+  if (/總重|溶液/.test(t) && part === 'bot') return '溶液總重';
   return null;
 }
 
@@ -1137,20 +1518,92 @@ function inferWholeFractionNote(lineText, blockText) {
   if (/莫耳數/.test(t)) return '莫耳數換算式';
   if (/分子數|原子數/.test(t)) return '粒子數換算式';
   if (/百分比|%/.test(t)) return '百分比換算式';
+  if (/濃度/.test(t)) return '重量百分率（溶質／溶液）';
   return '';
+}
+
+/** 純詳解：中文敘述中的係數（如 0.8725W）補 NOTE */
+function annotatePlainTextCoeffs(root) {
+  root.querySelectorAll('.ai-plain .plain-line-inner, .ai-plain .choice-step .plain-line-inner').forEach(inner => {
+    if (inner.dataset.plainCoeffsDone) return;
+    const lineText = inner.textContent || '';
+    const walker = document.createTreeWalker(inner, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.parentElement?.closest('.katex, .math-note, [data-note], script, style')) continue;
+      textNodes.push(node);
+    }
+    for (const node of textNodes) {
+      const val = node.nodeValue || '';
+      if (!/[\d.]+\s*W|\d\.\d+/.test(val)) continue;
+      const re = /(\d+(?:\.\d+)?)\s*W\b|(\d+\.\d+)(?=[^0-9]|$)/g;
+      let match;
+      let last = 0;
+      const frag = document.createDocumentFragment();
+      let changed = false;
+      while ((match = re.exec(val))) {
+        const full = match[0];
+        if (match.index > last) frag.appendChild(document.createTextNode(val.slice(last, match.index)));
+        const span = document.createElement('span');
+        span.className = 'math-note';
+        let note = '質量';
+        if (/溶質/.test(lineText)) note = '溶質質量';
+        else if (/溶劑/.test(lineText)) note = '溶劑質量';
+        else if (/總重|溶液/.test(lineText)) note = '溶液總重';
+        else if (/濃度/.test(lineText) && /≈|≠|=/.test(val.slice(match.index))) note = '濃度計算結果';
+        span.dataset.note = note;
+        span.textContent = full;
+        frag.appendChild(span);
+        last = match.index + full.length;
+        changed = true;
+      }
+      if (changed) {
+        if (last < val.length) frag.appendChild(document.createTextNode(val.slice(last)));
+        node.parentNode?.replaceChild(frag, node);
+      }
+    }
+    inner.dataset.plainCoeffsDone = '1';
+  });
+}
+
+/** 純詳解：補齊分式整體與 W 係數的 NOTE */
+function annotatePlainKatexExtras(root) {
+  root.querySelectorAll('.ai-plain .plain-line-inner, .ai-plain .choice-step .plain-line-inner').forEach(inner => {
+    const lineText = inner.textContent || '';
+    inner.querySelectorAll('.katex .mord').forEach(m => {
+      if (m.closest('.mfrac') || m.closest('.msupsub') || m.dataset.note || isInsideChemFormula(m)) return;
+      const txt = (m.textContent || '').trim();
+      if (!txt || !/W$/.test(txt)) return;
+      if (!/^\d/.test(txt) && txt !== 'W') return;
+      let note = null;
+      if (/溶質/.test(lineText)) note = '溶質質量';
+      else if (/溶劑/.test(lineText)) note = '溶劑質量';
+      else if (/總重|溶液/.test(lineText)) note = '溶液總重';
+      else if (/濃度/.test(lineText)) note = '質量';
+      if (note) {
+        m.dataset.note = note;
+        m.classList.add('math-note');
+      }
+    });
+  });
 }
 
 function annotateFractionParts(root) {
   root.querySelectorAll('.katex .mfrac').forEach(mfrac => {
-    const lineText = mfrac.closest('.board-line-inner')?.innerText || '';
-    const wholeNote = inferWholeFractionNote(lineText, mfrac.textContent || '');
-    if (wholeNote) {
-      mfrac.dataset.note = wholeNote;
-      mfrac.classList.add('math-note');
-    }
+    const lineText = mfrac.closest('.board-line-inner, .plain-line-inner')?.innerText || '';
     mfrac.querySelectorAll('.vlist-t .mord, .vlist-b .mord').forEach(m => {
-      if (m.closest('.msupsub') || m.dataset.note) return;
-      const note = inferNoteFromKatexEl(m);
+      if (m.closest('.msupsub') || m.dataset.note || isInsideChemFormula(m)) return;
+      if (m.closest('.math-note--sci, [data-note]')) return;
+      if (isPartOfSciNotation(m)) return;
+      const inTop = !!m.closest('.vlist-t');
+      const partRoot = inTop ? mfrac.querySelector('.vlist-t') : mfrac.querySelector('.vlist-b');
+      const partText = partRoot?.textContent || '';
+      if (inTop && isChemFormulaPartText(partText)) return;
+      const txt = (m.textContent || '').trim();
+      if (!/^-?\d+(\.\d+)?$/.test(txt)) return;
+      const note = inferNoteFromKatexEl(m)
+        || inferFractionPartNote(lineText, inTop ? 'top' : 'bot', partText);
       if (!note) return;
       m.dataset.note = note;
       m.classList.add('math-note');
@@ -1159,7 +1612,8 @@ function annotateFractionParts(root) {
 }
 
 function isPartOfSciNotation(el) {
-  if (!el?.classList?.contains('mord')) return false;
+  if (!el) return false;
+  if (el.closest('.math-note--sci')) return true;
   const t = (el.textContent || '').trim();
   if (t === '1') {
     const mid = el.nextElementSibling;
@@ -1173,11 +1627,106 @@ function isPartOfSciNotation(el) {
     return lead?.classList.contains('mord') && lead.textContent.trim() === '1'
       && sup?.classList.contains('msupsub') && /^-?\d+$/.test(sup.textContent.trim());
   }
+  if (t === '10' && el.nextElementSibling?.classList.contains('msupsub')) return true;
+  if (el.classList.contains('mord') && el.querySelector(':scope > .msupsub') && /^10/.test(t)) return true;
+  const prev = el.previousElementSibling;
+  if (prev?.classList.contains('mbin') && /[×⋅]/.test(prev.textContent || '')) {
+    const ten = el.nextElementSibling;
+    if (ten?.classList.contains('mord') && ten.textContent.trim() === '10' && ten.nextElementSibling?.classList.contains('msupsub')) {
+      return true;
+    }
+    if (el.classList.contains('mord') && /^\d/.test(t) && ten?.classList.contains('mord') && /^10?$/.test(ten.textContent.trim())) {
+      return true;
+    }
+  }
+  if (el.classList.contains('mbin') && /[×⋅]/.test(t)) {
+    const a = el.previousElementSibling;
+    const b = el.nextElementSibling;
+    if (a?.classList.contains('mord') && /^\d/.test(a.textContent.trim())
+      && b?.classList.contains('mord') && (b.textContent.trim() === '10' || b.textContent.trim() === '1')) {
+      return true;
+    }
+  }
+  if (el.classList.contains('mord') && /^\d/.test(t)) {
+    const next = el.nextElementSibling;
+    if (next?.classList.contains('mbin') && /[×⋅]/.test(next.textContent || '')) {
+      const ten = next.nextElementSibling;
+      if (ten?.classList.contains('mord') && /^10?$/.test(ten.textContent.trim())) return true;
+    }
+  }
   return false;
+}
+
+function parseTenPower(nodes, idx) {
+  const node = nodes[idx];
+  if (!node?.classList?.contains('mord')) return null;
+  const t0 = node.textContent.trim().replace(/−/g, '-');
+  const supInside = node.querySelector(':scope > .msupsub');
+  if (supInside) {
+    let e = supInside.textContent.trim().replace(/−/g, '-');
+    if (/^10/.test(t0)) {
+      const m = t0.match(/^10(-?\d+)$/);
+      if (m) e = m[1];
+      if (/^-?\d+$/.test(e)) return { start: idx, end: idx, exp: e };
+    }
+  }
+  if (t0 === '10' && nodes[idx + 1]?.classList.contains('msupsub')) {
+    const e = nodes[idx + 1].textContent.trim().replace(/−/g, '-');
+    if (/^-?\d+$/.test(e)) return { start: idx, end: idx + 1, exp: e };
+  }
+  if (t0 === '1' && nodes[idx + 1]?.classList.contains('mord')
+    && nodes[idx + 1].textContent.trim() === '0'
+    && nodes[idx + 2]?.classList.contains('msupsub')) {
+    const e = nodes[idx + 2].textContent.trim().replace(/−/g, '-');
+    if (/^-?\d+$/.test(e)) return { start: idx, end: idx + 2, exp: e };
+  }
+  return null;
+}
+
+function matchSciNotationRun(nodes, fromIndex) {
+  const a = nodes[fromIndex];
+  if (!a) return null;
+
+  if (a.classList?.contains('mord')) {
+    const coefTxt = (a.textContent || '').trim();
+    if (/^\d/.test(coefTxt)) {
+      const times = nodes[fromIndex + 1];
+      if (times?.classList.contains('mbin') && /[×⋅]/.test(times.textContent || '')) {
+        const ten = parseTenPower(nodes, fromIndex + 2);
+        if (ten) {
+          return {
+            start: fromIndex,
+            end: ten.end,
+            exp: ten.exp,
+            coef: coefTxt.match(/^\d+(?:\.\d+)?/)?.[0] || coefTxt
+          };
+        }
+      }
+    }
+  }
+
+  const ten = parseTenPower(nodes, fromIndex);
+  if (!ten) return null;
+
+  let start = ten.start;
+  let coef = '';
+  const before = nodes[start - 1];
+  if (before?.classList.contains('mbin') && /[×⋅]/.test(before.textContent || '')) {
+    start -= 1;
+    const coefEl = nodes[start - 1];
+    const coefTxt = (coefEl?.textContent || '').trim();
+    if (coefEl && /^\d/.test(coefTxt)) {
+      coef = coefTxt.match(/^\d+(?:\.\d+)?/)?.[0] || coefTxt;
+      start -= 1;
+    }
+  }
+  return { start, end: ten.end, exp: ten.exp, coef };
 }
 
 function inferSciNotationNote(exp, lineText) {
   const e = String(exp || '').trim();
+  const sp = inferChemSpeciesLabel(lineText);
+  if (sp && /濃度|\[|HSO|速率/.test(lineText)) return `${sp}濃度`;
   if (/K_|平衡常數|K_a|K_b|K_{?a}?|K_{?b}?|K_{?sp}?|K_w|K_p/.test(lineText)) {
     return `平衡常數：10${e}`;
   }
@@ -1187,37 +1736,69 @@ function inferSciNotationNote(exp, lineText) {
 
 function wrapScientificNotationGroups(root) {
   root.querySelectorAll('.katex .base').forEach(base => {
-    const nodes = [...base.children];
-    for (let i = 0; i < nodes.length - 2; i++) {
-      const a = nodes[i];
-      const b = nodes[i + 1];
-      const c = nodes[i + 2];
-      if (!a?.classList.contains('mord') || !b?.classList.contains('mord')) continue;
-      if (!c?.classList.contains('msupsub')) continue;
-      if (a.textContent.trim() !== '1' || b.textContent.trim() !== '0') continue;
-      const exp = c.textContent.trim();
-      if (!/^-?\d+$/.test(exp)) continue;
-      if (a.closest('.math-note--sci')) continue;
+    const lineText = base.closest('.board-line-inner, .plain-line-inner')?.innerText || '';
+    let nodes = [...base.children];
+    let i = 0;
+    while (i < nodes.length) {
+      const hit = matchSciNotationRun(nodes, i);
+      if (!hit) { i++; continue; }
+      const slice = nodes.slice(hit.start, hit.end + 1);
+      if (slice.some(n => n.closest?.('.math-note--sci'))) { i++; continue; }
 
-      a.classList.remove('math-note', 'active');
-      b.classList.remove('math-note', 'active');
-      a.removeAttribute('data-note');
-      b.removeAttribute('data-note');
+      slice.forEach(n => {
+        n.classList?.remove('math-note', 'active');
+        n.removeAttribute?.('data-note');
+        n.removeAttribute?.('note');
+        n.querySelectorAll?.('[data-note], [note], .math-note').forEach(c => {
+          c.classList?.remove('math-note', 'active');
+          c.removeAttribute?.('data-note');
+          c.removeAttribute?.('note');
+        });
+      });
 
-      const lineText = base.closest('.board-line-inner')?.innerText || '';
       const wrap = document.createElement('span');
       wrap.className = 'math-note math-note--sci';
-      wrap.dataset.note = inferSciNotationNote(exp, lineText);
-      base.insertBefore(wrap, a);
-      wrap.append(a, b, c);
-      i += 2;
+      const coef = hit.coef || '';
+      const noteText = coef
+        ? inferFullSciNotationNote(lineText, coef, hit.exp)
+        : inferSciNotationNote(hit.exp, lineText);
+      wrap.dataset.note = noteText;
+      base.insertBefore(wrap, nodes[hit.start]);
+      slice.forEach(n => wrap.appendChild(n));
+      nodes = [...base.children];
+      i = hit.start + 1;
     }
   });
+}
+
+function wrapFractionNoteParts(root) {
+  root.querySelectorAll('.katex .mfrac .vlist-t .mord[data-note], .katex .mfrac .vlist-b .mord[data-note]').forEach(m => {
+    if (m.closest('.math-note--frac-part') || isInsideChemFormula(m)) return;
+    const note = m.getAttribute('data-note');
+    if (!note || isRawLatexNote(note)) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'math-note math-note--frac-part';
+    wrap.dataset.note = note;
+    m.parentNode.insertBefore(wrap, m);
+    wrap.appendChild(m);
+    m.classList.remove('math-note', 'active');
+    m.removeAttribute('data-note');
+    m.removeAttribute('note');
+  });
+}
+
+function finalizeMathNotes(root) {
+  wrapScientificNotationGroups(root);
+  wrapFractionNoteParts(root);
+  stripChemFormulaNotes(root);
+  if (typeof bindKatexNumericUnits === 'function') bindKatexNumericUnits(root);
+  if (typeof wrapKatexNowrap === 'function') wrapKatexNowrap(root);
 }
 
 function annotateOrphanKatexNumbers(root) {
   root.querySelectorAll('.katex .mord, .katex .mord.mathnormal').forEach(el => {
     if (isPartOfSciNotation(el)) return;
+    if (isInsideChemFormula(el)) return;
     if (el.closest('.mfrac')) return;
     if (el.closest('[data-note], [note]')) return;
     if (el.getAttribute('data-note') || el.classList.contains('math-note')) return;
@@ -1226,14 +1807,24 @@ function annotateOrphanKatexNumbers(root) {
     el.setAttribute('data-note', note);
     el.classList.add('math-note');
   });
+  root.querySelectorAll('.katex .mathnormal, .katex .mord.mathnormal').forEach(el => {
+    if (isInsideChemFormula(el)) return;
+    if (el.closest('.mfrac, .msupsub, .math-note--sci')) return;
+    if (el.getAttribute('data-note') || el.classList.contains('math-note')) return;
+    const lineText = el.closest('.board-line-inner, .plain-line-inner')?.innerText || '';
+    const note = inferVariableNote(el, lineText);
+    if (!note) return;
+    el.setAttribute('data-note', note);
+    el.classList.add('math-note');
+  });
   root.querySelectorAll('.katex [data-note-from], .katex [data-note]').forEach(el => {
+    if (isInsideChemFormula(el)) return;
     const note = el.getAttribute('data-note-from') || el.getAttribute('data-note');
     if (!note) return;
     el.dataset.note = note;
     el.classList.add('math-note');
   });
   annotateFractionParts(root);
-  wrapScientificNotationGroups(root);
 }
 
 function recoverUnrenderedHtmlDataNotes(root) {
@@ -1281,8 +1872,13 @@ function recoverUnrenderedHtmlDataNotes(root) {
 
 function initMathNotes(root) {
   const mark = el => {
-    const note = el.getAttribute('data-note') || el.getAttribute('note');
-    if (!note) return;
+    let note = el.getAttribute('data-note') || el.getAttribute('note');
+    if (!note || isRawLatexNote(note)) {
+      el.removeAttribute('data-note');
+      el.removeAttribute('note');
+      el.classList.remove('math-note');
+      return;
+    }
     el.dataset.note = note;
     el.classList.add('math-note');
   };
@@ -1293,9 +1889,9 @@ function initMathNotes(root) {
   if (!root._mathNoteClickBound) {
     root._mathNoteClickBound = true;
     root.addEventListener('click', e => {
-      const el = e.target.closest('[data-note], [note], .math-note, .katex [data-note]');
-      if (!el || !root.contains(el)) return;
-      const note = el.dataset.note || el.getAttribute('data-note') || el.getAttribute('note');
+      const el = findMathNoteClickTarget(e, root);
+      if (!el) return;
+      const note = resolveMathNote(el);
       if (!note) return;
       e.stopPropagation();
       e.preventDefault();
@@ -1458,25 +2054,23 @@ function fixKatexErrors(root) {
 function wrapPlainMathScroll(root) {
   if (!root) return;
   const containers = root.querySelectorAll(
-    '.ai-plain .plain-line-inner, .ai-plain .choice-body'
+    '.ai-plain .plain-line-inner, .ai-plain .choice-step .plain-line-inner'
   );
+  const markHorizontalScroll = (inner) => {
+    const hasMath = inner.querySelector('.katex, .math-block, .math-unit-tail, .math-note--sci');
+    const mathy = hasMath
+      || /[≈≠＝=]/.test(inner.textContent || '')
+      || /\\frac|\\dfrac/.test(inner.innerHTML || '')
+      || /Δ\[|M\s*s|×\s*10|×\{10\}/.test(inner.textContent || '');
+    if (mathy || inner.scrollWidth > inner.clientWidth + 2) {
+      inner.classList.add('plain-line--hscroll');
+    } else {
+      inner.classList.remove('plain-line--hscroll');
+    }
+  };
   containers.forEach(inner => {
-    const toWrap = [];
     inner.querySelectorAll('.reaction-table-stacked, .math-unit-tail, .math-block, .katex-display').forEach(el => {
-      if (!el.closest('.plain-math-scroll')) toWrap.push(el);
-    });
-    inner.querySelectorAll('span.katex').forEach(el => {
-      if (el.closest('.plain-math-scroll, .math-block, .math-unit-tail, .reaction-table-stacked, .katex-display')) return;
-      toWrap.push(el);
-    });
-    toWrap.sort((a, b) => {
-      const pos = a.compareDocumentPosition(b);
-      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-      return 0;
-    });
-    for (const el of toWrap) {
-      if (!el.parentNode || el.closest('.plain-math-scroll')) continue;
+      if (el.closest('.plain-math-scroll')) return;
       const wrap = document.createElement('span');
       const isBlock = el.classList.contains('math-block')
         || el.classList.contains('reaction-table-stacked')
@@ -1484,7 +2078,11 @@ function wrapPlainMathScroll(root) {
       wrap.className = isBlock ? 'plain-math-scroll plain-math-scroll--block' : 'plain-math-scroll';
       el.parentNode.insertBefore(wrap, el);
       wrap.appendChild(el);
-    }
+    });
+    markHorizontalScroll(inner);
+    requestAnimationFrame(() => markHorizontalScroll(inner));
+    setTimeout(() => markHorizontalScroll(inner), 80);
+    setTimeout(() => markHorizontalScroll(inner), 320);
   });
 }
 
@@ -1507,7 +2105,19 @@ function doKaTeX(el, { plain = !BOARD_LAYOUT_ENABLED } = {}) {
       if (typeof keepMathUnitTails === 'function') keepMathUnitTails(el);
       wrapPlainMathScroll(el);
       recoverUnrenderedHtmlDataNotes(el);
+      annotateOrphanKatexNumbers(el);
+      annotatePlainKatexExtras(el);
+      annotatePlainTextCoeffs(el);
+      finalizeMathNotes(el);
       initMathNotes(el);
+      setTimeout(() => {
+        wrapPlainMathScroll(el);
+        annotateOrphanKatexNumbers(el);
+        annotatePlainKatexExtras(el);
+        annotatePlainTextCoeffs(el);
+        finalizeMathNotes(el);
+        initMathNotes(el);
+      }, 350);
       return;
     }
     adjustReactionTableSpacing(el);
@@ -1516,6 +2126,7 @@ function doKaTeX(el, { plain = !BOARD_LAYOUT_ENABLED } = {}) {
     recoverUnrenderedHtmlDataNotes(el);
     adjustReactionTableSpacing(el);
     annotateOrphanKatexNumbers(el);
+    finalizeMathNotes(el);
     initMathNotes(el);
     initBoardLinePan(el);
   } catch (err) {

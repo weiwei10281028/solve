@@ -281,7 +281,7 @@ async function buildDatabaseUserBlock(userInput = '') {
   if (match?.tier === 1 || match?.tier === 2) {
     const block = getLastDatabaseInject();
     if (block) {
-      return `\n\n${block}\n\n【硬性規定】以上為資料庫權威詳解，與圖片同時閱讀；方法不可更改。排版請仿照此詳解（每句「。」後換行、各步驟獨立一行、算式不與多句敘述擠在同一行）。`;
+      return `\n\n${block}\n\n【硬性規定】以上為資料庫權威詳解，與圖片同時閱讀；方法不可更改。排版請仿照此詳解（句號後換行、選項內步驟垂直排列、總重／濃度等標籤與算式同一行）；數字依新題驗算。`;
     }
   }
   const parts = [buildTier3UserCheatsheet(entries)];

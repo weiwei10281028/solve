@@ -1,7 +1,8 @@
-/** 純詳解模式：選項 (A)～(E) 上下排列＋說明文字懸掛縮排 */
+/** 純詳解模式：選項 (A)～(E) 上下排列＋說明文字懸掛縮排；多行收進同一選項；步驟標籤併算式 */
 
 const CHOICE_LABEL_RE = /^(?:\(|（)([A-E])(?:\)|）)\s*(.*)$/s;
 const PUNCT_ONLY_RE = /^[、,，.。；;：:\s]+$/;
+const CHEM_STEP_LABEL_RE = /^(?:總溶質|總重|溶質|溶液|濃度|分子量|原子數|莫耳數|莫耳分率|體積|質量|分壓|密度|係數|反應量|剩餘率|變化量|初始|變化|結果)$/;
 
 function isPunctuationOnly(text) {
   const t = String(text || '').trim();
@@ -63,6 +64,193 @@ function splitInlineChoices(text) {
 function buildChoiceOptionHtml(letter, body) {
   const inner = body || '&nbsp;';
   return `<div class="choice-option"><span class="choice-label">(${letter})</span><div class="choice-body">${inner}</div></div>`;
+}
+
+function isChemStepLabelLine(text) {
+  const t = String(text || '').trim().replace(/[：:，,。.．；;]+$/, '');
+  if (!t || t.length > 10) return false;
+  return CHEM_STEP_LABEL_RE.test(t);
+}
+
+function lineLooksLikeMathContinuation(line) {
+  const t = String(line || '').trim();
+  if (!t || isChemStepLabelLine(t) || isChoiceOptionLine(t)) return false;
+  if (isAnswerCitationLine(t) || /^答[：:]/.test(t)) return false;
+  return /\x00M\d+\x00|\$|\\dfrac|\\frac|\\times|≈|＝|=/u.test(t) || /^\d/.test(t);
+}
+
+/** 行尾為「，濃度」「，總重」等、下一行是算式 → 併成同一行 */
+function lineEndsAwaitingMath(text) {
+  const t = String(text || '').trim();
+  if (!t || /[。.．！？]$/.test(t)) return false;
+  if (/[：:]$/.test(t)) return true;
+  if (/[\x00]M\d+[\x00]\s*[，,]$/.test(t)) return true;
+  return /(?:，|,|：|:|\s)(溶劑|溶質|總重|濃度|溶液|分子量|莫耳數|體積|質量|分壓|反應量|剩餘率)\s*$/.test(t);
+}
+
+function mergeTailLabelWithNextMath(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let cur = String(lines[i] ?? '');
+    while (
+      i + 1 < lines.length
+      && lineEndsAwaitingMath(cur)
+      && lineLooksLikeMathContinuation(lines[i + 1])
+    ) {
+      cur = `${cur.trim()} ${String(lines[i + 1]).trim()}`;
+      i++;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+function mergeSplitWordLines(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let cur = String(lines[i] ?? '');
+    while (i + 1 < lines.length) {
+      const ct = cur.trimEnd();
+      const nt = String(lines[i + 1] ?? '').trimStart();
+      if (/總$/.test(ct) && /^重/.test(nt)) {
+        cur = ct + nt;
+        i++;
+        continue;
+      }
+      if (/溶$/.test(ct) && /^質/.test(nt)) {
+        cur = ct + nt;
+        i++;
+        continue;
+      }
+      if (/分$/.test(ct) && /^子/.test(nt)) {
+        cur = ct + nt;
+        i++;
+        continue;
+      }
+      if (/濃$/.test(ct) && /^度/.test(nt)) {
+        cur = ct + nt;
+        i++;
+        continue;
+      }
+      if (/\x00M\d+\x00\s*$/.test(ct) && /^倍[，,]/.test(nt)) {
+        cur = `${ct} ${nt}`;
+        i++;
+        continue;
+      }
+      break;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+function mergePlainLineFragments(lines) {
+  return mergeTailLabelWithNextMath(mergeChemStepLabelLines(mergeSplitWordLines(lines)));
+}
+
+/** 單獨一行的「總重」「濃度」等併入下一行算式 */
+function mergeChemStepLabelLines(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cur = String(lines[i] ?? '');
+    const next = lines[i + 1];
+    if (next !== undefined && isChemStepLabelLine(cur) && lineLooksLikeMathContinuation(next)) {
+      out.push(`${cur.trim()} ${String(next).trim()}`);
+      i++;
+    } else {
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
+function shouldStopChoiceCollect(line) {
+  const t = String(line || '').trim();
+  if (!t) return false;
+  if (isChoiceOptionLine(t)) return true;
+  if (isAnswerCitationLine(t)) return true;
+  if (/^答[：:]/.test(t) || /^\*\*答/.test(t)) return true;
+  return false;
+}
+
+/** 將 (A)～(E) 底下連續行收進同一選項區塊 */
+function groupPlainLinesForLayout(lines) {
+  const result = [];
+  const arr = lines.map(l => String(l ?? ''));
+  let i = 0;
+
+  while (i < arr.length) {
+    const trimmed = arr[i].trim();
+    if (!trimmed) { i++; continue; }
+
+    const choice = parseChoiceLine(trimmed);
+    if (choice) {
+      const steps = [];
+      if (choice.body) steps.push(choice.body);
+      i++;
+      let collected = 0;
+      while (i < arr.length) {
+        const nextTrim = arr[i].trim();
+        if (!nextTrim) { i++; continue; }
+        if (shouldStopChoiceCollect(arr[i])) break;
+        steps.push(arr[i]);
+        collected++;
+        i++;
+      }
+      if (choice.body || collected > 0) {
+        result.push({ type: 'choice', letter: choice.letter, steps });
+        continue;
+      }
+    }
+
+    result.push({ type: 'line', text: arr[i] });
+    i++;
+  }
+  return result;
+}
+
+function wrapOnePlainLineInner(line) {
+  if (!String(line || '').trim()) return '<div class="plain-line plain-line--empty"></div>';
+  let cleaned = String(line);
+  if (!/\x00M\d+\x00/.test(cleaned)) {
+    while (/\$(\s*)$/.test(cleaned) && (cleaned.match(/\$/g) || []).length % 2 === 1) {
+      cleaned = cleaned.replace(/\$(\s*)$/, '$1');
+    }
+  }
+  return `<div class="plain-line"><div class="plain-line-inner">${cleaned}</div></div>`;
+}
+
+function buildMultistepChoiceHtml(letter, steps) {
+  const stepsHtml = steps.map(step => {
+    const inner = String(step || '').trim() || '&nbsp;';
+    return `<div class="choice-step"><div class="plain-line-inner">${inner}</div></div>`;
+  }).join('');
+  return `<div class="plain-line plain-line--choice"><div class="choice-option choice-option--multistep">` +
+    `<span class="choice-label">(${letter})</span>` +
+    `<div class="choice-body choice-body--steps">${stepsHtml}</div></div></div>`;
+}
+
+/** 取代 wrapPlainLines：行像排列（選項收攏、步驟標籤併算式） */
+function layoutPlainSolveText(escapedMultiline) {
+  const rawLines = String(escapedMultiline || '').split('\n');
+  const merged = mergePlainLineFragments(rawLines);
+  const groups = groupPlainLinesForLayout(merged);
+  const parts = [];
+
+  for (const g of groups) {
+    if (g.type === 'choice') {
+      g.steps = mergePlainLineFragments(g.steps);
+      parts.push(buildMultistepChoiceHtml(g.letter, g.steps));
+      continue;
+    }
+    const choiceHtml = wrapPlainLineAsChoices(g.text);
+    if (choiceHtml) {
+      parts.push(choiceHtml);
+      continue;
+    }
+    parts.push(wrapOnePlainLineInner(g.text));
+  }
+  return parts.join('');
 }
 
 function wrapPlainLineAsChoices(line) {

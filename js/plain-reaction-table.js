@@ -4,7 +4,7 @@
 
 /** 高中化學常見單位（算式結果後方） */
 const CHEM_UNIT_SYM = String.raw`(?:g(?:\/mol|\/L)?|mg|kg|μg|ug|ng|mol(?:\/L)?|mmol|μmol|umol|L|mL|cL|dL|cm\^?3|dm\^?3|M(?![a-zA-Z\\])|atm|Pa|kPa|MPa|torr|mmHg|bar|K|°C|℃|kJ(?:\/mol)?|J(?:\/mol)?|cal|kcal|V|A|C(?![a-zA-Z\\])|Ω|s|ms|min|h|％|%)`;
-const CHEM_UNIT_COMPOUND = String.raw`(?:g\/mol|mol\/L|g\/L|kJ\/mol|J\/mol|L\s*atm|mol\s*K)`;
+const CHEM_UNIT_COMPOUND = String.raw`(?:M\s*s\s*(?:\^?\{?\s*[-−]1\s*\}?|[-−]1)?|g\/mol|mol\/L|g\/L|kJ\/mol|J\/mol|L\s*atm|mol\s*K)`;
 const CHEM_UNIT_ANY = `(?:${CHEM_UNIT_COMPOUND}|${CHEM_UNIT_SYM})`;
 
 function chemUnitTailRegex() {
@@ -36,7 +36,12 @@ function mergeOrphanUnitLines(raw) {
       continue;
     }
     if (out.length && isOrphanUnitLine(t)) {
-      out[out.length - 1] = `${out[out.length - 1].replace(/\s*$/, '')}${t}`;
+      if (/^M\s*s\s*(?:\^?\{?\s*[-−]1\s*\}?|[-−]1)?[。．.,，]?\s*$/i.test(t) && /\$\s*$/.test(out[out.length - 1])) {
+        const punct = (t.match(/[。．.,，]\s*$/) || [''])[0].trim();
+        out[out.length - 1] = out[out.length - 1].replace(/\$\s*$/, () => `\\,\\mathrm{M\\,s^{-1}}$${punct}`);
+      } else {
+        out[out.length - 1] = `${out[out.length - 1].replace(/\s*$/, '')}${t}`;
+      }
     } else {
       out.push(line);
     }
@@ -223,6 +228,105 @@ function adjustPlainReactionTables(root) {
     if (display.closest('.reaction-table-stacked')) return;
     if (!display.querySelector('.array')) return;
     display.classList.add('reaction-table-fallback');
+  });
+}
+
+/** KaTeX 後：最後一個「=」後的結果與單位整段不換行（僅最外層 base） */
+function bindEquationResultTail(base) {
+  const nodes = [...base.children];
+  let lastEq = -1;
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].classList?.contains('mrel') && /[=＝]/.test(nodes[i].textContent || '')) {
+      lastEq = i;
+    }
+  }
+  if (lastEq < 0 || lastEq >= nodes.length - 1) return;
+  if (nodes[lastEq + 1]?.closest?.('.math-unit-tail')) return;
+  const tailText = nodes.slice(lastEq + 1).map(n => n.textContent || '').join('');
+  if (!/[\d.Ms^−\-]/.test(tailText)) return;
+  const wrap = document.createElement('span');
+  wrap.className = 'math-unit-tail';
+  base.insertBefore(wrap, nodes[lastEq + 1]);
+  while (lastEq + 1 < base.children.length) {
+    wrap.appendChild(base.children[lastEq + 1]);
+  }
+}
+
+/** 整段 KaTeX 不換行（避免 M s⁻¹ 的 -1 被斷到下一行） */
+function wrapKatexNowrap(root) {
+  if (!root) return;
+  root.querySelectorAll('.ai-plain .plain-line-inner, .ai-plain .choice-step .plain-line-inner').forEach(inner => {
+    inner.querySelectorAll('.katex').forEach(katex => {
+      if (katex.parentElement?.classList.contains('plain-katex-nowrap')) return;
+      const flat = (katex.textContent || '').replace(/\s/g, '');
+      const needs = katex.querySelector('.mfrac')
+        || (/=/.test(katex.textContent || '') && /Δ|0\.\d|\d+\/\d/.test(flat))
+        || /Ms?[−-]?1|M.*s[−-]?1/i.test(flat)
+        || /\\mathrm\{M/.test(katex.innerHTML || '');
+      if (!needs) return;
+      const wrap = document.createElement('span');
+      wrap.className = 'plain-katex-nowrap';
+      katex.parentNode.insertBefore(wrap, katex);
+      wrap.appendChild(katex);
+      inner.classList.add('plain-line--hscroll');
+    });
+  });
+}
+
+/** KaTeX 後：算式結果與 M s⁻¹ 等單位不拆行 */
+function bindKatexNumericUnits(root) {
+  if (!root) return;
+  root.querySelectorAll('.ai-plain .katex, .board .katex, .board-reply .katex').forEach(katex => {
+    if (katex.closest('.math-unit-tail')) return;
+    const outerBases = katex.querySelectorAll(':scope > .katex-html > .base');
+    const bases = outerBases.length
+      ? [...outerBases]
+      : [katex.querySelector('.base')].filter(Boolean);
+    bases.forEach(base => {
+      bindEquationResultTail(base);
+      const nodes = [...base.children];
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        const compact = (n.textContent || '').replace(/\s/g, '');
+        const isMsUnit = (n.classList?.contains('mathrm') || n.classList?.contains('mord'))
+          && /Ms?[−-]?1|M.*s[−-]?1/i.test(compact);
+        if (!isMsUnit) continue;
+
+        let numIdx = i - 1;
+        while (numIdx >= 0 && nodes[numIdx].classList?.contains('mrel')) numIdx--;
+        if (numIdx < 0 || !/^\d/.test((nodes[numIdx].textContent || '').trim())) continue;
+
+        const wrap = document.createElement('span');
+        wrap.className = 'math-unit-tail';
+        base.insertBefore(wrap, nodes[numIdx]);
+        wrap.appendChild(nodes[numIdx]);
+        wrap.appendChild(n);
+        break;
+      }
+
+      const refreshed = [...base.children];
+      for (let i = refreshed.length - 1; i >= 2; i--) {
+        const sup = refreshed[i];
+        if (!sup.classList?.contains('msupsub')) continue;
+        const exp = sup.textContent.trim().replace(/−/g, '-');
+        if (!/^-?1$/.test(exp)) continue;
+        let start = i;
+        if (refreshed[start - 1]?.textContent.trim() === 's') start -= 1;
+        if (refreshed[start - 1]?.textContent.trim() === 'M') start -= 1;
+        let numIdx = start - 1;
+        while (numIdx >= 0 && refreshed[numIdx].classList?.contains('mrel')) numIdx--;
+        if (numIdx < 0 || !/^\d/.test((refreshed[numIdx].textContent || '').trim())) continue;
+        if (refreshed[numIdx].closest?.('.math-unit-tail')) continue;
+        const wrap = document.createElement('span');
+        wrap.className = 'math-unit-tail';
+        base.insertBefore(wrap, refreshed[numIdx]);
+        for (let k = numIdx; k <= i; k++) wrap.appendChild(refreshed[k]);
+        if (refreshed[i + 1] && /^[。.．]$/.test(refreshed[i + 1].textContent.trim())) {
+          wrap.appendChild(refreshed[i + 1]);
+        }
+        break;
+      }
+    });
   });
 }
 

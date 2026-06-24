@@ -32,6 +32,30 @@
   margin: 0.12em 0;
 }
 
+/* 同一選項內多步驟：標籤左、步驟垂直排列（行距不變） */
+.ai-plain .choice-option--multistep {
+  align-items: start;
+}
+
+.ai-plain .choice-body--steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.44em;
+  min-width: 0;
+  line-height: inherit;
+}
+
+.ai-plain .choice-step {
+  display: block;
+  min-width: 0;
+  line-height: inherit;
+}
+
+.ai-plain .choice-step .plain-line-inner {
+  display: block;
+  line-height: inherit;
+}
+
 @media (max-width: 480px) {
   .ai-plain .choice-option {
     grid-template-columns: 1.9em minmax(0, 1fr);

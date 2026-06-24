@@ -418,6 +418,10 @@ body {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.msg-body .ai-plain .plain-line-inner.plain-line--hscroll {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
 .msg-body .katex { font-size: 1em; line-height: 1.18; }
 .msg-body .katex-display { margin: 4px 0; overflow: visible; font-size: 1em; }
 
@@ -478,6 +482,51 @@ body {
 .katex .mfrac.math-note {
   cursor: pointer;
   border-bottom: 1.5px dotted rgba(184, 112, 42, 0.55);
+}
+/* 化學式 \\mathrm 內的 NOTE 不額外撐開字距 */
+.katex .mord.mathrm.math-note,
+.katex .mord.mathrm .math-note,
+.katex .mathrm .math-note,
+.katex .mord.mathrm [data-note],
+.katex .mord.mathrm [note] {
+  padding: 0 .04em;
+  margin: 0;
+}
+.katex .math-note--sci {
+  white-space: nowrap;
+  display: inline-block;
+  padding: 0 .05em;
+  margin: 0;
+  letter-spacing: 0;
+  vertical-align: baseline;
+  pointer-events: auto;
+}
+.katex .math-note--sci * {
+  pointer-events: none;
+}
+.katex .math-note--sci .mord,
+.katex .math-note--sci .mbin,
+.katex .math-note--sci .msupsub {
+  margin: 0;
+  padding: 0;
+}
+.katex .math-note--frac-part {
+  display: inline-block;
+  position: relative;
+  white-space: nowrap;
+  pointer-events: auto;
+  vertical-align: baseline;
+}
+.katex .mfrac .vlist-b .math-note--frac-part {
+  z-index: 4;
+}
+.katex .mfrac .vlist-t .math-note--frac-part {
+  z-index: 2;
+}
+.katex .mord.mathrm,
+.katex .mathrm {
+  letter-spacing: 0;
+  word-spacing: 0;
 }
 .board-line-inner.can-pan .math-note,
 .board-line-inner.can-pan [data-note] {

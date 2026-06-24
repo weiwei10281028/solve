@@ -105,7 +105,7 @@
   padding-bottom: 0.4em !important;
 }
 
-/* 行尾殘留 $ 隱藏（保底） */
-.ai-plain .plain-line-inner {
+/* 行尾殘留 $ 隱藏（保底）；橫滑行維持 nowrap */
+.ai-plain .plain-line-inner:not(.plain-line--hscroll) {
   overflow-wrap: anywhere;
 }
