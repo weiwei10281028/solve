@@ -1,0 +1,661 @@
+/* 化學板書格線排版 */
+.board {
+  --board-fs: 15px;
+  --board-lh: 1.68;
+  --board-row-gap: 0.86em;
+  --board-array-row: 2.45;
+  --board-frac-pad: 0.36em;
+  --board-bg: #FDF9F0;
+  background: var(--board-bg);
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  font-size: var(--board-fs);
+  font-family: 'Noto Sans TC', sans-serif;
+  color: #2A2520;
+}
+
+/* 主詳解：內容多時右側顯示垂直捲軸，方便上下調整閱讀位置 */
+.board-scroll {
+  padding: 18px 12px 20px 18px;
+  max-height: min(65dvh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(58, 123, 213, 0.45) rgba(42, 37, 32, 0.06);
+}
+.board-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 0;
+}
+.board-scroll::-webkit-scrollbar-track {
+  background: rgba(42, 37, 32, 0.05);
+  border-radius: 6px;
+  margin: 6px 2px;
+}
+.board-scroll::-webkit-scrollbar-thumb {
+  background: rgba(58, 123, 213, 0.38);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.board-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(58, 123, 213, 0.58);
+}
+
+/* 所有 board-line-inner 過長時顯示細橫向滑桿 */
+.board-scroll .board-line-inner.can-pan,
+.board-scroll .board-line--scroll .board-line-inner,
+.board-reply .board-line-inner.can-pan,
+.board-reply .board-line--scroll .board-line-inner,
+.followup-reply .board-line-inner.can-pan,
+.followup-reply .board-line--scroll .board-line-inner {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(42, 37, 32, 0.35) transparent;
+  padding-bottom: 4px;
+}
+.board-scroll .board-line-inner.can-pan::-webkit-scrollbar,
+.board-scroll .board-line--scroll .board-line-inner::-webkit-scrollbar,
+.board-reply .board-line-inner.can-pan::-webkit-scrollbar,
+.board-reply .board-line--scroll .board-line-inner::-webkit-scrollbar,
+.followup-reply .board-line-inner.can-pan::-webkit-scrollbar,
+.followup-reply .board-line--scroll .board-line-inner::-webkit-scrollbar {
+  display: block;
+  height: 5px;
+  width: 0;
+}
+.board-scroll .board-line-inner::-webkit-scrollbar:vertical,
+.board-reply .board-line-inner::-webkit-scrollbar:vertical,
+.followup-reply .board-line-inner::-webkit-scrollbar:vertical {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+.board-scroll .board-line-inner.can-pan::-webkit-scrollbar-track {
+  background: rgba(42, 37, 32, 0.04);
+  border-radius: 4px;
+}
+.board-scroll .board-line-inner.can-pan::-webkit-scrollbar-thumb {
+  background: rgba(42, 37, 32, 0.24);
+  border-radius: 4px;
+}
+.board-scroll .board-line-inner.can-pan::-webkit-scrollbar-thumb:hover {
+  background: rgba(42, 37, 32, 0.38);
+}
+
+.board-scroll .msg-body,
+.board-reply {
+  font-size: var(--board-fs);
+  line-height: var(--board-lh);
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow: visible;
+}
+
+/* solve.html 同款數學顯示（預設模式） */
+.ai-plain {
+  --plain-row-gap: 0.86em;
+  --plain-empty-gap: 0.4em;
+  font-size: 15px;
+  line-height: 1.62;
+  color: #2A2520;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* 每行獨立區塊：固定行距，分式再高也不擠下一行 */
+.ai-plain .plain-line {
+  display: block;
+  margin: 0 0 var(--plain-row-gap);
+  padding: 0;
+  overflow: visible;
+  line-height: 1.62;
+}
+.ai-plain .plain-line:last-child {
+  margin-bottom: 0;
+}
+.ai-plain .plain-line--empty {
+  margin-bottom: var(--plain-empty-gap);
+  min-height: 0;
+  pointer-events: none;
+}
+.ai-plain .plain-line-inner {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  min-height: min-content;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.ai-plain .plain-line-inner .katex {
+  max-width: 100%;
+}
+.ai-plain .math-unit-tail {
+  white-space: nowrap;
+  display: inline;
+}
+.ai-plain > .anno-hint {
+  margin-bottom: var(--plain-row-gap);
+}
+
+.board-scroll > .answer-box--final {
+  margin: 12px 8px 4px 0;
+}
+.ai-plain .katex {
+  font-size: 1em;
+  line-height: 1.18;
+}
+.ai-plain .katex-display {
+  margin: 4px 0;
+  overflow: visible;
+  font-size: 1.02em;
+  white-space: normal;
+}
+.ai-plain .math-block {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+  line-height: 1.32;
+  min-height: min-content;
+  vertical-align: middle;
+}
+/* 整行只有算式時仍可自然換行 */
+.ai-plain .plain-line-inner .math-block:only-child {
+  display: inline-block;
+  max-width: 100%;
+}
+.ai-plain .math-block .katex {
+  display: inline-block;
+  overflow: visible;
+  line-height: 1.32;
+  max-width: 100%;
+}
+.ai-plain .katex .mfrac {
+  margin-left: .05em;
+  margin-right: .05em;
+}
+/* 取消 board 全域對上下標的加粗／縮放，改回 KaTeX 預設 */
+.board .ai-plain .katex .msupsub,
+.board-reply .ai-plain .katex .msupsub {
+  margin-left: 0;
+}
+.board .ai-plain .katex .msupsub > .vlist-t,
+.board .ai-plain .katex .msupsub > .vlist-b,
+.board-reply .ai-plain .katex .msupsub > .vlist-t,
+.board-reply .ai-plain .katex .msupsub > .vlist-b {
+  font-size: inherit !important;
+  font-weight: normal !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  color: inherit !important;
+}
+.board .ai-plain .katex .mathnormal,
+.board .ai-plain .katex .mathrm,
+.board-reply .ai-plain .katex .mathnormal,
+.board-reply .ai-plain .katex .mathrm {
+  font-family: inherit !important;
+  font-style: normal;
+}
+.board .ai-plain .katex,
+.board-reply .ai-plain .katex {
+  font-size: 1em !important;
+  line-height: 1.18 !important;
+  font-family: KaTeX_Main, Times New Roman, serif !important;
+}
+
+/* 每一行：高度隨內容撐開（禁止行內上下捲動）；過長僅左右滑 */
+.board-line {
+  display: block;
+  line-height: var(--board-lh);
+  margin: 0 0 var(--board-row-gap);
+  padding: 0;
+  overflow: visible;
+}
+.board-line-inner {
+  display: block;
+  width: 100%;
+  overflow-x: visible;
+  overflow-y: visible;
+  max-height: none;
+  min-height: min-content;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+  cursor: default;
+  scrollbar-width: none;
+}
+
+/* 含算式：純算式行禁止硬折行；敘述混算式可自然換行 */
+.board-line--nowrap .board-line-inner {
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: visible;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  touch-action: pan-x;
+}
+.board-line--has-math:not(.board-line--nowrap) .board-line-inner {
+  white-space: normal;
+  overflow-x: visible;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* 過長單行：僅橫向滑動，禁止行內上下捲動 */
+.board-line--scroll .board-line-inner {
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(42, 37, 32, 0.35) transparent;
+  padding-bottom: 4px;
+}
+.board-line--scroll .board-line-inner::-webkit-scrollbar {
+  display: block;
+  height: 5px;
+  width: 0;
+}
+.board-line--scroll .board-line-inner::-webkit-scrollbar:vertical {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+.board-line--scroll .board-line-inner::-webkit-scrollbar-track {
+  background: rgba(42, 37, 32, 0.04);
+  border-radius: 4px;
+}
+.board-line--scroll .board-line-inner::-webkit-scrollbar-thumb {
+  background: rgba(42, 37, 32, 0.24);
+  border-radius: 4px;
+}
+
+.board-line-inner .katex,
+.board-line-inner .math-block,
+.board-line-inner .katex-display {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.board-line-inner:has(.mfrac) {
+  padding-top: 0.22em;
+  padding-bottom: 0.62em;
+}
+.board-line:has(.mfrac) {
+  line-height: calc(var(--board-lh) + 0.34);
+  margin-bottom: calc(var(--board-row-gap) + 0.24em);
+}
+.board-line-inner.can-pan {
+  cursor: grab;
+}
+.board-line.is-panning .board-line-inner {
+  cursor: grabbing;
+  user-select: none;
+}
+.board-line.is-panning .math-note {
+  pointer-events: none;
+}
+.board-line--formula .board-line-inner {
+  padding: 0.18em 0;
+}
+/* 僅純算式行禁止折行；敘述夾雜算式可自然斷句 */
+.board-line--formula.board-line--nowrap .board-line-inner {
+  white-space: nowrap;
+}
+
+/* 數值與 mol 單位、數學尾段不拆行 */
+.board-unit,
+.board-unit-tail,
+.board-math-tail {
+  white-space: nowrap;
+  display: inline;
+  vertical-align: middle;
+}
+.board-line:last-child { margin-bottom: 0; }
+.board-line:empty { display: none; margin-bottom: 0; }
+
+.chem-row {
+  display: grid;
+  grid-template-columns: 2em minmax(0, 1fr);
+  column-gap: 0.28em;
+  row-gap: 0;
+  align-items: start;
+  line-height: var(--board-lh);
+  margin: 0 0 0.42em;
+  padding: 0;
+  overflow: visible;
+}
+.chem-label {
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: var(--board-lh);
+  padding-top: 0.02em;
+}
+.chem-content {
+  min-width: 0;
+  overflow: visible;
+}
+.chem-content .board-line {
+  margin-bottom: 0;
+}
+.chem-content .board-line-inner {
+  overflow-x: auto;
+  overflow-y: visible;
+  touch-action: pan-x;
+}
+.chem-content .board-line--nowrap .board-line-inner {
+  white-space: nowrap;
+}
+
+.subq-block {
+  margin: 0 0 calc(var(--board-row-gap) + 0.15em);
+  padding-top: 1.15em;
+  border-top: 1px solid #DDD4C8;
+}
+.subq-block:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.subq-label {
+  font-weight: 700;
+  font-size: 15px;
+  color: #3D5C48;
+  margin-bottom: calc(var(--board-row-gap) * 0.9);
+}
+.subq-content {
+  min-width: 0;
+  overflow: visible;
+}
+.subq-content .board-line:last-child { margin-bottom: 0; }
+
+.board .katex,
+.board-reply .katex {
+  font-size: 1.02em !important;
+  line-height: 1.72;
+  font-family: KaTeX_Main, 'Times New Roman', 'Noto Serif TC', serif;
+}
+.board .katex .mathnormal,
+.board .katex .mathrm,
+.board-reply .katex .mathnormal,
+.board-reply .katex .mathrm {
+  font-family: KaTeX_Math, KaTeX_Main, 'Times New Roman', serif !important;
+  font-style: italic;
+}
+.board .katex .mord,
+.board-reply .katex .mord {
+  font-family: KaTeX_Main, 'Times New Roman', serif;
+}
+
+/* 次方／上下標 */
+.board .katex .msupsub,
+.board-reply .katex .msupsub {
+  margin-left: 0.05em;
+}
+.board .katex .msupsub > .vlist-t,
+.board-reply .katex .msupsub > .vlist-t {
+  font-size: 0.84em !important;
+  padding-top: 0.12em;
+  font-weight: 700;
+  color: #1a1510;
+}
+.board .katex .msupsub > .vlist-b,
+.board-reply .katex .msupsub > .vlist-b {
+  font-size: 0.82em !important;
+  padding-bottom: 0.18em;
+}
+.board .katex .mord + .msupsub,
+.board-reply .katex .mord + .msupsub {
+  margin-left: 0.08em;
+}
+.board .katex .msupsub .boldsymbol,
+.board-reply .katex .msupsub .boldsymbol {
+  font-weight: 900;
+}
+
+/* 分式橫線 */
+.board .katex .mfrac,
+.board-reply .katex .mfrac {
+  font-size: 1em !important;
+  margin: 0.2em 0.14em 0.36em;
+  padding: 0.14em 0.1em var(--board-frac-pad);
+  overflow: visible;
+  vertical-align: middle;
+}
+.board .katex .mfrac .frac-line,
+.board-reply .katex .mfrac .frac-line {
+  border-bottom-width: 0.075em !important;
+  min-height: 0.075em;
+  margin: 0.14em 0 0.18em !important;
+}
+.board .katex .mfrac .vlist-t,
+.board-reply .katex .mfrac .vlist-t {
+  padding-top: 0.34em;
+}
+.board .katex .mfrac .vlist-b,
+.board-reply .katex .mfrac .vlist-b {
+  padding-bottom: 0.52em;
+}
+.board .katex .vlist-t,
+.board-reply .katex .vlist-t { padding-top: 0.22em; }
+.board .katex .vlist-b,
+.board-reply .katex .vlist-b { padding-bottom: 0.32em; }
+.board .katex .mord.text,
+.board-reply .katex .mord.text {
+  line-height: 1.72;
+  padding: 0.12em 0.06em;
+}
+
+/* 反應表 array */
+.board .katex .array,
+.board-reply .katex .array {
+  line-height: var(--board-array-row);
+  border-spacing: 0 0.28em;
+}
+.board .katex .arrayrow,
+.board-reply .katex .arrayrow {
+  padding: 0.32em 0;
+}
+.board .katex .array td,
+.board-reply .katex .array td {
+  padding: 0.22em 1em;
+  vertical-align: middle;
+}
+.board .katex .array td:first-child,
+.board-reply .katex .array td:first-child {
+  padding-right: 1.35em;
+}
+.board .katex .array td:not(:first-child),
+.board-reply .katex .array td:not(:first-child) {
+  padding-left: 1em;
+}
+.board .katex .array td:nth-child(2),
+.board .katex .array td:nth-child(4),
+.board-reply .katex .array td:nth-child(2),
+.board-reply .katex .array td:nth-child(4) {
+  padding-left: 1.2em;
+  padding-right: 1.2em;
+}
+
+/* 反應表區塊：分式列、hline */
+.board .math-block--array .katex .array,
+.board-reply .math-block--array .katex .array {
+  line-height: 2.75;
+  border-spacing: 0 0.32em;
+}
+.board .math-block--array .katex .arrayrow,
+.board-reply .math-block--array .katex .arrayrow {
+  padding-top: 0.28em;
+  padding-bottom: 0.38em;
+}
+.board .math-block--array .katex .array td,
+.board-reply .math-block--array .katex .array td {
+  padding: 0.22em 1.15em;
+  vertical-align: middle;
+}
+.board .math-block--array .katex .arrayrow:has(.mfrac),
+.board-reply .math-block--array .katex .arrayrow:has(.mfrac) {
+  padding-bottom: 1.15em;
+}
+.board .math-block--array .katex .arrayrow:has(.mfrac) td,
+.board-reply .math-block--array .katex .arrayrow:has(.mfrac) td {
+  padding-bottom: 0.62em;
+}
+.board .math-block--array .katex .arrayrow:has(.mfrac) + .arrayrow,
+.board-reply .math-block--array .katex .arrayrow:has(.mfrac) + .arrayrow {
+  padding-top: 0.72em;
+}
+.board .math-block--array .katex .arrayrow:has(.mfrac) + .arrayrow td,
+.board-reply .math-block--array .katex .arrayrow:has(.mfrac) + .arrayrow td {
+  padding-top: 0.55em;
+}
+.board .math-block--array .katex .arrayrow:has(.hline),
+.board-reply .math-block--array .katex .arrayrow:has(.hline),
+.board .math-block--array .katex tr.hline,
+.board-reply .math-block--array .katex tr.hline {
+  padding-top: 0.45em;
+  padding-bottom: 0.35em;
+}
+.board .math-block--array .katex td.hline,
+.board-reply .math-block--array .katex td.hline,
+.board .math-block--array .katex .hline {
+  padding-top: 0.58em !important;
+  padding-bottom: 0.38em !important;
+  border-top-width: 0.075em !important;
+}
+.board .math-block--array .katex .mfrac,
+.board-reply .math-block--array .katex .mfrac {
+  margin: 0.18em 0.12em 0.62em;
+  padding: 0.12em 0.08em 0.48em;
+}
+.board .math-block--array .katex .mfrac .vlist-t,
+.board-reply .math-block--array .katex .mfrac .vlist-t {
+  padding-top: 0.3em;
+}
+.board .math-block--array .katex .mfrac .vlist-b,
+.board-reply .math-block--array .katex .mfrac .vlist-b {
+  padding-bottom: 1.1em !important;
+  margin-bottom: 0.18em;
+}
+.board .math-block--array .katex .mfrac .frac-line,
+.board-reply .math-block--array .katex .mfrac .frac-line {
+  border-bottom-width: 0.075em !important;
+  margin: 0.16em 0 0.2em !important;
+}
+.board .math-block--array .katex .arrayrow--frac,
+.board-reply .math-block--array .katex .arrayrow--frac {
+  padding-bottom: 1.25em !important;
+}
+.board .math-block--array .katex .arrayrow--after-frac td,
+.board-reply .math-block--array .katex .arrayrow--after-frac td {
+  padding-top: 0.62em !important;
+}
+
+.board .katex-display,
+.board-reply .katex-display {
+  font-size: 1em !important;
+  margin: 0.35em 0 calc(var(--board-row-gap) + 0.12em);
+  padding: 0.08em 0;
+  overflow: visible !important;
+  max-width: none;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.math-block {
+  display: block;
+  margin: 0.12em 0;
+  padding: 0;
+  overflow: visible !important;
+  max-width: none;
+  max-height: none !important;
+  height: auto !important;
+  vertical-align: middle;
+}
+
+.board-line .math-block:not(.math-block--array),
+.board-line .math-block:not(.math-block--array) .katex-display {
+  display: inline-block !important;
+  vertical-align: middle;
+  margin: 0 0.12em 0 0 !important;
+  white-space: nowrap;
+  overflow: visible !important;
+}
+.board-line .math-block--array,
+.board-line .math-block--array .katex-display {
+  display: block;
+}
+
+.math-block--array {
+  display: block;
+  overflow: visible !important;
+  padding: 0.12em 0 0.18em;
+  margin: 0.08em 0 calc(var(--board-row-gap) * 0.75);
+}
+
+.board .answer-box,
+.board-reply .answer-box {
+  margin-top: var(--board-row-gap);
+  font-size: var(--board-fs);
+}
+
+/* 追問紀錄：接在主詳解下方，新回覆往下追加 */
+.followup-area {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #E8DFD2;
+}
+.followup-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B635A;
+  letter-spacing: .04em;
+  margin-bottom: 10px;
+}
+.followup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.followup-block {
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #FFFCF8;
+}
+.followup-user {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #2A2520;
+  background: #F5EDE4;
+  border-bottom: 1px solid #E8DFD2;
+  line-height: 1.5;
+}
+.followup-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #A67C52;
+  margin-right: 8px;
+}
+.followup-reply {
+  padding: 14px 16px;
+  background: #FDF9F0;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow: visible;
+}
+
+@media (max-width: 480px) {
+  .board-scroll { padding: 12px; max-height: min(55dvh, 420px); }
+  .chem-row { grid-template-columns: 1.85em minmax(0, 1fr); column-gap: 0.22em; }
+}
