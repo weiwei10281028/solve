@@ -127,9 +127,59 @@
   min-height: min-content;
   white-space: normal;
   word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
-.ai-plain .plain-line-inner .katex {
+/* 單一算式橫滑容器：句號前算式不斷行，過長左右滑 */
+.ai-plain .plain-math-scroll {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  vertical-align: middle;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(42, 37, 32, 0.35) transparent;
+  padding-bottom: 3px;
+}
+.ai-plain .plain-math-scroll--block,
+.ai-plain .plain-math-scroll:has(.math-block),
+.ai-plain .plain-math-scroll:has(.reaction-table-stacked),
+.ai-plain .plain-math-scroll:has(.katex-display) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+.ai-plain .plain-math-scroll::-webkit-scrollbar {
+  display: block;
+  height: 5px;
+  width: 0;
+}
+.ai-plain .plain-math-scroll::-webkit-scrollbar-track {
+  background: rgba(42, 37, 32, 0.04);
+  border-radius: 4px;
+}
+.ai-plain .plain-math-scroll::-webkit-scrollbar-thumb {
+  background: rgba(42, 37, 32, 0.24);
+  border-radius: 4px;
+}
+.ai-plain .plain-math-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(42, 37, 32, 0.38);
+}
+.ai-plain .plain-math-scroll .katex,
+.ai-plain .plain-math-scroll .math-block,
+.ai-plain .plain-math-scroll .katex-display,
+.ai-plain .plain-math-scroll .math-unit-tail {
+  max-width: none !important;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+.ai-plain .plain-math-scroll .math-block {
+  overflow: visible;
+}
+.ai-plain .plain-line-inner .katex:not(.plain-math-scroll .katex) {
   max-width: 100%;
 }
 .ai-plain .math-unit-tail {
@@ -151,12 +201,14 @@
   margin: 4px 0;
   overflow: visible;
   font-size: 1.02em;
-  white-space: normal;
+}
+.ai-plain .plain-math-scroll > .katex-display {
+  white-space: nowrap;
 }
 .ai-plain .math-block {
   display: inline-block;
   width: auto;
-  max-width: 100%;
+  max-width: none;
   overflow: visible;
   margin: 0;
   padding: 0;
@@ -167,13 +219,13 @@
 /* 整行只有算式時仍可自然換行 */
 .ai-plain .plain-line-inner .math-block:only-child {
   display: inline-block;
-  max-width: 100%;
+  max-width: none;
 }
 .ai-plain .math-block .katex {
   display: inline-block;
   overflow: visible;
   line-height: 1.32;
-  max-width: 100%;
+  max-width: none;
 }
 .ai-plain .katex .mfrac {
   margin-left: .05em;

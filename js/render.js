@@ -1455,6 +1455,39 @@ function fixKatexErrors(root) {
   });
 }
 
+function wrapPlainMathScroll(root) {
+  if (!root) return;
+  const containers = root.querySelectorAll(
+    '.ai-plain .plain-line-inner, .ai-plain .choice-body'
+  );
+  containers.forEach(inner => {
+    const toWrap = [];
+    inner.querySelectorAll('.reaction-table-stacked, .math-unit-tail, .math-block, .katex-display').forEach(el => {
+      if (!el.closest('.plain-math-scroll')) toWrap.push(el);
+    });
+    inner.querySelectorAll('span.katex').forEach(el => {
+      if (el.closest('.plain-math-scroll, .math-block, .math-unit-tail, .reaction-table-stacked, .katex-display')) return;
+      toWrap.push(el);
+    });
+    toWrap.sort((a, b) => {
+      const pos = a.compareDocumentPosition(b);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      return 0;
+    });
+    for (const el of toWrap) {
+      if (!el.parentNode || el.closest('.plain-math-scroll')) continue;
+      const wrap = document.createElement('span');
+      const isBlock = el.classList.contains('math-block')
+        || el.classList.contains('reaction-table-stacked')
+        || el.classList.contains('katex-display');
+      wrap.className = isBlock ? 'plain-math-scroll plain-math-scroll--block' : 'plain-math-scroll';
+      el.parentNode.insertBefore(wrap, el);
+      wrap.appendChild(el);
+    }
+  });
+}
+
 function doKaTeX(el, { plain = !BOARD_LAYOUT_ENABLED } = {}) {
   if (typeof renderMathInElement !== 'function') return;
   const opts = {
@@ -1472,6 +1505,7 @@ function doKaTeX(el, { plain = !BOARD_LAYOUT_ENABLED } = {}) {
       if (typeof adjustPlainReactionTables === 'function') adjustPlainReactionTables(el);
       if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(el);
       if (typeof keepMathUnitTails === 'function') keepMathUnitTails(el);
+      wrapPlainMathScroll(el);
       recoverUnrenderedHtmlDataNotes(el);
       initMathNotes(el);
       return;
