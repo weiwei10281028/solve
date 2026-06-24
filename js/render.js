@@ -817,6 +817,33 @@ function stripStrayLineEndDollars(raw) {
   });
 }
 
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 480px)').matches;
+}
+
+/** 手機：每個「。」後斷成獨立 plain-line（保護數學／註解佔位符） */
+function splitPlainTextAtPeriod(text) {
+  return String(text || '').split('\n').map(line => {
+    if (!line.trim()) return line;
+    let out = '';
+    for (let i = 0; i < line.length; i++) {
+      const placeholder = line.slice(i).match(/^(\x00[MA]\d+\x00)/);
+      if (placeholder) {
+        out += placeholder[1];
+        i += placeholder[1].length - 1;
+        continue;
+      }
+      out += line[i];
+      if (line[i] === '。') {
+        let j = i + 1;
+        while (j < line.length && line[j] === ' ') j++;
+        if (j < line.length) out += '\n';
+      }
+    }
+    return out;
+  }).join('\n');
+}
+
 /** 每行獨立區塊 + 固定行距（類 Word，行高不影響行與行之間隔） */
 function wrapPlainLines(html) {
   return String(html || '').split('\n').map(line => {
@@ -883,6 +910,7 @@ function renderSolveStyle(raw) {
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(<strong>答[：:][^<]*<\/strong>)/g, '');
   s = s.replace(/^\s*答[：:][^\n]*$/gm, '');
+  if (isMobileViewport()) s = splitPlainTextAtPeriod(s);
   s = wrapPlainLines(s);
   math.forEach((m, i) => { s = s.replace(`\x00M${i}\x00`, m); });
   annos.forEach((html, i) => { s = s.replace(`\x00A${i}\x00`, html); });
