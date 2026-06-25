@@ -1,5 +1,6 @@
-/* ── board.css：B 方案專業排版 (垂直節奏 + 單行橫滑) ── */
+/* ── board.css：專業板書排版 (垂直節奏 + 方程式局部橫滑 + 常駐滑桿) ── */
 
+/* 1. 基礎畫板設定 */
 .board {
   --board-fs: 15px;
   --board-bg: #FDF9F0;
@@ -11,70 +12,86 @@
   color: #2A2520;
 }
 
-/* 詳解主容器：解除全域橫向滑動，讓滑動發生在行內 */
+/* 詳解主容器：解除全域橫向滑動，將滑動權限交給行內的算式容器 */
 .board-scroll {
   padding: 18px 16px;
   max-height: min(70dvh, 600px);
   overflow-y: auto;
-  overflow-x: hidden; /* 核心：禁止全域滑動 */
+  overflow-x: hidden; /* 核心：禁止整個畫面滑動 */
   -webkit-overflow-scrolling: touch;
 }
 
-/* =========================================================
-   【垂直節奏】解決擠在一起的問題
-   ========================================================= */
+/* 2. 垂直節奏：讓行與行之間呼吸順暢 */
 .ai-plain {
   font-size: 15px;
-  /* line-height 2.2 確保高分式不會頂到上一行 */
-  line-height: 2.2; 
+  line-height: 2.2; /* 專業黃金行高，確保高分式不擠壓 */
   color: #2C3E50;
 }
 
 /* 每一行文字的獨立間距 */
 .board-row {
-  margin-bottom: 0.8em; /* 行與行之間的一致間隔 */
+  margin-bottom: 0.8em; 
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
 /* =========================================================
-   【單行橫滑】只有長算式可以滑動
+   3. 【核心功能】方程式/長算式單行橫滑 (仿影片絲滑效果)
    ========================================================= */
 .math-scroll-container {
   display: block;
   width: 100%;
   margin: 1.5em 0;
-  padding: 10px 0;
+  padding: 8px 0 16px 0; /* 底部預留滑桿空間 */
   text-align: center;
-  overflow-x: auto !important; /* 強制單行滑動 */
-  overflow-y: hidden !important;
-  white-space: nowrap; /* 算式不准換行，強制橫生 */
+  
+  /* 滾動控制 */
+  overflow-x: auto !important; 
+  overflow-y: hidden !important; 
+  white-space: nowrap !important; /* 絕對不准折行，維持化學邏輯完整 */
+  
+  /* 絲滑滑動 */
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
-/* 常駐滑桿樣式：明顯但優雅，提示學生可滑動 */
+/* 強制在手機上顯示橫向滑桿 (視覺引導) */
 .math-scroll-container::-webkit-scrollbar {
-  height: 6px;
-  display: block;
+  height: 6px; 
+  display: block !important;
 }
+
+/* 滑桿軌道 */
 .math-scroll-container::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.03);
   border-radius: 10px;
 }
+
+/* 滑桿本體：深灰色，確保一眼就能看到 */
 .math-scroll-container::-webkit-scrollbar-thumb {
-  background: rgba(173, 181, 189, 0.4);
+  background: #adb5bd; 
   border-radius: 10px;
 }
 
-/* 修正 KaTeX 在橫滑容器內的對齊 */
+.math-scroll-container::-webkit-scrollbar-thumb:active {
+  background: #6c757d;
+}
+
+/* 修正 KaTeX 在橫滑容器內的展示方式 */
 .math-scroll-container .katex-display {
-  display: inline-block;
+  display: inline-block !important;
   margin: 0 !important;
   vertical-align: middle;
+  padding: 0 10px;
+}
+
+/* 行內數學式也預防在文字中間斷開 */
+.katex {
+  white-space: nowrap !important;
 }
 
 /* =========================================================
-   【互動 Note】微光標記法
+   4. Note 互動註解：微光標記法 (移除底線)
    ========================================================= */
 .math-note,
 .katex .math-note,
@@ -84,10 +101,11 @@
   padding: 0.1em 0.3em;
   margin: 0 0.05em;
   border-radius: 4px;
-  background: rgba(184, 112, 42, 0.08); /* 平時微光 */
+  background: rgba(184, 112, 42, 0.08); /* 平時微光暗示 */
   border: none !important;
   text-decoration: none !important;
   transition: background 0.2s;
+  pointer-events: auto;
 }
 
 .math-note:hover, [data-note]:hover {
@@ -95,7 +113,7 @@
 }
 
 .math-note.active, [data-note].active {
-  background: #F5E6C8 !important; /* 點擊後反白 */
+  background: #F5E6C8 !important; /* 點擊反白 */
   box-shadow: 0 0 0 1px #A67C52;
 }
 
@@ -113,9 +131,7 @@
 }
 .math-note-popover.show { display: block; }
 
-/* =========================================================
-   【藍色答案框】
-   ========================================================= */
+/* 5. 藍色答案框 (簡答區) */
 .answer-box {
   display: inline-block;
   margin-top: 1.5em;
@@ -128,13 +144,11 @@
   font-size: 15px;
 }
 
-/* =========================================================
-   KaTeX 排版優化
-   ========================================================= */
-.ai-plain .katex {
-  font-size: 1.05em;
-}
-/* 讓分式在行內看起來更平衡 */
-.ai-plain .katex .mfrac {
-  vertical-align: -0.5em;
-}
+/* 6. KaTeX 排版細節微調 */
+.ai-plain .katex { font-size: 1.05em; }
+.ai-plain .katex .mfrac { vertical-align: -0.5em; }
+.board .katex .msupsub > .vlist-t { font-size: 0.84em !important; padding-top: 0.12em; font-weight: 700; color: #1a1510; }
+
+/* 向下相容 */
+.board-line { display: block; line-height: 1.7; margin-bottom: 0.8em; }
+.board-line-inner { display: block; width: 100%; word-break: break-word; }
