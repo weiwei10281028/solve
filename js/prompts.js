@@ -1,30 +1,71 @@
-const SYSTEM_CHEM = `你是台灣高中化學教師，用清晰、專業的風格撰寫詳解。
+/* ── 解析題號範圍與組裝訊息的必要函數 (請務必保留) ── */
 
-【題庫】若使用者訊息已附上資料庫／權威詳解，直接採用其方法與步驟。
+function parseZhNumber(token = '') {
+  const t = String(token || '').trim();
+  if (!t) return NaN;
+  if (/^\d+$/.test(t)) return Number(t);
+  const map = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  if (t === '十') return 10;
+  if (t.startsWith('十') && map[t[1]] != null) return 10 + map[t[1]];
+  if (t.endsWith('十') && map[t[0]] != null) return map[t[0]] * 10;
+  const m = t.match(/^([一二三四五六七八九])十([一二三四五六七八九])$/);
+  if (m) return map[m[1]] * 10 + map[m[2]];
+  if (map[t] != null) return map[t];
+  return NaN;
+}
 
-【解題必須遵守的流程】
+function parseRequestedSolveScope(inputText = '') {
+  const raw = String(inputText || '').trim();
+  if (!raw || /^(全部|所有|整題|全題|整卷|全部小題)$/.test(raw)) {
+    return { mode: 'all', numbers: [] };
+  }
+  const picked = new Set();
+  const addNum = n => { if (Number.isFinite(n) && n >= 1 && n <= 99) picked.add(n); };
+  for (const m of [...raw.matchAll(/題號\s*[:：]\s*([^\n；;]+)/gi)]) {
+    for (const part of m[1].split(/[,，、\s]+/)) {
+      const n = parseZhNumber(part) || Number(part);
+      addNum(n);
+    }
+  }
+  for (const m of [...raw.matchAll(/([一二三四五六七八九十\d]+)\s*[~\-～到至]\s*([一二三四五六七八九十\d]+)/g)]) {
+    const a = parseZhNumber(m[1]); const b = parseZhNumber(m[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      for (let n = Math.min(a, b); n <= Math.max(a, b); n++) addNum(n);
+    }
+  }
+  for (const m of [...raw.matchAll(/第\s*([一二三四五六七八九十\d]{1,3})\s*(?:小題|題|問)/g)]) {
+    addNum(parseZhNumber(m[1]));
+  }
+  for (const m of [...raw.matchAll(/[（(]\s*(\d{1,2})\s*[)）]/g)]) { addNum(Number(m[1])); }
+  for (const m of [...raw.matchAll(/(?:^|[,，、\s])(\d{1,2})\s*(?:小題|題)/g)]) { addNum(Number(m[1])); }
+  const numbers = Array.from(picked).sort((a, b) => a - b);
+  return numbers.length ? { mode: 'partial', numbers } : { mode: 'all', numbers: [] };
+}
 
-▌第零步：題號範圍（最高優先）
-- 使用者有指定題號 → **只解指定題**，圖中其他題一律略過。
-- 使用者未指定題號 → 才可解圖中所有小題。
-- 指定單題時，輸出只能含該題計算與 **答：**。
+function buildScopeSystemAddon(q) {
+  const scope = parseRequestedSolveScope(q);
+  if (scope.mode === 'all') return '\n\n【範圍】可解答圖中所有小題。';
+  const list = scope.numbers.map(n => `(${n})`).join('、');
+  return `\n\n【範圍】只解 ${list}。`;
+}
 
-▌第一步：看圖與判斷
-仔細觀察圖片（裝置、導線、數據）。若有電解槽，需先判斷並寫出一句話：「此為並聯，因…」或「此為串聯，因…」。
-- 並聯：各支路電量不相等，先算 Q總，再依支路氣體體積分配。
-- 串聯：各槽電量完全相同，Q = It。
-【禁止】沒看圖就預設串聯或並聯。
+// 這是你缺少的關鍵函數
+function buildSolveUserText(q, refAnswer = '') {
+  const scope = parseRequestedSolveScope(q);
+  const ref = String(refAnswer || '').trim();
+  let text = scope.mode === 'partial' 
+    ? `請解第 ${scope.numbers.join('、')} 題。` 
+    : `請解圖中所有小題。`;
+  if (ref) text += `\n參考答案：${ref}`;
+  return text;
+}
 
-▌第二步：計算與推導
-依判斷嚴格計算，禁止中途改變假設。
-【禁止】寫到一半停止、寫「資訊不足」放棄、沒有 **答：** 就結束。
+async function getSystemPrompt(userInput = '') {
+  // 假設你有這個函數，如果沒有請確保主程式邏輯正確
+  const addon = (typeof buildDatabaseSystemAddon === 'function') ? await buildDatabaseSystemAddon(userInput) : '';
+  return `${SYSTEM_CHEM}${addon}`;
+}
 
-▌第三步：排版與輸出格式（強制規範）
-1. 自然段落：請使用通順流暢的自然段落撰寫。不同邏輯區塊之間請空一行分段。
-2. 數學與化學式的「行內」與「獨立」區分（非常重要）：
-   - 【行內式 $...$】：只用於單一變數、短數字或化學式（例如：溶質 $K_2SO_4$ 重、$W$、$0.15W$）。
-   - 【獨立區塊 $$...$$】：只要算式中含有「分數 (\\dfrac)」、「等號 (=, \\approx) 推導」或「長度超過半行」，**絕對禁止與中文混在同一行**，必須使用 $$...$$ 獨立換行置中顯示。
-   - 單位（如 g, mol, M）請寫在算式的 $$ 內部結尾。
-3. 只要是分數一律使用 \dfrac{}{}，禁止橫式寫法。
-4. 保留註解功能：數字或重要係數若需說明，請保留 \htmlData{note=註解}{數字} 的格式。
-5. 結尾答案：必須獨立一行，格式為：**答：(數值與單位或選項)**。
+async function getSystemPromptForSolve(questionInput = '') {
+  return (await getSystemPrompt(questionInput)) + buildScopeSystemAddon(questionInput);
+}
