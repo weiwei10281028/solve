@@ -1,76 +1,87 @@
 /**
- * 增強版 Render.js - 自然排版 + 恢復點擊說明 + 移除底線
+ * 通用型 Render.js - 兼顧彈性、自然排版與互動功能
+ * 移除所有針對特定題型的硬編碼邏輯
  */
 
-// 1. 自動注入排版與 UI 樣式
-(function injectStyles() {
-  if (document.getElementById('simple-render-style')) return;
+// 1. 注入基礎樣式 (決定間距、移除底線、定義彈出框)
+(function injectGlobalStyles() {
+  if (document.getElementById('universal-render-style')) return;
   const style = document.createElement('style');
-  style.id = 'simple-render-style';
+  style.id = 'universal-render-style';
   style.textContent = `
     .ai-plain {
       font-size: 16px;
       line-height: 1.8;
       color: #2c3e50;
       word-wrap: break-word;
-      padding: 10px 0;
+      padding: 10px 5px;
     }
+    /* 段落間隔 */
     .ai-plain p { margin: 0 0 1.2em 0; }
-    .ai-plain .math-block {
+    
+    /* 數學區塊：自動置中並允許橫向捲動 */
+    .math-block {
       margin: 1.2em 0;
       text-align: center;
       overflow-x: auto;
+      overflow-y: hidden;
     }
-    /* 強制移除底線 */
+    
+    /* 互動筆記：移除所有底線，僅保留點擊手勢 */
     .math-note, [data-note], .katex [data-note] {
-      border-bottom: none !important; 
+      border-bottom: none !important;
       text-decoration: none !important;
-      cursor: pointer; /* 讓使用者知道可以點 */
+      cursor: pointer;
     }
-    /* 彈出說明小框框的樣式 */
+    
+    /* 彈出說明框樣式 */
     .math-note-popover {
       position: fixed;
-      background: #333;
+      background: rgba(44, 62, 80, 0.95);
       color: #fff;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
       font-size: 14px;
-      z-index: 9999;
+      z-index: 10000;
       display: none;
       pointer-events: none;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      max-width: 200px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      max-width: 250px;
+      line-height: 1.5;
+      backdrop-filter: blur(4px);
     }
     .math-note-popover.show { display: block; }
-    /* 答案框 */
+    
+    /* 通用答案框 */
     .answer-box {
       margin-top: 1.5em;
-      padding: 12px 20px;
-      background-color: #e3f2fd;
-      color: #0d47a1;
-      border-left: 5px solid #1976d2;
+      padding: 15px 20px;
+      background-color: #f0f7ff;
+      color: #0056b3;
+      border-left: 6px solid #007bff;
       border-radius: 4px;
       font-weight: bold;
-      display: inline-block;
+      display: block;
     }
   `;
   document.head.appendChild(style);
 })();
 
-// 2. 點擊說明邏輯 (Popover)
+// 2. 互動說明邏輯 (Popover)
 let popoverEl = null;
-function ensurePopover() {
-  if (popoverEl) return popoverEl;
-  popoverEl = document.createElement('div');
-  popoverEl.className = 'math-note-popover';
-  document.body.appendChild(popoverEl);
+function getPopover() {
+  if (!popoverEl) {
+    popoverEl = document.createElement('div');
+    popoverEl.className = 'math-note-popover';
+    document.body.appendChild(popoverEl);
+  }
   return popoverEl;
 }
 
-// 監聽全局點擊事件來觸發說明
 document.addEventListener('click', (e) => {
+  // 遍歷路徑找尋是否有帶 data-note 的元素
   const target = e.target.closest('[data-note]');
-  const pop = ensurePopover();
+  const pop = getPopover();
   
   if (target) {
     const note = target.getAttribute('data-note');
@@ -79,78 +90,103 @@ document.addEventListener('click', (e) => {
     pop.textContent = note;
     pop.classList.add('show');
     
-    // 計算位置
     const rect = target.getBoundingClientRect();
-    pop.style.left = `${rect.left + rect.width / 2}px`;
-    pop.style.top = `${rect.top - 10}px`;
+    const popRect = pop.getBoundingClientRect();
+    
+    // 計算彈出位置（置中於元素上方）
+    let left = rect.left + (rect.width / 2);
+    let top = rect.top - 10;
+    
+    // 防止超出螢幕左右邊界
+    const padding = 10;
+    left = Math.max(popRect.width/2 + padding, Math.min(window.innerWidth - popRect.width/2 - padding, left));
+    
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
     pop.style.transform = 'translate(-50%, -100%)';
+    e.stopPropagation();
   } else {
     pop.classList.remove('show');
   }
 });
 
-// ==========================================
-// 3. 核心渲染功能
-// ==========================================
-
+// 3. 核心解析邏輯
 const BOARD_LAYOUT_ENABLED = false;
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function extractAnswer(raw) {
-  let s = String(raw || '').trim();
-  let answerText = '';
-  const m = s.match(/(?:^|\n)\s*(?:\*\*)?答[：:]\s*(.+?)(?:\*\*)?\s*$/);
-  if (m) {
-    answerText = m[1].trim();
-    s = s.slice(0, m.index).trim();
-  }
-  return { body: s, answer: answerText };
-}
-
-function parseMarkdownToHtml(text) {
-  const mathBlocks = [];
-  let processed = text.replace(/\$\$([\s\S]+?)\$\$/g, (m) => {
-    mathBlocks.push(m);
-    return `__MATH_DISPLAY_${mathBlocks.length - 1}__`;
+/**
+ * 處理 Markdown：
+ * 1. 保護數學式不被 escape
+ * 2. 處理換行 (雙換行 = 段落, 單換行 = <br>)
+ */
+function parseText(raw) {
+  const mathItems = [];
+  // 1. 暫存所有數學標記，避免中間的符號被處理
+  let text = raw.replace(/\$\$([\s\S]+?)\$\$/g, (m) => {
+    mathItems.push({ type: 'block', content: m });
+    return `__MATH_HOLDER_${mathItems.length - 1}__`;
   });
-  processed = processed.replace(/\$([^\n]+?)\$/g, (m) => {
-    mathBlocks.push(m);
-    return `__MATH_INLINE_${mathBlocks.length - 1}__`;
+  text = text.replace(/\$([^\n]+?)\$/g, (m) => {
+    mathItems.push({ type: 'inline', content: m });
+    return `__MATH_HOLDER_${mathItems.length - 1}__`;
   });
 
-  processed = esc(processed);
-  processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // 2. 基本 HTML 安全處理與 Markdown
+  text = esc(text);
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-  processed = processed
-    .split(/\n{2,}/)
-    .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-    .join('\n');
+  // 3. 轉換段落與換行
+  text = text.split(/\n{2,}/).map(p => {
+    return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+  }).join('');
 
-  processed = processed.replace(/__MATH_DISPLAY_(\d+)__/g, (m, i) => `<div class="math-block">${mathBlocks[i]}</div>`);
-  processed = processed.replace(/__MATH_INLINE_(\d+)__/g, (m, i) => mathBlocks[i]);
+  // 4. 還原數學標記
+  text = text.replace(/__MATH_HOLDER_(\d+)__/g, (m, index) => {
+    const item = mathItems[index];
+    if (item.type === 'block') {
+      return `<div class="math-block">${item.content}</div>`;
+    }
+    return item.content;
+  });
 
-  return processed;
+  return text;
 }
 
+/**
+ * 公開的渲染接口
+ */
 function render(rawText) {
   if (!rawText) return '';
-  let fixedText = rawText.replace(
+
+  // 修正常見的 LaTeX 裸寫 array 錯誤
+  let content = rawText.replace(
     /(?:^|\n)((?:\\begin\{array\})[\s\S]*?\\end\{array\})(?=\n|$)/g,
-    (m, block) => (block.includes('$') ? m : `\n$$${block}$$\n`)
+    (m, block) => block.includes('$') ? m : `\n$$${block}$$\n`
   );
-  const { body, answer } = extractAnswer(fixedText);
-  let html = parseMarkdownToHtml(body);
-  if (answer) {
-    html += `<div class="answer-box">答：${esc(answer.replace(/^答[：:]\s*/, ''))}</div>`;
+
+  // 嘗試分離答案
+  let body = content;
+  let answerHtml = '';
+  const answerMatch = content.match(/(?:^|\n)\s*(?:\*\*)?答[：:]([\s\S]+?)(?:\*\*)?\s*$/);
+  
+  if (answerMatch) {
+    body = content.slice(0, answerMatch.index).trim();
+    answerHtml = `<div class="answer-box">答：${esc(answerMatch[1].trim())}</div>`;
   }
-  return `<div class="ai-plain">${html}</div>`;
+
+  const htmlBody = parseText(body);
+  return `<div class="ai-plain">${htmlBody}${answerHtml}</div>`;
 }
 
+/**
+ * 公開的 KaTeX 渲染接口
+ */
 function doKaTeX(element) {
   if (typeof renderMathInElement !== 'function') return;
+  
   renderMathInElement(element, {
     delimiters: [
       { left: '$$', right: '$$', display: true },
@@ -158,6 +194,9 @@ function doKaTeX(element) {
     ],
     throwOnError: false,
     trust: (context) => context.command === '\\htmlData',
-    macros: { '\\frac': '\\dfrac', '\\tfrac': '\\dfrac' }
+    macros: {
+      '\\frac': '\\dfrac',
+      '\\tfrac': '\\dfrac'
+    }
   });
 }
