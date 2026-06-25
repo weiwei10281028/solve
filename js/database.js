@@ -1,10 +1,14 @@
-/* 題庫載入：database/*.md（扁平資料夾） */
+/**
+ * js/database.js - 2024 高效保底版
+ * 整合：檔案讀取、相似度評分、Tier 1-3 分級機制、未命中強制給予範本
+ */
 
 let databaseEntriesCache = null;
 let databaseFileCache = {};
 let databaseIndexCache = null;
 let lastDatabaseMatch = null;
 let lastDatabaseInject = '';
+let lastResolveInput = '';
 
 function isFileProtocol() { return location.protocol === 'file:'; }
 
@@ -83,17 +87,15 @@ async function loadDatabaseEntries() {
   for (const fn of files) {
     const raw = await loadDatabaseFileContent(fn);
     if (!raw) continue;
+    if (typeof entryFromDatabaseMd !== 'function') {
+        console.error('找不到 entryFromDatabaseMd 函數，請確保 db-parse.js 已載入');
+        continue;
+    }
     const entry = entryFromDatabaseMd(raw, fn);
     if (entry.id) entries.push(entry);
   }
   databaseEntriesCache = entries;
   return entries;
-}
-
-function getEmbeddedMethods() {
-  const emb = getEmbeddedDatabase();
-  if (emb.methods && Object.keys(emb.methods).length) return emb.methods;
-  return null;
 }
 
 async function loadExampleTexts(ex) {
@@ -112,6 +114,7 @@ async function loadExampleTexts(ex) {
 
 async function rankDatabaseEntries(userInput = '') {
   const entries = await loadDatabaseEntries();
+  if (typeof scoreEntry !== 'function') return { entries, scored: [], best: null };
   const scored = entries.map(ex => {
     const result = scoreEntry(ex, userInput);
     return { ex, ...result };
@@ -119,190 +122,94 @@ async function rankDatabaseEntries(userInput = '') {
   return { entries, scored, best: scored[0] || null };
 }
 
-async function buildMatchCatalogLine() {
-  const entries = await loadDatabaseEntries();
-  return entries.map(ex => {
-    const meta = ex.meta || {};
-    let core = getCoreFingerprints(meta).join('/');
-    if (!core && meta.catalog_only) {
-      core = ex.match_alias || ex.topic || ex.id || '段考卷';
-    }
-    const alias = ex.match_alias ? `(${ex.match_alias})` : '';
-    return `${ex.id}${alias}:${core || '—'}`;
-  }).join('；');
-}
-
-let lastResolveInput = '';
-
 async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
   const key = String(userInput || '').trim();
   if (!force && key === lastResolveInput && lastDatabaseMatch) {
-    const entries = await loadDatabaseEntries();
-    return {
-      tier: lastDatabaseMatch.tier,
-      entry: null,
-      injectBlock: lastDatabaseInject,
-      matchInfo: lastDatabaseMatch,
-      entries
-    };
+    return { tier: lastDatabaseMatch.tier, entry: null, injectBlock: lastDatabaseInject };
   }
   lastResolveInput = key;
 
-  const { entries, scored, best } = await rankDatabaseEntries(userInput);
+  const { entries, best } = await rankDatabaseEntries(userInput);
 
-  if (best?.examHit) {
-    const ex = best.ex;
-    const hit = best.examHit;
-    const injectBlock = buildTier1Block(
-      { ...ex, qLabel: `卷內比對`, meta: { ...ex.meta, ...hit.meta } },
-      hit.questionText.slice(0, 2000),
-      hit.solutionText.slice(0, 6500)
-    );
-    lastDatabaseMatch = getMatchSummary(ex, 1, hit.score, [...hit.reasons, '關鍵字配對']);
-    lastDatabaseInject = injectBlock;
-    return { tier: 1, entry: ex, injectBlock, matchInfo: lastDatabaseMatch, entries };
-  }
-
-  if (best?.solutionOnlyHit) {
-    const ex = best.ex;
-    const hit = best.solutionOnlyHit;
-    const injectBlock = buildTier1Block(
-      { ...ex, qLabel: hit.sectionTitle || '純詳解命中', meta: { ...ex.meta, ...hit.meta } },
-      '（純詳解範例命中；請依學生題目圖之條件代入，數字依新題驗算，步驟與排版須與參考詳解一致）',
-      hit.solutionText.slice(0, 6500)
-    );
-    lastDatabaseMatch = getMatchSummary(ex, 1, hit.score, [...hit.reasons, '純詳解配對'], { solutionOnly: true });
-    lastDatabaseInject = injectBlock;
-    return { tier: 1, entry: ex, injectBlock, matchInfo: lastDatabaseMatch, entries };
-  }
-
-  if (!best || best.score <= 0) {
-    lastDatabaseMatch = getMatchSummary(null, 3, 0, []);
-    return { tier: 3, entry: null, injectBlock: '', matchInfo: lastDatabaseMatch, entries };
-  }
-
-  let tier = resolveTier(best.score);
-  const entry = best.ex;
-  const texts = await loadExampleTexts(entry);
-  if (!texts) {
-    lastDatabaseMatch = getMatchSummary(entry, 3, best.score, best.reasons);
-    return { tier: 3, entry, injectBlock: '', matchInfo: lastDatabaseMatch, entries };
-  }
-
-  let injectBlock = '';
-  if (tier === 1) {
-    const maxChars = entry.chars > 8000 ? 6500 : 4500;
-    const qText = entry.meta?.solution_only
-      ? '（純詳解同型命中；數字依新題，步驟與排版參考詳解）'
-      : texts.questionText.slice(0, 2000);
-    injectBlock = buildTier1Block(
-      entry,
-      qText,
-      texts.solutionText.slice(0, maxChars)
-    );
-  } else if (tier === 2) {
-    const methodId = entry.meta?.method_id || 'general-chem';
-    injectBlock = formatMethodBlock(methodId, texts.solutionText.slice(0, 1800), entry.meta || {});
-    const pitfalls = entry.meta?.pitfalls || [];
-    if (pitfalls.length) {
-      injectBlock += `\n\n【本題特別注意】\n${pitfalls.map(p => `- ${p}`).join('\n')}`;
+  // 處理命中邏輯 (Tier 1 & 2)
+  if (best && best.score >= 50) { 
+    const tier = best.score >= 85 ? 1 : 2;
+    const entry = best.ex;
+    const texts = await loadExampleTexts(entry);
+    let injectBlock = '';
+    
+    if (tier === 1) {
+        injectBlock = `【命中資料庫：${entry.id}】\n參考詳解：\n${texts.solutionText}`;
+    } else {
+        injectBlock = `【相似題目參考：${entry.id}】\n解題邏輯範例：\n${texts.solutionText}`;
     }
+    
+    lastDatabaseMatch = { tier, entryId: entry.id };
+    lastDatabaseInject = injectBlock;
+    return { tier, entry, injectBlock };
   }
 
-  lastDatabaseMatch = getMatchSummary(entry, tier, best.score, best.reasons, {
-    solutionOnly: !!entry.meta?.solution_only
-  });
-  lastDatabaseInject = injectBlock;
-  return { tier, entry, injectBlock, matchInfo: lastDatabaseMatch, entries };
+  // 未命中 (Tier 3)
+  lastDatabaseMatch = { tier: 3, entryId: null };
+  lastDatabaseInject = '';
+  return { tier: 3, entry: null, injectBlock: '' };
 }
 
+// 取得最後一次注入內容的接口
 function getLastDatabaseInject() { return lastDatabaseInject || ''; }
 function getLastDatabaseMatch() { return lastDatabaseMatch; }
 
-function clearDatabaseCache() {
-  databaseEntriesCache = null;
-  databaseFileCache = {};
-  databaseIndexCache = null;
-  lastResolveInput = '';
-  lastDatabaseMatch = null;
-  lastDatabaseInject = '';
-}
-
-async function getDatabaseStatus() {
-  const entries = await loadDatabaseEntries();
-  const total = entries.length;
-  if (!total) return { ok: false, loaded: 0, total: 0, reason: 'empty' };
-  const withMeta = entries.filter(ex => ex.meta?.method_id).length;
-  return { ok: true, loaded: total, total, withMeta, reason: 'ok' };
-}
-
-function buildTier3UserCheatsheet(entries = []) {
-  if (!entries.length) return '';
-  const lines = ['【資料庫速查｜與圖片同時閱讀；核心指紋全部吻合則必須採該法】'];
-  for (const ex of entries) {
-    const m = ex.meta || {};
-    if (m.catalog_only) continue;
-    if (m.solution_only) {
-      const core = getCoreFingerprints(m).join(',') || '—';
-      lines.push(`■ ${ex.id}｜純詳解｜核心:${core}｜答:${m.answer_key || '—'}`);
-      continue;
-    }
-    const core = getCoreFingerprints(m).join(',') || '—';
-    const crit = (m.critical_judgment || '').slice(0, 80);
-    const ans = m.answer_key || '—';
-    lines.push(`■ ${ex.id}｜核心:${core}｜⚠${crit || '—'}｜答:${ans}`);
-  }
-  return lines.length > 1 ? lines.join('\n') : '';
-}
-
-async function buildDatabaseSystemAddon(userInput = '') {
-  if (!isDatabaseEnabled()) return '';
-  if (!lastDatabaseMatch || lastResolveInput !== String(userInput || '').trim()) {
-    await resolveDatabaseMatch(userInput);
-  }
-  const entries = await loadDatabaseEntries();
-  const tier = lastDatabaseMatch?.tier ?? 3;
-  const parts = [];
-  if (entries.length) parts.push(buildCatalogIndex(entries));
-  if (tier === 3 && entries.length) {
-    parts.push('【system 提示】完整權威詳解在 user 訊息（與圖片同則）；讀圖後對照核心指紋選法。');
-  }
-  return parts.length ? `\n\n${parts.join('\n\n')}` : '';
-}
-
+// ==========================================
+// 核心加強：buildDatabaseUserBlock
+// 確保 AI 即使沒命中也要參考「範本」
+// ==========================================
 async function buildDatabaseUserBlock(userInput = '') {
   if (!isDatabaseEnabled()) return '';
+  
+  // 觸發比對
   if (!lastDatabaseMatch || lastResolveInput !== String(userInput || '').trim()) {
     await resolveDatabaseMatch(userInput);
   }
+  
   const match = getLastDatabaseMatch();
   const entries = await loadDatabaseEntries();
 
+  // 情況 A：正常命中 (Tier 1 或 2)
   if (match?.tier === 1 || match?.tier === 2) {
     const block = getLastDatabaseInject();
     if (block) {
-      return `\n\n${block}\n\n【硬性規定】以上為資料庫權威詳解，與圖片同時閱讀；方法不可更改。排版請仿照此詳解（句號後換行、選項內步驟垂直排列、總重／濃度等標籤與算式同一行）；數字依新題驗算。`;
+      return `\n\n[參考資料庫內容]\n${block}\n\n【硬性要求】以上為資料庫內容，你必須「死忠模仿」其排版、換行與 Note 標註邏輯，數字依新題計算。`;
     }
   }
-  const parts = [buildTier3UserCheatsheet(entries)];
-  for (const ex of entries) {
-    if (ex.meta?.catalog_only) continue;
-    if (ex.meta?.solution_only) continue;
-    const texts = await loadExampleTexts(ex);
-    if (!texts?.solutionText) continue;
-    const core = getCoreFingerprints(ex.meta || {}).join(',');
-    parts.push(
-      `【${ex.id}｜核心指紋:${core}｜若圖中條件吻合則必須用此法】\n${texts.solutionText.slice(0, 3500)}`
-    );
+
+  // 情況 B：未命中 (Tier 3) -> 啟動保底機制
+  if (entries.length > 0) {
+    // 從資料庫中挑選第一個 entry 作為「風格範本」
+    const fallbackEntry = entries[0];
+    const texts = await loadExampleTexts(fallbackEntry);
+    
+    if (texts?.solutionText) {
+      return `\n\n[參考資料庫範本 (不論題目是否相符，請以此風格為準)]\n【標準板書範例：${fallbackEntry.id}】\n${texts.solutionText.slice(0, 3500)}\n\n【最高指令】目前的題目在資料庫中無精準匹配，但你必須「完全模仿」上述範例的：\n1. 每行字數與自然換行節奏。\n2. \\htmlData{note=...}{數字} 的標註邏輯與語氣。\n3. 嚴禁開場白與結語，直接進入解題。`;
+    }
   }
-  parts.push(buildDbMatchUserAddon(match));
-  return '\n\n' + parts.filter(Boolean).join('\n\n');
+
+  return '';
 }
 
-/* 相容舊名稱（app.js / prompts.js 過渡） */
+// System Addon 保持精簡
+async function buildDatabaseSystemAddon(userInput = '') {
+  if (!isDatabaseEnabled()) return '';
+  return '\n\n【指令】請讀取 User 訊息中的 [參考資料]，並以該風格進行板書撰寫。';
+}
+
+// 相容性別名
 const getLastStyleMatch = getLastDatabaseMatch;
-const getStyleLibraryStatus = getDatabaseStatus;
 const buildStyleUserDbBlock = buildDatabaseUserBlock;
 const buildStyleSystemAddon = buildDatabaseSystemAddon;
 const isStyleLibraryEnabled = isDatabaseEnabled;
 const resolveStyleMatch = resolveDatabaseMatch;
+
+async function getDatabaseStatus() {
+  const entries = await loadDatabaseEntries();
+  return { ok: entries.length > 0, loaded: entries.length, total: entries.length, reason: entries.length > 0 ? 'ok' : 'empty' };
+}
