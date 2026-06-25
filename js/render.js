@@ -26,6 +26,7 @@ function hidePopover() {
   });
 }
 
+
 document.addEventListener('click', (e) => {
   const target = e.target.closest('[data-note], [note], .math-note');
   const pop = getPopover();
