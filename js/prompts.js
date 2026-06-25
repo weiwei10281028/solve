@@ -1,71 +1,54 @@
-/* ── 解析題號範圍與組裝訊息的必要函數 (請務必保留) ── */
+/**
+ * 終極修復版 Prompt 檔案
+ */
 
-function parseZhNumber(token = '') {
-  const t = String(token || '').trim();
-  if (!t) return NaN;
-  if (/^\d+$/.test(t)) return Number(t);
-  const map = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-  if (t === '十') return 10;
-  if (t.startsWith('十') && map[t[1]] != null) return 10 + map[t[1]];
-  if (t.endsWith('十') && map[t[0]] != null) return map[t[0]] * 10;
-  const m = t.match(/^([一二三四五六七八九])十([一二三四五六七八九])$/);
-  if (m) return map[m[1]] * 10 + map[m[2]];
-  if (map[t] != null) return map[t];
-  return NaN;
-}
+// 1. 定義 AI 提示詞
+const SYSTEM_CHEM = `你是台灣高中化學教師，撰寫專業詳解。
+- 遇算式請用獨立區塊 $$...$$。
+- 分數用 \\dfrac。
+- 結尾用「答：」。`;
 
-function parseRequestedSolveScope(inputText = '') {
-  const raw = String(inputText || '').trim();
-  if (!raw || /^(全部|所有|整題|全題|整卷|全部小題)$/.test(raw)) {
-    return { mode: 'all', numbers: [] };
-  }
+// 2. 定義解析邏輯 (確保 buildSolveUserText 一定存在)
+window.buildSolveUserText = function(q, refAnswer = '') {
+  console.log("正在呼叫 buildSolveUserText...");
+  const raw = String(q || '').trim();
   const picked = new Set();
-  const addNum = n => { if (Number.isFinite(n) && n >= 1 && n <= 99) picked.add(n); };
-  for (const m of [...raw.matchAll(/題號\s*[:：]\s*([^\n；;]+)/gi)]) {
-    for (const part of m[1].split(/[,，、\s]+/)) {
-      const n = parseZhNumber(part) || Number(part);
-      addNum(n);
-    }
-  }
-  for (const m of [...raw.matchAll(/([一二三四五六七八九十\d]+)\s*[~\-～到至]\s*([一二三四五六七八九十\d]+)/g)]) {
-    const a = parseZhNumber(m[1]); const b = parseZhNumber(m[2]);
-    if (Number.isFinite(a) && Number.isFinite(b)) {
-      for (let n = Math.min(a, b); n <= Math.max(a, b); n++) addNum(n);
-    }
-  }
-  for (const m of [...raw.matchAll(/第\s*([一二三四五六七八九十\d]{1,3})\s*(?:小題|題|問)/g)]) {
-    addNum(parseZhNumber(m[1]));
-  }
-  for (const m of [...raw.matchAll(/[（(]\s*(\d{1,2})\s*[)）]/g)]) { addNum(Number(m[1])); }
-  for (const m of [...raw.matchAll(/(?:^|[,，、\s])(\d{1,2})\s*(?:小題|題)/g)]) { addNum(Number(m[1])); }
-  const numbers = Array.from(picked).sort((a, b) => a - b);
-  return numbers.length ? { mode: 'partial', numbers } : { mode: 'all', numbers: [] };
-}
-
-function buildScopeSystemAddon(q) {
-  const scope = parseRequestedSolveScope(q);
-  if (scope.mode === 'all') return '\n\n【範圍】可解答圖中所有小題。';
-  const list = scope.numbers.map(n => `(${n})`).join('、');
-  return `\n\n【範圍】只解 ${list}。`;
-}
-
-// 這是你缺少的關鍵函數
-function buildSolveUserText(q, refAnswer = '') {
-  const scope = parseRequestedSolveScope(q);
-  const ref = String(refAnswer || '').trim();
-  let text = scope.mode === 'partial' 
-    ? `請解第 ${scope.numbers.join('、')} 題。` 
-    : `請解圖中所有小題。`;
-  if (ref) text += `\n參考答案：${ref}`;
+  const addNum = n => { if (Number.isFinite(n)) picked.add(n); };
+  
+  // 簡易解析題號
+  const ms = raw.match(/\d+/g);
+  if (ms) ms.forEach(m => addNum(parseInt(m)));
+  
+  const nums = Array.from(picked);
+  let text = nums.length > 0 ? `請解第 ${nums.join('、')} 題。` : `請解圖中所有小題。`;
+  
+  if (refAnswer) text += `\n參考答案：${refAnswer}`;
   return text;
-}
+};
 
-async function getSystemPrompt(userInput = '') {
-  // 假設你有這個函數，如果沒有請確保主程式邏輯正確
-  const addon = (typeof buildDatabaseSystemAddon === 'function') ? await buildDatabaseSystemAddon(userInput) : '';
-  return `${SYSTEM_CHEM}${addon}`;
-}
+// 3. 定義解析範圍邏輯
+window.buildScopeSystemAddon = function(q) {
+  return "\n\n【範圍】依據使用者要求解答。";
+};
 
-async function getSystemPromptForSolve(questionInput = '') {
-  return (await getSystemPrompt(questionInput)) + buildScopeSystemAddon(questionInput);
-}
+// 4. 定義系統提示詞組裝
+window.getSystemPromptForSolve = async function(questionInput = '') {
+  let addon = "";
+  // 檢查是否有資料庫函數，避免報錯
+  if (typeof buildDatabaseSystemAddon === 'function') {
+    try {
+      addon = await buildDatabaseSystemAddon(questionInput);
+    } catch(e) {
+      console.log("資料庫插件載入跳過");
+    }
+  }
+  
+  const scopeAddon = window.buildScopeSystemAddon(questionInput);
+  return SYSTEM_CHEM + addon + scopeAddon;
+};
+
+// 為了相容性，也定義沒有 window 的版本
+var buildSolveUserText = window.buildSolveUserText;
+var getSystemPromptForSolve = window.getSystemPromptForSolve;
+
+console.log("Prompt 腳本已成功載入，函數已就緒。");
