@@ -1,11 +1,7 @@
-/* ── board.css：化學板書格線排版 (通用修復版 + 微光標記法) ── */
+/* ── board.css：B 方案專業排版 (垂直節奏 + 單行橫滑) ── */
 
 .board {
   --board-fs: 15px;
-  --board-lh: 1.68;
-  --board-row-gap: 0.86em;
-  --board-array-row: 2.45;
-  --board-frac-pad: 0.36em;
   --board-bg: #FDF9F0;
   background: var(--board-bg);
   border: 1px solid #E8DFD2;
@@ -15,171 +11,130 @@
   color: #2A2520;
 }
 
-/* 主詳解：解鎖 overflow-x，允許內部寬元素自然延伸 */
+/* 詳解主容器：解除全域橫向滑動，讓滑動發生在行內 */
 .board-scroll {
-  padding: 18px 12px 20px 18px;
-  max-height: min(65dvh, 520px);
+  padding: 18px 16px;
+  max-height: min(70dvh, 600px);
   overflow-y: auto;
-  overflow-x: auto; /* 解除隱藏封印 */
+  overflow-x: hidden; /* 核心：禁止全域滑動 */
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(58, 123, 213, 0.45) rgba(42, 37, 32, 0.06);
 }
-.board-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.board-scroll::-webkit-scrollbar-track { background: rgba(42, 37, 32, 0.05); border-radius: 6px; margin: 6px 2px; }
-.board-scroll::-webkit-scrollbar-thumb { background: rgba(58, 123, 213, 0.38); border-radius: 6px; }
-.board-scroll::-webkit-scrollbar-thumb:hover { background: rgba(58, 123, 213, 0.58); }
 
 /* =========================================================
-   通用自然排版與完美橫向捲動
+   【垂直節奏】解決擠在一起的問題
    ========================================================= */
 .ai-plain {
-  --plain-row-gap: 1.1em;
   font-size: 15px;
-  line-height: 1.7; /* 放寬行距，不壓迫分式 */
-  color: #2A2520;
+  /* line-height 2.2 確保高分式不會頂到上一行 */
+  line-height: 2.2; 
+  color: #2C3E50;
+}
+
+/* 每一行文字的獨立間距 */
+.board-row {
+  margin-bottom: 0.8em; /* 行與行之間的一致間隔 */
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-.ai-plain p {
-  margin: 0 0 var(--plain-row-gap) 0;
-}
-
-/* 長算式/反應表 專屬橫向滑動區塊 */
-.math-block {
+/* =========================================================
+   【單行橫滑】只有長算式可以滑動
+   ========================================================= */
+.math-scroll-container {
   display: block;
   width: 100%;
-  margin: 1.2em 0;
-  padding-bottom: 8px; /* 預留空間給滑桿 */
+  margin: 1.5em 0;
+  padding: 10px 0;
   text-align: center;
-  overflow-x: auto !important; /* 強制開啟橫向滑動 */
+  overflow-x: auto !important; /* 強制單行滑動 */
   overflow-y: hidden !important;
-  white-space: nowrap; /* 核心：強迫長算式不准換行 */
-  -webkit-overflow-scrolling: touch; /* 手機滑動順暢 */
+  white-space: nowrap; /* 算式不准換行，強制橫生 */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* 算式區塊專屬滑桿 */
-.math-block::-webkit-scrollbar { height: 6px; display: block; }
-.math-block::-webkit-scrollbar-track { background: rgba(42, 37, 32, 0.04); border-radius: 4px; }
-.math-block::-webkit-scrollbar-thumb { background: rgba(42, 37, 32, 0.2); border-radius: 4px; }
-.math-block::-webkit-scrollbar-thumb:hover { background: rgba(42, 37, 32, 0.35); }
+/* 常駐滑桿樣式：明顯但優雅，提示學生可滑動 */
+.math-scroll-container::-webkit-scrollbar {
+  height: 6px;
+  display: block;
+}
+.math-scroll-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+.math-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(173, 181, 189, 0.4);
+  border-radius: 10px;
+}
 
-/* 確保 KaTeX 顯示區不會打亂外層的 scroll */
-.math-block .katex-display {
+/* 修正 KaTeX 在橫滑容器內的對齊 */
+.math-scroll-container .katex-display {
   display: inline-block;
   margin: 0 !important;
+  vertical-align: middle;
 }
 
 /* =========================================================
-   方案 A：Note 註解微光標記法 (移除底線)
+   【互動 Note】微光標記法
    ========================================================= */
 .math-note,
 .katex .math-note,
 .katex [data-note],
 .katex [note] {
   cursor: pointer !important;
-  padding: 0.1em 0.3em; /* 稍微撐開一點背景，讓它像個小標籤 */
+  padding: 0.1em 0.3em;
   margin: 0 0.05em;
-  border-radius: 4px; /* 圓角背景 */
-  background: rgba(184, 112, 42, 0.08); /* 平時狀態：極淡的卡其色背景暗示 */
-  border-bottom: none !important; /* 徹底移除舊版底線 */
+  border-radius: 4px;
+  background: rgba(184, 112, 42, 0.08); /* 平時微光 */
+  border: none !important;
   text-decoration: none !important;
-  touch-action: manipulation;
-  transition: background 0.2s, box-shadow 0.2s, color 0.2s;
-  position: relative;
-  z-index: 2;
-  pointer-events: auto;
+  transition: background 0.2s;
 }
 
-/* 滑鼠移上去時稍微加深背景 */
-.math-note:hover, 
-[data-note]:hover, 
-[note]:hover {
+.math-note:hover, [data-note]:hover {
   background: rgba(184, 112, 42, 0.15);
 }
 
-/* 點擊後的明顯反白狀態 */
-.math-note.active, 
-.katex .math-note.active,
-.katex [data-note].active,
-.katex [note].active {
-  background: #F5E6C8 !important; /* 明顯的暖黃色反白 */
-  color: #6B4E2A !important;
-  box-shadow: 0 0 0 1.5px var(--copper); /* 外圍加細框強調 */
+.math-note.active, [data-note].active {
+  background: #F5E6C8 !important; /* 點擊後反白 */
+  box-shadow: 0 0 0 1px #A67C52;
 }
 
-/* 彈出說明黑框 (Popover) */
 .math-note-popover {
   position: fixed;
   display: none;
   z-index: 9999;
-  max-width: min(280px, calc(100vw - 32px));
   background: rgba(42, 37, 32, 0.95);
-  backdrop-filter: blur(4px);
-  color: #F5F1EB;
-  border-radius: 8px;
+  color: #FFF;
   padding: 10px 14px;
+  border-radius: 8px;
   font-size: 14px;
-  line-height: 1.55;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
   pointer-events: none;
 }
 .math-note-popover.show { display: block; }
 
 /* =========================================================
-   通用答案框 (藍色簡答)
+   【藍色答案框】
    ========================================================= */
 .answer-box {
+  display: inline-block;
   margin-top: 1.5em;
-  padding: 12px 16px;
+  padding: 12px 18px;
   background: #EAF4FF;
-  border-left: 4px solid #3A7BD5;
+  border-left: 5px solid #3A7BD5;
   border-radius: 4px;
   font-weight: 700;
   color: #1453B8;
   font-size: 15px;
-  line-height: 1.55;
-  display: inline-block;
 }
 
 /* =========================================================
-   KaTeX 排版微調 (保留您的專業設定)
+   KaTeX 排版優化
    ========================================================= */
 .ai-plain .katex {
   font-size: 1.05em;
-  line-height: 1.2;
 }
-.board .katex .mathnormal,
-.board .katex .mathrm {
-  font-family: KaTeX_Math, KaTeX_Main, 'Times New Roman', serif !important;
-  font-style: italic;
+/* 讓分式在行內看起來更平衡 */
+.ai-plain .katex .mfrac {
+  vertical-align: -0.5em;
 }
-.board .katex .msupsub > .vlist-t { font-size: 0.84em !important; padding-top: 0.12em; font-weight: 700; color: #1a1510; }
-.board .katex .msupsub > .vlist-b { font-size: 0.82em !important; padding-bottom: 0.18em; }
-
-/* 分式橫線微調 */
-.board .katex .mfrac { margin: 0.2em 0.14em 0.36em; padding: 0.14em 0.1em var(--board-frac-pad); }
-.board .katex .mfrac .frac-line { border-bottom-width: 0.075em !important; margin: 0.14em 0 0.18em !important; }
-
-/* 反應表 array 微調 */
-.board .katex .array { line-height: var(--board-array-row); border-spacing: 0 0.28em; }
-.board .katex .array td { padding: 0.22em 1em; vertical-align: middle; }
-.board .katex .array td.hline { border-top-width: 0.075em !important; }
-
-
-/* =========================================================
-   向下相容區 (保留舊版類別，確保歷史資料庫不跑版)
-   ========================================================= */
-.board-line { display: block; line-height: var(--board-lh); margin: 0 0 var(--board-row-gap); }
-.board-line-inner { display: block; width: 100%; word-break: break-word; }
-.board-line--nowrap .board-line-inner { white-space: nowrap; overflow-x: auto; }
-.board-line--scroll .board-line-inner { overflow-x: auto; white-space: nowrap; }
-.chem-row { display: grid; grid-template-columns: 2em minmax(0, 1fr); gap: 0.28em; margin: 0 0 0.42em; }
-.chem-label { font-weight: 600; white-space: nowrap; }
-.subq-block { margin: 0 0 1em; padding-top: 1.15em; border-top: 1px solid #DDD4C8; }
-.subq-label { font-weight: 700; color: #3D5C48; }
-.followup-area { margin-top: 16px; padding-top: 16px; border-top: 1px solid #E8DFD2; }
-.followup-user { padding: 10px 14px; background: #F5EDE4; border-bottom: 1px solid #E8DFD2; }
-.followup-reply { padding: 14px 16px; background: #FDF9F0; }
