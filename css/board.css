@@ -1,161 +1,106 @@
-/* ── board.css：懸掛縮進布局 + 分式修正 + 單行橫滑終極版 ── */
+/* ── board.css：專業教學排版引擎 (終極版) ── */
 
-/* 1. 基礎畫板設定 */
+/* 1. 基礎容器設定 */
 .board {
-  --board-fs: 15px;
   --board-bg: #FDF9F0;
   background: var(--board-bg);
   border: 1px solid #E8DFD2;
   border-radius: 8px;
-  font-size: var(--board-fs);
+  font-size: 15px;
   font-family: 'Noto Sans TC', sans-serif;
   color: #2A2520;
 }
 
-/* 詳解主容器 */
 .board-scroll {
   padding: 18px 16px;
   max-height: min(75dvh, 700px);
   overflow-y: auto;
-  overflow-x: hidden; /* 禁止全域左右晃動 */
+  overflow-x: hidden; /* 核心：禁止全域晃動 */
   -webkit-overflow-scrolling: touch;
 }
 
-/* 2. 垂直節奏設定 */
+/* 2. 垂直節奏：行間距拉開 */
 .ai-plain {
-  font-size: 15px;
-  line-height: 2.2; /* 拉開行距，讓版面有呼吸感 */
+  line-height: 2.2; /* 拉開行距，不壓迫分式 */
   color: #2C3E50;
 }
 
-/* 普通文字行間距 */
 .board-row {
   margin-bottom: 0.6em;
-  word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
-/* =========================================================
-   3. 【懸掛縮進】選項標籤-內容分離布局
-   ========================================================= */
+/* 3. 選項懸掛縮進 (左右分欄) */
 .choice-block {
   display: grid;
-  grid-template-columns: auto 1fr; /* 左側標籤自適應，右側內容撐開 */
-  gap: 0.6em; /* 標籤與內容的間距 */
+  grid-template-columns: auto 1fr;
+  gap: 0.7em;
   margin-bottom: 0.8em;
   align-items: start;
 }
 
 .choice-label {
   font-weight: 700;
-  color: #3D5C48; /* 選項字母顏色稍微加深，易於定位 */
+  color: #3D5C48;
   white-space: nowrap;
-  padding-top: 1px; /* 微調對齊 */
 }
 
 .choice-content {
-  min-width: 0; /* 防止長算式撐破 Grid */
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
-/* =========================================================
-   4. 【局部橫滑】方程式與長算式保護
-   ========================================================= */
+/* 4. 單行橫滑容器 (仿影片絲滑感) */
 .math-scroll-container {
   display: block;
   width: 100%;
   margin: 1.2em 0;
-  padding: 8px 0 16px 0;
+  padding: 8px 0 16px 0; /* 預留底部空間給滑桿 */
   text-align: center;
-  
-  /* 滾動控制 */
-  overflow-x: auto !important; 
-  overflow-y: hidden !important; 
-  white-space: nowrap !important; /* 絕對不准折行 */
-  
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
 }
 
-/* 常駐深灰色滑桿：提示左右滑動 */
-.math-scroll-container::-webkit-scrollbar {
-  height: 6px; 
-  display: block !important;
-}
-.math-scroll-container::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 10px;
-}
-.math-scroll-container::-webkit-scrollbar-thumb {
-  background: #adb5bd; 
-  border-radius: 10px;
-}
+/* 常駐滑桿 UI */
+.math-scroll-container::-webkit-scrollbar { height: 5px; display: block !important; }
+.math-scroll-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); border-radius: 10px; }
+.math-scroll-container::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 10px; }
 
-/* 修正 KaTeX 在橫滑容器內的對齊 */
-.math-scroll-container .katex-display {
-  display: inline-block !important;
-  margin: 0 !important;
-  vertical-align: middle;
-}
-
-/* =========================================================
-   5. 【重要修正】分式橫線與數學式對齊
-   ========================================================= */
+/* 5. 【重要】修正 KaTeX 分式橫線對齊 */
 .katex {
-  /* 重置行高，解決分式 1/2 橫線不置中的問題 */
-  line-height: 1.2 !important; 
-  white-space: nowrap; /* 算式內部不准斷開 */
-  text-indent: 0;
+  line-height: 1.2 !important; /* 強制重置行高，讓 1/2 橫線居中 */
+  white-space: nowrap;
+  font-size: 1.08em;
 }
 
-/* 微調分式上下間距，防止分子分母與橫線太擠 */
 .katex .mfrac {
-  margin: 0 0.1em;
-  vertical-align: middle;
+  vertical-align: middle; /* 讓分式在行內高度平衡 */
 }
 
-/* =========================================================
-   6. Note 互動：微光標記法
-   ========================================================= */
-.math-note,
-.katex .math-note,
-.katex [data-note],
-.katex [note] {
+/* 6. Note 互動：微光標記法 */
+.math-note, .katex [data-note], .katex [note] {
   cursor: pointer !important;
   padding: 0.1em 0.3em;
-  margin: 0 0.05em;
   border-radius: 4px;
   background: rgba(184, 112, 42, 0.08); /* 平時微光 */
   border: none !important;
-  text-decoration: none !important;
   transition: background 0.2s;
-  pointer-events: auto;
 }
 
-.math-note:hover, [data-note]:hover { background: rgba(184, 112, 42, 0.15); }
-
-.math-note.active, [data-note].active {
-  background: #F5E6C8 !important; /* 點擊反白 */
+.math-note.active {
+  background: #F5E6C8 !important; /* 點擊後反白 */
   box-shadow: 0 0 0 1px #A67C52;
 }
 
-/* Popover 樣式 */
 .math-note-popover {
-  position: fixed;
-  display: none;
-  z-index: 9999;
-  background: rgba(42, 37, 32, 0.95);
-  color: #FFF;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-  pointer-events: none;
+  position: fixed; display: none; z-index: 9999;
+  background: rgba(42, 37, 32, 0.95); color: #FFF;
+  padding: 10px 14px; border-radius: 8px; font-size: 14px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3); pointer-events: none;
 }
 .math-note-popover.show { display: block; }
 
-/* 7. 藍色答案框 */
+/* 7. 藍色答案框樣式 */
 .answer-box {
   display: inline-block;
   margin-top: 1.5em;
