@@ -105,7 +105,8 @@
   padding-bottom: 0.4em !important;
 }
 
-/* 行尾殘留 $ 隱藏（保底）；橫滑行維持 nowrap */
-.ai-plain .plain-line-inner:not(.plain-line--hscroll) {
-  overflow-wrap: anywhere;
+/* 含算式之行：不在 KaTeX 片段之間任意斷行（純文字行仍用 board.css 預設換行） */
+.ai-plain .plain-line-inner:has(.katex, .math-block, .math-unit-tail, .plain-katex-nowrap) {
+  overflow-wrap: normal;
+  word-break: normal;
 }

@@ -50,6 +50,15 @@
   color: var(--accent-hover);
   margin-bottom: 4px;
 }
+.pair-col-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  margin-left: 6px;
+}
+.pair-col-tag--sol {
+  color: var(--accent-hover);
+}
 .pair-col-hint {
   font-size: 12px;
   color: var(--ink-faint);
@@ -212,6 +221,32 @@
   line-height: 1.55;
   white-space: pre-wrap;
   font-family: inherit;
+}
+
+.import-validation {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.import-validation--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border: 1px solid rgba(138, 109, 59, .25);
+}
+.import-validation--error {
+  background: #F9EDED;
+  color: #9B4444;
+  border: 1px solid rgba(155, 68, 68, .25);
+}
+.import-validation-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.import-validation ul {
+  margin: 0;
+  padding-left: 1.2em;
 }
 
 @media (max-width: 720px) {

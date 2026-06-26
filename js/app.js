@@ -113,6 +113,16 @@ document.addEventListener('paste', e => {
   if (item) onFile(item.getAsFile());
 });
 
+function hasSolveInput() {
+  const textQ = document.getElementById('textQuestionInput')?.value.trim() || '';
+  return !!(imgDataURL || textQ);
+}
+
+function updateSolveButtonState() {
+  const btn = document.getElementById('solveBtn');
+  if (btn) btn.disabled = busy || !hasSolveInput();
+}
+
 function onFile(file) {
   if (!file) return;
   const reader = new FileReader();
@@ -121,10 +131,10 @@ function onFile(file) {
     document.getElementById('prevImg').src = imgDataURL;
     document.getElementById('prevName').textContent = file.name || '貼上的圖片';
     document.getElementById('prevWrap').classList.add('show');
-    document.getElementById('solveBtn').disabled = false;
     apiMessages = [];
     clearThreads();
     document.getElementById('chatInputWrap').classList.remove('show');
+    updateSolveButtonState();
   };
   reader.readAsDataURL(file);
 }
@@ -132,15 +142,16 @@ function onFile(file) {
 function clearAll() {
   imgDataURL = null; apiMessages = []; lastMatchInput = '';
   document.getElementById('fileInput').value = '';
+  document.getElementById('textQuestionInput').value = '';
   document.getElementById('questionInput').value = '';
   document.getElementById('answerInput').value = '';
   document.getElementById('chatInput').value = '';
   document.getElementById('prevWrap').classList.remove('show');
-  document.getElementById('solveBtn').disabled = true;
   document.getElementById('resultCard').classList.remove('show');
   clearThreads();
   document.getElementById('chatInputWrap').classList.remove('show');
   setBadge('就緒');
+  updateSolveButtonState();
 }
 
 function toast(msg) {
@@ -162,8 +173,8 @@ function setBadge(txt, bg, color) {
 function setBusy(on) {
   busy = on;
   document.getElementById('loading').classList.toggle('show', on);
-  document.getElementById('solveBtn').disabled = on || !imgDataURL;
   document.getElementById('sendBtn').disabled = on;
+  updateSolveButtonState();
 }
 
 function clearThreads() {
@@ -177,13 +188,52 @@ function scrollBoard(el) {
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
 
+async function ensureBoardStyleReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
+  const check = typeof window.checkSolutionBoardStyle === 'function'
+    ? window.checkSolutionBoardStyle
+    : null;
+  const buildFix = typeof window.buildBoardStyleFixUserText === 'function'
+    ? window.buildBoardStyleFixUserText
+    : null;
+  if (!check || !buildFix || genOpts._boardStyleFixed) return reply;
+
+  const issues = check(reply);
+  if (!issues.length) return reply;
+
+  const fixMessages = [
+    ...apiMessages,
+    { role: 'assistant', content: reply },
+    { role: 'user', content: buildFix(issues) }
+  ];
+  try {
+    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
+      ...genOpts,
+      maxContinue: 0,
+      _boardStyleFixed: true
+    });
+    if (fixed && !check(fixed).length) return fixed;
+    if (fixed) return fixed;
+  } catch (err) {
+    console.warn('板書修正重試失敗', err);
+  }
+  toast('詳解開場可能未符合板書格式（避免裸數字開場）');
+  return reply;
+}
+
+function updateDatabaseStatusLine() {
+  /* 頂部狀態列已移除 */
+}
+
 function renderAiInto(container, text) {
   try {
+    if (typeof render !== 'function' || typeof doKaTeX !== 'function') {
+      throw new Error('render.js 未載入，請強制重新整理頁面');
+    }
     container.innerHTML = render(text || '');
-    doKaTeX(container, { plain: !BOARD_LAYOUT_ENABLED });
+    doKaTeX(container);
   } catch (err) {
     console.error('詳解渲染失敗', err);
-    container.textContent = String(text || '（渲染失敗，請重新整理後再試）');
+    container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
   }
 }
 
@@ -222,9 +272,17 @@ function chatKeydown(e) {
 
 async function startSolve() {
   if (!cfg.key) { openModal(); toast('請先設定 Gemini API Key'); return; }
-  if (!imgDataURL || busy) return;
+  if (busy || !hasSolveInput()) return;
+
+  const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const q = document.getElementById('questionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
+  const textOnly = !imgDataURL && !!textQuestion;
+
+  if (!imgDataURL && !textQuestion) {
+    toast('請上傳題目圖片，或在「直接輸入題目」填寫題幹');
+    return;
+  }
 
   document.getElementById('resultCard').classList.add('show');
   document.getElementById('chatInputWrap').classList.add('show');
@@ -232,44 +290,76 @@ async function startSolve() {
   setBusy(true);
 
   let autoHints = '';
-  let matchInput = q;
+  let matchInput = '';
 
   try {
-    setBadge('辨識題目中…', '#F9F3E6', '#8A6D3B');
-
-    if (isDatabaseEnabled()) {
-      try {
-        const catalogLine = await buildMatchCatalogLine();
-        autoHints = await extractImageMatchHints(cfg, imgDataURL, catalogLine);
-      } catch (err) {
-        console.warn('自動配對辨識失敗', err);
+    if (textOnly) {
+      setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
+      matchInput = [textQuestion, q].filter(Boolean).join(' ').trim();
+      lastMatchInput = matchInput;
+      if (isDatabaseEnabled()) {
+        await resolveDatabaseMatch(matchInput, { force: true });
       }
-    }
-    matchInput = [q, autoHints].filter(Boolean).join(' ').trim();
-    lastMatchInput = matchInput;
+    } else {
+      setBadge('辨識題目中…', '#F9F3E6', '#8A6D3B');
 
-    setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
-    if (isDatabaseEnabled()) {
-      await resolveDatabaseMatch(matchInput, { force: true });
+      if (isDatabaseEnabled()) {
+        try {
+          const catalogLine = await buildMatchCatalogLine();
+          autoHints = await extractImageMatchHints(cfg, imgDataURL, catalogLine);
+        } catch (err) {
+          console.warn('自動配對辨識失敗', err);
+        }
+      }
+      matchInput = [textQuestion, q, autoHints].filter(Boolean).join(' ').trim();
+      lastMatchInput = matchInput;
+
+      setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
+      if (isDatabaseEnabled()) {
+        await resolveDatabaseMatch(matchInput, { force: true });
+      }
     }
 
     setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
-    const userText = buildSolveUserText(matchInput, refAnswer);
+    const scopeInput = q || (typeof extractExplicitScopePhrase === 'function' ? extractExplicitScopePhrase(textQuestion) : '');
+    const solveOpts = {
+      textOnly,
+      questionBody: textQuestion,
+      supplement: textQuestion,
+      keywords: q,
+      hasImage: !!imgDataURL,
+      scopeInput
+    };
+    updateSolveHeadingMode(scopeInput || matchInput);
+    const userText = buildSolveUserText(scopeInput, refAnswer, solveOpts);
     const dbUserBlock = await buildDatabaseUserBlock(matchInput);
-    const systemText = await getSystemPromptForSolve(matchInput);
-    apiMessages = [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: imgDataURL, detail: 'high' } },
-        { type: 'text', text: userText + dbUserBlock }
-      ]
-    }];
+    const systemText = await getSystemPromptForSolve(matchInput, solveOpts);
 
-    const { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
+    if (textOnly) {
+      apiMessages = [{
+        role: 'user',
+        content: userText + dbUserBlock
+      }];
+    } else {
+      apiMessages = [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imgDataURL, detail: 'high' } },
+          { type: 'text', text: userText + dbUserBlock }
+        ]
+      }];
+    }
+
+    let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
       temperature: 0,
       maxOutputTokens: 8192,
       timeoutMs: 120000,
       maxContinue: 1
+    });
+    reply = await ensureBoardStyleReply(cfg, apiMessages, systemText, reply, {
+      temperature: 0,
+      maxOutputTokens: 8192,
+      timeoutMs: 90000
     });
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
@@ -280,6 +370,9 @@ async function startSolve() {
         ? `純詳解命中：${match.entryId}`
         : `${match.tierLabel}：${match.entryId}`;
       if (verify.note) badgeNote += verify.ok === false ? `（${verify.note}）` : '';
+      if (match?.teachingRuleIds?.length) {
+        badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
+      }
       setBadge(badgeNote, match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
       if (verify.ok === false) toast(verify.note);
       else if (match.tier === 1) {
@@ -290,9 +383,20 @@ async function startSolve() {
     }
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
     if (!match?.tier || match.tier >= 3) {
-      setBadge('未命中資料庫', '#F9EDED', '#9B4444');
-      toast(autoHints ? `未命中資料庫（已辨識：${autoHints.slice(0, 40)}…）` : '未命中資料庫：請確認題目已登記並執行同步資料庫');
-    } else if (autoHints && !q) {
+      const conceptNote = match?.conceptLabels?.length
+        ? `（概念參考：${match.conceptLabels.slice(0, 3).join('、')}）`
+        : '';
+      const styleNote = match?.styleEntryIds?.length
+        ? `（風格參考：${match.styleEntryIds.join('、')}）`
+        : '';
+      const ruleNote = match?.teachingRuleIds?.length
+        ? `（規定：${match.teachingRuleIds.join('、')}）`
+        : '';
+      setBadge(`未命中資料庫${styleNote}${conceptNote}${ruleNote}`, '#F9EDED', '#9B4444');
+      toast(autoHints
+        ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
+        : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
+    } else if (autoHints && !q && !textQuestion) {
       toast(`已自動配對：${autoHints.slice(0, 50)}${autoHints.length > 50 ? '…' : ''}`);
     }
   } catch (err) {
@@ -315,8 +419,17 @@ async function sendFollowUp() {
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   apiMessages.push({ role: 'user', content: text });
   try {
-    const qHint = lastMatchInput || document.getElementById('questionInput').value.trim();
-    const { text: reply } = await callAPI(cfg, apiMessages, await getSystemPromptForSolve(qHint), {
+    const qHint = document.getElementById('questionInput').value.trim();
+    const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題/.test(text)
+      ? [qHint, text].filter(Boolean).join(' ')
+      : qHint;
+    updateSolveHeadingMode(scopeInput || lastMatchInput);
+    const followOpts = {
+      scopeInput,
+      textOnly: !imgDataURL,
+      hasImage: !!imgDataURL
+    };
+    const { text: reply } = await callAPI(cfg, apiMessages, await getSystemPromptForSolve(lastMatchInput, followOpts), {
       temperature: 0,
       maxOutputTokens: 4096,
       timeoutMs: 90000,
@@ -334,19 +447,33 @@ async function sendFollowUp() {
 
 onProviderChange();
 document.getElementById('chatInput').addEventListener('keydown', chatKeydown);
+document.getElementById('textQuestionInput').addEventListener('input', updateSolveButtonState);
 document.getElementById('questionInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
+});
+document.getElementById('textQuestionInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); startSolve(); }
 });
 document.getElementById('answerInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
 });
+updateSolveButtonState();
 
 (async () => {
   const st = await getDatabaseStatus();
+  updateDatabaseStatusLine(st);
   if (st.ok) {
-    console.log(`題庫：${st.loaded}/${st.total} 則，含 meta ${st.withMeta || 0} 則`);
+    console.log(`題庫：${st.loaded}/${st.total} 則，風格參考 ${st.styleRefs || 0} 則，含 meta ${st.withMeta || 0} 則`);
+    const errs = (st.formatIssues || []).filter(f => f.level === 'error');
+    if (errs.length) {
+      console.warn('題庫格式錯誤：', errs);
+      toast(`題庫有 ${errs.length} 檔格式錯誤，請修正 YAML 後重新同步`);
+    }
   } else if (st.reason === 'fetch_failed') {
     toast('題庫讀取失敗，已用內建備援');
+  }
+  if (typeof PLAIN_LAYOUT_BUILD !== 'undefined') {
+    console.info('[化學解題] 版面版本', PLAIN_LAYOUT_BUILD);
   }
 })();
 

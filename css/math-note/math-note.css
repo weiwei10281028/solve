@@ -1,0 +1,153 @@
+/**
+ * css/math-note/math-note.css — 數學 NOTE 互動樣式（自 app.css / board.css 抽出）
+ */
+
+/* Note 互動：分式 NOTE 在分子／分母，不在中間 */
+.math-note,
+.katex .math-note,
+.katex [data-note],
+.katex [note] {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: .14em .28em;
+  margin: -.14em -.1em;
+  touch-action: manipulation;
+  transition: background .15s, box-shadow .15s, border-color .15s;
+  border-bottom: 1.5px dotted rgba(184, 112, 42, 0.55);
+  background: rgba(184, 112, 42, 0.08);
+  pointer-events: auto;
+  vertical-align: baseline;
+  line-height: normal;
+  overflow: visible;
+}
+
+.katex .math-note,
+.katex .math-note--sci,
+.katex [data-note],
+.katex [note],
+.katex .mfrac.math-note {
+  display: inline;
+  padding: .06em .14em .1em;
+  margin: 0 .02em;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.katex .mfrac.math-note {
+  cursor: pointer;
+  border-bottom: 1.5px dotted rgba(184, 112, 42, 0.55);
+}
+
+/* 化學式 \mathrm 內的 NOTE 不額外撐開字距 */
+.katex .mord.mathrm.math-note,
+.katex .mord.mathrm .math-note,
+.katex .mathrm .math-note,
+.katex .mord.mathrm [data-note],
+.katex .mord.mathrm [note] {
+  padding: 0 .04em;
+  margin: 0;
+}
+
+.katex .math-note--sci {
+  white-space: nowrap;
+  display: inline-block;
+  padding: 0 .05em;
+  margin: 0;
+  letter-spacing: 0;
+  vertical-align: baseline;
+  pointer-events: auto;
+}
+
+.katex .math-note--sci * {
+  pointer-events: none;
+}
+
+.katex .math-note--sci .mord,
+.katex .math-note--sci .mbin,
+.katex .math-note--sci .msupsub {
+  margin: 0;
+  padding: 0;
+}
+
+.katex .math-note--frac-part,
+.katex .mfrac .math-note,
+.katex .mfrac [data-note] {
+  display: inline-block;
+  position: relative;
+  white-space: nowrap;
+  pointer-events: auto;
+  vertical-align: baseline;
+  padding: 0 .14em;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.katex .mfrac .vlist-b .math-note--frac-part {
+  z-index: 4;
+}
+
+.katex .mfrac .vlist-t .math-note--frac-part {
+  z-index: 2;
+}
+
+/* 整段語意 NOTE：分式、指數式、括號式整塊反白可點 */
+.katex [data-note].math-note--whole,
+.katex .math-note--whole,
+.katex [data-note][data-note-scope="whole"] {
+  display: inline-block !important;
+  background: rgba(184, 112, 42, 0.14) !important;
+  border-bottom: 1.5px dotted rgba(184, 112, 42, 0.55) !important;
+  border-radius: 5px;
+  padding: 0.1em 0.22em 0.14em !important;
+  margin: 0 0.06em !important;
+  vertical-align: middle;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.katex [data-note].math-note--whole *,
+.katex .math-note--whole * {
+  pointer-events: none;
+}
+
+.katex .mfrac > [data-note]:has(.mfrac):not(.math-note--whole):not([data-note-scope="whole"]),
+.katex [data-note]:has(> .mfrac):not(.math-note--whole):not([data-note-scope="whole"]) {
+  background: transparent;
+  border-bottom: none;
+  padding: 0;
+  margin: 0;
+}
+
+.board-line-inner.can-pan .math-note,
+.board-line-inner.can-pan [data-note] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.math-note.active {
+  background: #F5E6C8;
+  color: #6B4E2A;
+  box-shadow: 0 0 0 1.5px var(--copper, #A67C52);
+}
+
+.math-note-popover {
+  position: fixed;
+  display: none;
+  z-index: 9999;
+  max-width: min(280px, calc(100vw - 32px));
+  background: var(--ink, rgba(42, 37, 32, 0.95));
+  color: #F5F1EB;
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  box-shadow: 0 8px 24px rgba(42, 37, 32, .2);
+  pointer-events: none;
+}
+
+.math-note-popover.show {
+  display: block;
+}

@@ -221,25 +221,42 @@ function finalizeDatabaseMd(md, overrides = {}) {
 /** 檢查 .md 是否可被題庫正確讀取 */
 function validateDatabaseMd(md, filename = '') {
   const issues = [];
+  const warnings = [];
   const raw = String(md || '');
+  const headChunk = raw.split('\n---')[0] || raw.slice(0, 1200);
   if (raw.startsWith('\\---')) issues.push('YAML 檔頭以 \\--- 開頭（應為 ---）');
-  if (/\\_only:|\\_id:|\\_numbers:/.test(raw.split('\n---')[0] || '')) {
+  if (!raw.trim().startsWith('---')) issues.push('缺少 YAML 檔頭 ---（topic／match_keywords 等 meta 無法讀取）');
+  if (/\\_only:|\\_id:|\\_numbers:/.test(headChunk)) {
     issues.push('YAML 欄位名稱含多餘反斜線（應為 catalog_only 等）');
+  }
+  if (/\]\s*##\s*題幹/.test(headChunk)) {
+    issues.push('pitfalls 或陣列結尾與 ## 題幹 黏在同一行（應換行並以 --- 結束 YAML）');
   }
   const parsed = entryFromDatabaseMd(repairDatabaseMdRaw(raw), filename);
   const isSolutionOnly = !!parsed.meta?.solution_only || parsed.type === 'solution_only';
+  if (!parsed.meta?.topic?.trim()) warnings.push('topic 為空（章節風格配對會變弱）');
+  if (isSolutionOnly && parsed.meta?.style_reference !== true) {
+    warnings.push('建議設 style_reference: true');
+  }
   if (!isSolutionOnly && !parsed.questionText?.trim()) issues.push('缺少 ## 題幹 內容');
   if (!parsed.solutionText?.trim()) issues.push('缺少 ## 詳解 內容');
   if (!isSolutionOnly && !/<!--\s*MATCH:/i.test(parsed.questionText) && parsed.type === 'single') {
-    issues.push('單題建議含 <!-- MATCH: ... -->（已嘗試自動補上）');
+    warnings.push('單題建議含 <!-- MATCH: ... -->（已嘗試自動補上）');
   }
   if (isSolutionOnly && !/<!--\s*MATCH:/i.test(parsed.solutionText)) {
-    issues.push('純詳解建議含 <!-- MATCH: ... -->（已嘗試自動補上）');
+    warnings.push('純詳解建議含 <!-- MATCH: ... -->（已嘗試自動補上）');
+  }
+  if (isSolutionOnly && !/###\s*板書風格範本/.test(parsed.solutionText || '')) {
+    warnings.push('建議含「### 板書風格範本」小節（供 AI 模仿 NOTE 與開場）');
+  }
+  if (isSolutionOnly && !/###\s*類題/.test(parsed.solutionText || '')) {
+    warnings.push('建議含「### 類題」同型小節（供章節泛用配對）');
   }
   if (parsed.type === 'exam' && !parsed.meta?.catalog_only) {
-    issues.push('段考卷建議設 catalog_only: true');
+    warnings.push('段考卷建議設 catalog_only: true');
   }
-  return { ok: !issues.length, issues, parsed };
+  const allIssues = [...issues, ...warnings];
+  return { ok: !issues.length, issues: allIssues, errors: issues, warnings, parsed };
 }
 
 function splitSections(body = '') {
@@ -396,6 +413,7 @@ function buildSolutionOnlyDatabaseMd({
     topic,
     q_label: qLabel,
     match_alias: matchAlias,
+    style_reference: true,
     solution_only: true,
     catalog_only: false,
     ...autoMeta,
@@ -403,6 +421,7 @@ function buildSolutionOnlyDatabaseMd({
     solution_only: true,
     type: 'solution_only'
   };
+  if (meta.style_reference !== false) meta.style_reference = true;
   if (manualKw.length) meta.match_keywords = manualKw;
   return `${serializeMeta(meta)}\n\n## 題幹\n\n${SOLUTION_ONLY_STEM_PLACEHOLDER}\n\n## 詳解\n\n${solutionBody}\n`;
 }

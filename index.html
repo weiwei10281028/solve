@@ -2,19 +2,20 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#FAF7F2">
   <title>化學解題工具</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/board.css">
-  <link rel="stylesheet" href="css/plain-reaction-table.css">
-  <link rel="stylesheet" href="css/plain-choice-options.css">
+  <link rel="stylesheet" href="css/app.css?v=20250626t">
+  <link rel="stylesheet" href="css/board.css?v=20250626x">
+  <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250626a">
+  <link rel="stylesheet" href="css/plain-choice-options.css?v=20250625g">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250626b">
 </head>
-<body>
+<body class="app-page">
 
 <header class="site-header">
   <div class="brand">
@@ -34,7 +35,7 @@
   <section class="panel panel-input" aria-label="上傳題目">
     <div class="panel-head">
       <h1 class="panel-title">上傳題目</h1>
-      <p class="panel-desc">拍照或截圖上傳，系統依題幹條件自動配對資料庫</p>
+      <p class="panel-desc">拍照上傳，或直接輸入題目文字；皆可配對題庫</p>
     </div>
 
     <div class="upload-zone" id="zone">
@@ -59,8 +60,14 @@
     </div>
 
     <div class="field-group">
+      <label class="field-label" for="textQuestionInput">直接輸入題目（可不傳圖）</label>
+      <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="貼上題幹、選項、數據；圖片被裁切時請在此補齊缺漏"></textarea>
+      <p class="field-hint">有圖片時以圖為主；僅填此欄也可開始解題並配對資料庫</p>
+    </div>
+
+    <div class="field-group">
       <label class="field-label" for="questionInput">補充關鍵字（選填）</label>
-      <input type="text" class="question-input" id="questionInput" placeholder="留空即可：系統依圖片條件自動配對" autocomplete="off">
+      <input type="text" class="question-input" id="questionInput" placeholder="例：第 11 題（指定題號時只解該題）" autocomplete="off">
     </div>
 
     <div class="field-group">
@@ -88,24 +95,28 @@
       <div class="board-scroll" id="mainSolution"></div>
     </div>
 
-    <div class="followup-area" id="followupArea" hidden>
-      <p class="followup-section-label">追問紀錄</p>
-      <div class="followup-list" id="followupThread"></div>
-    </div>
-
     <div class="loading-inline" id="loading">
       <div class="spinner" aria-hidden="true"></div>
       <span>撰寫詳解中…</span>
     </div>
 
-    <div class="followup-wrap chat-input-wrap" id="chatInputWrap">
-      <label class="field-label" for="chatInput">追問</label>
-      <form class="followup-form" id="followupForm" onsubmit="return submitFollowUp(event)">
-        <div class="followup-row chat-input-row">
-          <textarea class="chat-input" id="chatInput" rows="1" placeholder="針對步驟追問…（Enter 送出、Shift+Enter 換行）"></textarea>
-          <button class="btn-send" type="submit" id="sendBtn">送出</button>
-        </div>
-      </form>
+    <div class="followup-panel" id="followupPanel">
+      <div class="followup-area" id="followupArea" hidden>
+        <p class="followup-section-label">追問紀錄</p>
+        <div class="followup-list" id="followupThread"></div>
+      </div>
+
+      <div class="followup-wrap chat-input-wrap" id="chatInputWrap">
+        <label class="field-label" for="chatInput">追問</label>
+        <form class="followup-form" id="followupForm" onsubmit="return submitFollowUp(event)">
+          <div class="followup-input-box">
+            <div class="followup-row chat-input-row">
+              <textarea class="chat-input" id="chatInput" rows="2" placeholder="針對步驟追問…（Enter 送出、Shift+Enter 換行）"></textarea>
+              <button class="btn-send" type="submit" id="sendBtn">送出</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   </section>
 </main>
@@ -151,12 +162,14 @@
 <script src="js/database-bundle.js"></script>
 <script src="js/db-parse.js"></script>
 <script src="js/db-meta.js"></script>
-<script src="js/database.js"></script>
-<script src="js/prompts.js"></script>
-<script src="js/render.js"></script>
-<script src="js/plain-reaction-table.js"></script>
-<script src="js/plain-choice-options.js"></script>
+<script src="js/db-rules.js?v=20250626r"></script>
+<script src="js/database.js?v=20250626r"></script>
+<script src="js/prompts.js?v=20250626w"></script>
+<script src="js/plain-reaction-table.js?v=20250626x"></script>
+<script src="js/plain-choice-options.js?v=20250626x"></script>
+<script src="js/math-note/math-note.js?v=20250626b"></script>
+<script src="js/render.js?v=20250626x"></script>
 <script src="js/api.js"></script>
-<script src="js/app.js"></script>
+<script src="js/app.js?v=20250626x"></script>
 </body>
 </html>

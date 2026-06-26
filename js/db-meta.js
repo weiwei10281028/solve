@@ -50,7 +50,28 @@ const CONCEPT_TAG_RULES = [
   { tag: '平衡', patterns: [/平衡/, /\\rightleftharpoons/, /K_p/, /K_c/] },
   { tag: '解離度', patterns: [/解離度/, /\\alpha/] },
   { tag: '氣體體積比', patterns: [/同溫同壓/, /mL/, /體積比/, /亞佛加厥/, /氣體化合/] },
-  { tag: '同溫同壓', patterns: [/同溫同壓/] }
+  { tag: '同溫同壓', patterns: [/同溫同壓/] },
+  { tag: '滴定', patterns: [/滴定/, /當量點/, /指示劑/, /酚酞/, /甲基橙/] },
+  { tag: '當量點', patterns: [/當量點/, /等當點/, /中和點/] },
+  { tag: '酸鹼滴定', patterns: [/酸鹼滴定/, /酸鹼中和/, /滴定/] },
+  { tag: '實驗式', patterns: [/實驗式/, /分子式/, /示性式/] },
+  { tag: '化學式', patterns: [/化學式/, /分子式/, /結構式/, /示性式/] },
+  { tag: '倍比定律', patterns: [/倍比定律/, /倍比/, /化合量/] },
+  { tag: '分離方法', patterns: [/分離/, /萃取/, /傾析/, /色層/, /過濾/, /蒸餾/, /層析/] },
+  { tag: '反應計量', patterns: [/限量/, /反應計量/, /完全反應/, /莫耳數/] },
+  { tag: '平衡反應式', patterns: [/平衡反應式/, /係數和/, /平衡係數/] },
+  { tag: '燃燒', patterns: [/燃燒/, /完全燃燒/, /CO_2/, /O_2/] },
+  { tag: '依數性', patterns: [/依數性/, /凝固點下降/, /沸點上升/, /蒸氣壓下降/, /拉午耳/, /K_f/, /K_b/, /Kf/, /Kb/] },
+  { tag: '凝固點下降', patterns: [/凝固點/, /ΔT_f/, /ΔTf/, /K_f/, /Kf/, /凝固點下降/] },
+  { tag: '締合', patterns: [/締合/, /偶合/, /聚合/, /i\s*[<＜]\s*1/, /粒子數減少/] },
+  { tag: '凡特荷夫因子', patterns: [/凡特荷夫/, /van't?\s*hoff/i, /van\s*hoff/i] },
+  { tag: '滲透壓', patterns: [/滲透壓/, /半透膜/, /\\pi\s*=/] },
+  { tag: '沸點上升', patterns: [/沸點上升/, /ΔT_b/, /ΔTb/, /正常沸點/] },
+  { tag: '蒸氣壓下降', patterns: [/蒸氣壓下降/, /蒸氣壓/, /飽和蒸氣壓/, /ΔP/] },
+  { tag: '反應速率', patterns: [/反應速率/, /速率定律/, /速率常數/, /半衰期/, /碰撞學說/, /活化能/] },
+  { tag: '板書詳解', patterns: [/板書/, /htmlData/, /NOTE/] },
+  { tag: 'NOTE標註', patterns: [/htmlData/, /NOTE/, /note=/] },
+  { tag: '平均分子量', patterns: [/平均分子量/, /M_\{?avg\}?/, /M\/i/] }
 ];
 
 const TIER1_SCORE = 55;
@@ -132,7 +153,9 @@ function extractStemPhraseKeywords(questionMd = '') {
     '重量百分', '重量百分比', '等重', '倍比定律', '倍比', '莫耳分率', '分子量',
     '同溫同壓', '氣體化合', '亞佛加厥', '化合體積', '甲乙丙', '三相點',
     '酯類', '混合物', '弱酸', '解離度', '電解', '並聯', '平衡常數',
-    '道耳頓', '實驗式', '分子式', '示性式', '熱重分析', '草酸鈣', '過錳酸'
+    '道耳頓', '實驗式', '分子式', '示性式', '熱重分析', '草酸鈣', '過錳酸',
+    '甲醛', '葡萄糖', '分離方法', '萃取', '傾析', '色層分析', '甲烷', '氫氣',
+    '限量試劑', '化學式', '結構式', '平衡反應式', '係數和'
   ];
   for (const p of phrases) {
     if (stem.includes(p)) kw.add(p);
@@ -311,7 +334,7 @@ function parseUserDbHints(userInput = '') {
     hints.tokens.push(`α${m[1]}/${m[2]}`);
   }
   for (const m of raw.matchAll(/比\s*(\d+)/g)) hints.tokens.push(`比${m[1]}`);
-  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類']) {
+  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類', '甲醛', '葡萄糖', '實驗式', '滴定', '當量點', '分離', '萃取', '化學式', '限量試劑', '燃燒', '甲烷', '氫氣', '凝固點', '依數性', '締合', '偶合', '凡特荷夫', '滲透壓', '沸點', '蒸氣壓', '反應速率', '碰撞', '半生期', '速率定律', '拉午耳', '酸鹼', '弱酸', '分子量', '平均分子量', '解離度']) {
     if (raw.includes(tag)) hints.tags.push(tag);
   }
   if (/MA[_\\]?3|MA₃/i.test(raw)) hints.tokens.push('MA3');
@@ -357,7 +380,7 @@ function countKeywordHits(meta, hints, userInput = '') {
 }
 
 function splitExamIntoQuestions(questionMd = '') {
-  const clean = String(questionMd).replace(/<!--[\s\S]*?-->/g, '\n');
+  const clean = String(questionMd).replace(/<!--(?!\s*MATCH:)[\s\S]*?-->/gi, '\n');
   const matches = [...clean.matchAll(/(?:^|\n)(\d{1,2})\.\s/g)];
   const items = [];
   for (let i = 0; i < matches.length; i++) {
@@ -688,29 +711,33 @@ function buildDbMatchUserAddon(matchInfo = {}) {
   if (matchInfo.tier === 1) {
     const hint = matchInfo.solutionOnly
       ? '以上為純詳解範例命中；數字依學生題目圖驗算，步驟與排版須一致。'
-      : '必須完全依 system 內「權威參考詳解」的方法與步驟，禁止改用純弱酸解離或其他路徑。第一行先寫關鍵判斷。';
+      : '須依「權威參考詳解」的方法與步驟解題；直接進入推導，勿輸出參考資料內的內部標記。';
     return `\n\n【資料庫已命中：${matchInfo.entryId}】${hint}`;
   }
   if (matchInfo.tier === 2) {
-    return `\n\n【資料庫同型命中：${matchInfo.entryId}】須依 system 內同型方法卡與關鍵判斷解題。`;
+    return `\n\n【資料庫同型命中：${matchInfo.entryId}】須依參考內容之推理與板書節奏解題；內部提示勿寫入詳解正文。`;
   }
-  return `\n\n【讀圖對照資料庫】比對索引中的「核心指紋」（濃度、pH、解離度、比例、物種）。若與某筆全部吻合，必須採該筆詳解方法，不可忽略。`;
+  return `\n\n【讀圖對照資料庫】若與某筆詳解條件吻合，可採該筆方法；判斷依題目與參考詳解，勿預設題型。`;
 }
 
 function formatMethodBlock(methodId, excerpt = '', entryMeta = {}) {
   const card = getMethodDef(methodId);
   if (!card) return '';
   const steps = (card.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
-  const pitfalls = (card.pitfalls || []).map(p => `- ${p}`).join('\n');
-  let block = `【同型題方法｜${card.label || methodId}】`;
+  const internal = [];
   if (entryMeta.critical_judgment) {
-    block += `\n\n【關鍵判斷】\n${entryMeta.critical_judgment}`;
+    internal.push(`關鍵判斷：${entryMeta.critical_judgment}`);
+  }
+  const pitfalls = (card.pitfalls || []);
+  if (pitfalls.length) internal.push(`常見誤判：${pitfalls.join('；')}`);
+  if (Array.isArray(entryMeta.forbidden_steps) && entryMeta.forbidden_steps.length) {
+    internal.push(`避免：${entryMeta.forbidden_steps.join('；')}`);
+  }
+  let block = `【同型題方法｜${card.label || methodId}】`;
+  if (internal.length) {
+    block += `\n\n【內部提示｜勿寫入詳解正文】\n${internal.join('\n')}`;
   }
   block += `\n\n固定步驟：\n${steps}`;
-  if (pitfalls) block += `\n\n常見誤判（禁止）：\n${pitfalls}`;
-  if (Array.isArray(entryMeta.forbidden_steps) && entryMeta.forbidden_steps.length) {
-    block += `\n\n【禁止步驟】\n${entryMeta.forbidden_steps.map(s => `- ${s}`).join('\n')}`;
-  }
   if (excerpt) {
     block += `\n\n【同型短範例｜排版與推理順序參考，數字依新題】\n${excerpt}`;
   }
@@ -722,27 +749,28 @@ function buildTier1Block(entry, questionText, solutionText) {
   const label = [entry.qLabel, entry.topic, entry.id].filter(Boolean).join('｜');
   const lines = [`【權威參考詳解｜資料庫命中：${label}】`];
 
-  if (meta.critical_judgment) {
-    lines.push(`\n【本題關鍵判斷｜違反即錯】\n${meta.critical_judgment}`);
-  }
+  const internal = [];
+  if (meta.critical_judgment) internal.push(meta.critical_judgment);
   if (Array.isArray(meta.forbidden_steps) && meta.forbidden_steps.length) {
-    lines.push(`\n【禁止】\n${meta.forbidden_steps.map(s => `- ${s}`).join('\n')}`);
+    internal.push(meta.forbidden_steps.join('；'));
+  }
+  if (internal.length) {
+    lines.push(`\n【內部提示｜勿寫入詳解正文】\n${internal.join('\n')}`);
   }
   if (meta.answer_key) {
     lines.push(`\n【標準答案】${meta.answer_key}（結論須一致）`);
   }
 
   lines.push(`
-硬性規定：
-1. 輸出第一行須先寫關鍵判斷一句（與上方相同意涵），再寫反應表。
-2. 解題方法、步驟順序必須與參考詳解一致，禁止改用純弱酸解離或其他路徑。
-3. 數字依圖片驗算；選項判定須與標準答案一致。
-4. 可調整排版與 $\\htmlData{note=…}{…}$ 註解，不可省略兩步解離表。
+要求：
+1. 解題方法與步驟順序須與下方參考詳解一致；數字依題目圖重算。
+2. 模仿參考詳解的板書排版與 Note 節奏；**直接進入推導**，禁止輸出「關鍵判斷」「違反即錯」「禁止」等改卷標題或開場陷阱條列。
+3. 選項判定須與標準答案一致（若有）。
 
 【參考題目】
 ${questionText || '（無）'}
 
-【參考詳解｜方法不可更改】
+【參考詳解】
 ${solutionText || '（無）'}`);
 
   return lines.join('');
@@ -765,8 +793,9 @@ function getMatchSummary(entry, tier, score, reasons, extra = {}) {
     entryId: name,
     methodId: meta.method_id || '',
     reasons: reasons || [],
-    answerKey: meta.answer_key || '',
-    solutionOnly: !!meta.solution_only || !!extra.solutionOnly
+    answerKey: extra.answerKey || meta.answer_key || '',
+    solutionOnly: !!meta.solution_only || !!extra.solutionOnly,
+    conceptLabels: extra.conceptLabels || []
   };
 }
 
@@ -788,4 +817,234 @@ function verifyAnswerLocally(replyText, answerKey) {
     return { ok: true, note: '答案與資料庫一致' };
   }
   return { ok: false, note: '答案與資料庫可能不一致，請人工核對' };
+}
+
+function splitMatchSlices(md = '') {
+  const text = String(md || '');
+  const re = /<!--\s*MATCH:\s*([^-]+?)-->/gi;
+  const matches = [...text.matchAll(re)];
+  const out = [];
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    const keywords = m[1].split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+    const start = m.index + m[0].length;
+    const end = matches[i + 1] ? matches[i + 1].index : text.length;
+    let slice = text.slice(start, end).trim();
+    const headerCut = slice.search(/\n#{1,3}\s/);
+    if (headerCut > 0) slice = slice.slice(0, headerCut).trim();
+    slice = slice.replace(/<!--(?!\s*MATCH:)[\s\S]*?-->/gi, '').trim();
+    if (slice.length >= 60) out.push({ keywords, text: slice.slice(0, 1200) });
+  }
+  return out;
+}
+
+function collectMatchSlicesFromEntries(entries = []) {
+  const slices = [];
+  for (const ex of entries) {
+    const raw = [ex.solutionText, ex.questionText].filter(Boolean).join('\n');
+    for (const sl of splitMatchSlices(raw)) {
+      slices.push({ ...sl, entryId: ex.id || ex.file || 'unknown' });
+    }
+  }
+  return slices;
+}
+
+function scoreConceptSlice(slice, userInput = '') {
+  const raw = String(userInput || '');
+  const lower = raw.toLowerCase();
+  const hints = parseUserDbHints(userInput);
+  let score = 0;
+  const matched = [];
+  for (const kw of slice.keywords || []) {
+    const k = String(kw).toLowerCase();
+    if (k.length >= 2 && lower.includes(k)) {
+      score += 14;
+      matched.push(kw);
+    }
+  }
+  for (const tag of hints.tags) {
+    if ((slice.keywords || []).some(k => String(k).includes(tag) || tag.includes(String(k)))) {
+      score += 12;
+      if (!matched.includes(tag)) matched.push(tag);
+    }
+  }
+  for (const tok of hints.tokens) {
+    if ((slice.keywords || []).some(k => String(k).toLowerCase().includes(String(tok).toLowerCase()))) {
+      score += 10;
+      matched.push(tok);
+    }
+  }
+  for (const rule of CONCEPT_TAG_RULES) {
+    if (!rule.patterns.some(p => p.test(raw))) continue;
+    if ((slice.keywords || []).some(k => String(k).includes(rule.tag) || rule.tag.includes(String(k)))) {
+      score += 8;
+      if (!matched.includes(rule.tag)) matched.push(rule.tag);
+    }
+  }
+  return { score, matched: [...new Set(matched)] };
+}
+
+function rankConceptSlices(userInput = '', entries = [], maxItems = 3) {
+  const slices = collectMatchSlicesFromEntries(entries);
+  const ranked = [];
+  for (const sl of slices) {
+    const result = scoreConceptSlice(sl, userInput);
+    if (result.score >= 12) ranked.push({ ...sl, ...result });
+  }
+  ranked.sort((a, b) => b.score - a.score);
+  const picked = [];
+  const seen = new Set();
+  for (const r of ranked) {
+    const key = `${r.entryId}:${r.keywords.join(',')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(r);
+    if (picked.length >= maxItems) break;
+  }
+  return picked;
+}
+
+function buildConceptReferenceBlock(userInput = '', entries = [], maxItems = 3) {
+  const picks = rankConceptSlices(userInput, entries, maxItems);
+  if (!picks.length) return { text: '', labels: [] };
+  const labels = [...new Set(picks.flatMap(p => p.matched))].slice(0, 5);
+  const blocks = picks.map(p =>
+    `【概念參考：${p.matched.join('、')}｜${p.entryId}】\n${p.text}`
+  );
+  return { text: blocks.join('\n\n'), labels };
+}
+
+function scoreEntryForStyleFallback(entry, userInput = '') {
+  const meta = entry?.meta || {};
+  const raw = String(userInput || '');
+  let score = 0;
+  const reasons = [];
+
+  if (meta.style_scope === 'global' || entry.id === 'style-teacher-batch') {
+    score += 12;
+    reasons.push('global');
+  } else if (meta.style_reference) {
+    score += 20;
+    reasons.push('style_reference');
+  } else {
+    score += 2;
+  }
+
+  const whole = scoreQuestionKeywords(meta, userInput);
+  score += whole.score;
+  reasons.push(...whole.reasons);
+
+  if (entry.topic && raw) {
+    for (const part of String(entry.topic).split(/[\s（）、·\-／/]+/)) {
+      if (part.length >= 2 && raw.includes(part)) {
+        score += 8;
+        reasons.push(`topic:${part}`);
+      }
+    }
+  }
+  if (entry.match_alias && raw.includes(entry.match_alias)) {
+    score += 25;
+    reasons.push(`alias:${entry.match_alias}`);
+  }
+  for (const tag of (meta.concept_tags || [])) {
+    if (tag.length >= 2 && raw.includes(tag)) {
+      score += 10;
+      reasons.push(`concept:${tag}`);
+    }
+  }
+  for (const rule of CONCEPT_TAG_RULES) {
+    if (!rule.patterns.some(p => p.test(raw))) continue;
+    const inMeta = (meta.concept_tags || []).some(t => t.includes(rule.tag) || rule.tag.includes(t))
+      || (meta.match_keywords || []).some(k => String(k).includes(rule.tag) || rule.tag.includes(String(k)));
+    if (inMeta) {
+      score += 12;
+      reasons.push(`tagrule:${rule.tag}`);
+    }
+  }
+
+  return { score, reasons };
+}
+
+function extractStyleBoardTemplate(solutionMd = '') {
+  const m = String(solutionMd || '').match(
+    /###\s*板書風格範本[\s\S]*?(?=\n---\n|\n###\s*類題|\n###\s*第|\n###\s*多選|$)/
+  );
+  return m ? m[0].trim() : '';
+}
+
+function extractTypeProblemSection(solutionMd = '') {
+  const m = String(solutionMd || '').match(
+    /###\s*類題[\s\S]*?(?=\n---\n\n|\n###\s*第|\n###\s*多選|<!-- solution|$)/
+  );
+  return m ? m[0].trim() : '';
+}
+
+function extractStyleExcerpt(solutionMd = '', userInput = '', { maxLen = 3600 } = {}) {
+  const text = String(solutionMd || '');
+  if (!text) return '';
+  const parts = [];
+  const seen = new Set();
+  const add = block => {
+    const b = String(block || '').trim();
+    if (!b || seen.has(b)) return;
+    seen.add(b);
+    parts.push(b);
+  };
+
+  add(extractStyleBoardTemplate(text));
+  add(extractTypeProblemSection(text));
+
+  const slices = splitMatchSlices(text);
+  const ranked = slices
+    .map(sl => ({ ...sl, ...scoreConceptSlice(sl, userInput) }))
+    .filter(s => s.score >= 10)
+    .sort((a, b) => b.score - a.score);
+
+  for (const sl of ranked) {
+    if (/板書風格範本|類題｜/.test(sl.text)) continue;
+    add(sl.text);
+    if (parts.join('\n\n').length >= maxLen * 0.85) break;
+  }
+
+  if (parts.length <= 2) {
+    for (const sl of slices) {
+      if (sl.text.includes('htmlData') || /\*\*答/.test(sl.text)) {
+        add(sl.text);
+        break;
+      }
+    }
+  }
+
+  return parts.join('\n\n---\n\n').slice(0, maxLen);
+}
+
+function pickStyleFallbackEntries(entries = [], userInput = '', maxItems = 2) {
+  const pool = (entries || []).filter(e =>
+    e?.meta?.style_reference || e?.id === 'style-teacher-batch' || e?.meta?.style_scope === 'global'
+  );
+  if (!pool.length) return [];
+
+  const scored = pool
+    .map(ex => ({ ex, ...scoreEntryForStyleFallback(ex, userInput) }))
+    .sort((a, b) => b.score - a.score);
+
+  const picked = [];
+  const hasId = id => picked.some(p => p.id === id);
+
+  const chapter = scored.find(s =>
+    s.ex.id !== 'style-teacher-batch'
+    && s.ex.meta?.style_scope !== 'global'
+    && s.score >= 14
+  );
+  if (chapter) picked.push(chapter.ex);
+
+  const global = scored.find(s =>
+    s.ex.id === 'style-teacher-batch' || s.ex.meta?.style_scope === 'global'
+  );
+  if (global && !hasId(global.ex.id)) picked.push(global.ex);
+
+  if (!picked.length && scored[0]) picked.push(scored[0].ex);
+  if (picked.length === 1 && scored[1] && !hasId(scored[1].ex.id)) picked.push(scored[1].ex);
+
+  return picked.slice(0, maxItems);
 }

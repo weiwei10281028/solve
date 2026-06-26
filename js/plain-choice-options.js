@@ -76,7 +76,7 @@ function lineLooksLikeMathContinuation(line) {
   const t = String(line || '').trim();
   if (!t || isChemStepLabelLine(t) || isChoiceOptionLine(t)) return false;
   if (isAnswerCitationLine(t) || /^答[：:]/.test(t)) return false;
-  return /\x00M\d+\x00|\$|\\dfrac|\\frac|\\times|≈|＝|=/u.test(t) || /^\d/.test(t);
+  return /\$\$|\\\$|\\begin\{|\\dfrac|\\frac|\\times|≈|＝|=/u.test(t) || /^\d/.test(t);
 }
 
 /** 行尾為「，濃度」「，總重」等、下一行是算式 → 併成同一行 */
@@ -96,6 +96,8 @@ function mergeTailLabelWithNextMath(lines) {
       i + 1 < lines.length
       && lineEndsAwaitingMath(cur)
       && lineLooksLikeMathContinuation(lines[i + 1])
+      && !/\\begin\{cases\}|^\$\$/.test(String(lines[i + 1]).trim())
+      && !/\\frac|\\dfrac|\\times/.test(String(lines[i + 1]).trim())
     ) {
       cur = `${cur.trim()} ${String(lines[i + 1]).trim()}`;
       i++;
@@ -132,7 +134,7 @@ function mergeSplitWordLines(lines) {
         i++;
         continue;
       }
-      if (/\x00M\d+\x00\s*$/.test(ct) && /^倍[，,]/.test(nt)) {
+      if (/(?:\$\$|\\begin\{cases\})(?:\s*[。．.,，])?\s*$/.test(ct) && /^倍[，,]/.test(nt)) {
         cur = `${ct} ${nt}`;
         i++;
         continue;
@@ -145,7 +147,9 @@ function mergeSplitWordLines(lines) {
 }
 
 function mergePlainLineFragments(lines) {
-  return mergeTailLabelWithNextMath(mergeChemStepLabelLines(mergeSplitWordLines(lines)));
+  return mergeTailLabelWithNextMath(
+    mergeChemStepLabelLines(mergeSplitWordLines(mergeMultilineDisplayMath(lines)))
+  );
 }
 
 /** 單獨一行的「總重」「濃度」等併入下一行算式 */
@@ -170,6 +174,9 @@ function shouldStopChoiceCollect(line) {
   if (isChoiceOptionLine(t)) return true;
   if (isAnswerCitationLine(t)) return true;
   if (/^答[：:]/.test(t) || /^\*\*答/.test(t)) return true;
+  if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) return true;
+  if (/^【\s*第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) return true;
+  if (/^\d{1,2}\.\s*(?:[\u4e00-\u9fff$\\(]|$)/.test(t)) return true;
   return false;
 }
 
@@ -209,13 +216,53 @@ function groupPlainLinesForLayout(lines) {
   return result;
 }
 
+function classifyPlainLine(line) {
+  const t = String(line || '').trim();
+  if (!t) return 'empty';
+  if (/^【[^【】]+】$/.test(t)) return 'section';
+  if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) return 'section';
+  if (/^題目核心|^解題關鍵|^核心觀念/.test(t)) return 'skip';
+  if (/^\(\d+\)/.test(t)) return 'step';
+  return 'normal';
+}
+
+function renderPlainLayoutPart(g) {
+  if (g.type === 'choice') {
+    g.steps = mergePlainLineFragments(g.steps);
+    return buildMultistepChoiceHtml(g.letter, g.steps);
+  }
+  const choiceHtml = wrapPlainLineAsChoices(g.text);
+  if (choiceHtml) return choiceHtml;
+  return wrapOnePlainLineInner(g.text);
+}
+
+/** 取代 wrapPlainLines：行像排列（選項收攏、步驟標籤併算式） */
+function layoutPlainSolveText(escapedMultiline) {
+  const rawLines = String(escapedMultiline || '').split('\n');
+  const merged = mergePlainLineFragments(rawLines);
+  const groups = groupPlainLinesForLayout(merged);
+  return groups.map(g => renderPlainLayoutPart(g)).join('');
+}
+
 function wrapOnePlainLineInner(line) {
   if (!String(line || '').trim()) return '<div class="plain-line plain-line--empty"></div>';
   let cleaned = String(line);
-  if (!/\x00M\d+\x00/.test(cleaned)) {
+  if (!/\$\$|\\begin\{/.test(cleaned)) {
     while (/\$(\s*)$/.test(cleaned) && (cleaned.match(/\$/g) || []).length % 2 === 1) {
       cleaned = cleaned.replace(/\$(\s*)$/, '$1');
     }
+  }
+  if (/reaction-table-stacked/.test(cleaned)) {
+    return `<div class="plain-line plain-line--reaction"><div class="plain-line-inner">${cleaned}</div></div>`;
+  }
+  const kind = classifyPlainLine(cleaned);
+  if (kind === 'skip') return '';
+  if (kind === 'section') {
+    const title = cleaned.replace(/^【|】$/g, '');
+    return `<div class="solve-section"><div class="solve-section-title">${title}</div></div>`;
+  }
+  if (kind === 'step') {
+    return `<div class="plain-line plain-line--step"><div class="plain-line-inner">${cleaned}</div></div>`;
   }
   return `<div class="plain-line"><div class="plain-line-inner">${cleaned}</div></div>`;
 }
@@ -228,29 +275,6 @@ function buildMultistepChoiceHtml(letter, steps) {
   return `<div class="plain-line plain-line--choice"><div class="choice-option choice-option--multistep">` +
     `<span class="choice-label">(${letter})</span>` +
     `<div class="choice-body choice-body--steps">${stepsHtml}</div></div></div>`;
-}
-
-/** 取代 wrapPlainLines：行像排列（選項收攏、步驟標籤併算式） */
-function layoutPlainSolveText(escapedMultiline) {
-  const rawLines = String(escapedMultiline || '').split('\n');
-  const merged = mergePlainLineFragments(rawLines);
-  const groups = groupPlainLinesForLayout(merged);
-  const parts = [];
-
-  for (const g of groups) {
-    if (g.type === 'choice') {
-      g.steps = mergePlainLineFragments(g.steps);
-      parts.push(buildMultistepChoiceHtml(g.letter, g.steps));
-      continue;
-    }
-    const choiceHtml = wrapPlainLineAsChoices(g.text);
-    if (choiceHtml) {
-      parts.push(choiceHtml);
-      continue;
-    }
-    parts.push(wrapOnePlainLineInner(g.text));
-  }
-  return parts.join('');
 }
 
 function wrapPlainLineAsChoices(line) {

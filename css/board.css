@@ -1,6 +1,5 @@
-/* ── board.css：專業教學排版引擎 (終極版) ── */
+/* ── board.css：詳解板書區排版 ── */
 
-/* 1. 基礎容器設定 */
 .board {
   --board-bg: #FDF9F0;
   background: var(--board-bg);
@@ -9,106 +8,188 @@
   font-size: 15px;
   font-family: 'Noto Sans TC', sans-serif;
   color: #2A2520;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .board-scroll {
-  padding: 18px 16px;
-  max-height: min(75dvh, 700px);
-  overflow-y: auto;
-  overflow-x: hidden; /* 核心：禁止全域晃動 */
-  -webkit-overflow-scrolling: touch;
-}
-
-/* 2. 垂直節奏：行間距拉開 */
-.ai-plain {
-  line-height: 2.2; /* 拉開行距，不壓迫分式 */
-  color: #2C3E50;
-}
-
-.board-row {
-  margin-bottom: 0.6em;
-}
-
-/* 3. 選項懸掛縮進 (左右分欄) */
-.choice-block {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.7em;
-  margin-bottom: 0.8em;
-  align-items: start;
-}
-
-.choice-label {
-  font-weight: 700;
-  color: #3D5C48;
-  white-space: nowrap;
-}
-
-.choice-content {
+  padding: 16px 14px;
+  max-height: none;
+  overflow-y: visible;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
-/* 4. 單行橫滑容器 (仿影片絲滑感) */
-.math-scroll-container {
-  display: block;
-  width: 100%;
-  margin: 1.2em 0;
-  padding: 8px 0 16px 0; /* 預留底部空間給滑桿 */
-  text-align: center;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  white-space: nowrap !important;
-  -webkit-overflow-scrolling: touch;
+/* 正文：左對齊、行距 */
+.board-scroll .ai-plain,
+.ai-plain {
+  line-height: 1.75;
+  color: #2A2520;
+  text-align: left;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
-/* 常駐滑桿 UI */
-.math-scroll-container::-webkit-scrollbar { height: 5px; display: block !important; }
-.math-scroll-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); border-radius: 10px; }
-.math-scroll-container::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 10px; }
+/* 題號／核心觀念區塊 */
+.solve-section {
+  margin: 0.65em 0 0.45em;
+}
 
-/* 5. 【重要】修正 KaTeX 分式橫線對齊 */
-.katex {
-  line-height: 1.2 !important; /* 強制重置行高，讓 1/2 橫線居中 */
+.solve-section:first-child {
+  margin-top: 0;
+}
+
+.solve-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #3D5C48;
+  padding: 9px 12px;
+  background: #EEF4EF;
+  border-radius: 8px;
+  border-left: 3px solid #3D5C48;
+  line-height: 1.5;
+}
+
+.ai-plain .plain-line {
+  margin-bottom: 0.5em;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ai-plain .plain-line--step {
+  margin-bottom: 0.5em;
+}
+
+.ai-plain .plain-line--step .plain-line-inner {
+  padding: 6px 0 6px 12px;
+  border-left: 2px solid #DDD4C8;
+}
+
+.ai-plain .plain-line--empty {
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.ai-plain .plain-line-inner {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: visible;
+  max-height: none;
+}
+
+/* 含算式：外層自適應高度，僅內層橫向捲動 */
+.ai-plain .plain-line-inner:has(.katex, .math-block, .math-unit-tail, .plain-katex-nowrap) {
+  overflow-wrap: normal;
+  word-break: normal;
+  overflow: visible;
+  max-width: 100%;
+  max-height: none;
+  padding-bottom: 0;
+}
+
+.ai-plain .plain-line-inner.plain-line-inner--xscroll {
+  padding-bottom: 0;
+}
+
+.ai-plain .plain-line-xwrap {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+/* 量測用：單行不換行後比對實際寬度（與 --scroll 同邏輯） */
+.ai-plain .plain-line-xcontent--measure {
+  display: inline-block;
   white-space: nowrap;
-  font-size: 1.08em;
+  vertical-align: top;
+  width: max-content;
+  max-width: none;
+}
+
+.ai-plain .plain-line-xwrap--scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  padding-bottom: 10px;
+  margin-bottom: 2px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce #e8eaed;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+}
+
+.ai-plain .plain-line-xcontent {
+  display: block;
+  min-width: min-content;
+}
+
+.ai-plain .plain-line-xwrap--scroll .plain-line-xcontent {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
+  background: #e8eaed;
+  border-radius: 4px;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
+  background: #c5c9ce;
+  border-radius: 4px;
+}
+
+.ai-plain .plain-line-inner:has(.katex-display) {
+  padding: 0.2em 0 0.35em;
+}
+
+.ai-plain .katex-display {
+  margin: 0.15em 0 0.35em;
+  text-align: left;
+}
+
+/* 舊版 hscroll 類別保留相容，但不再設 overflow */
+.ai-plain .plain-line-inner.plain-line--hscroll,
+.ai-plain .choice-body.plain-line--hscroll {
+  overflow: visible;
+  white-space: normal;
+  max-height: none;
+}
+
+/* KaTeX：分式完整顯示；橫向捲動由外層 plain-line--hscroll 負責 */
+.board-scroll .katex,
+.ai-plain .katex {
+  line-height: 1.55;
+  font-size: 1.05em;
+  overflow: visible;
+}
+
+.ai-plain .katex .katex-html {
+  overflow: visible;
 }
 
 .katex .mfrac {
-  vertical-align: middle; /* 讓分式在行內高度平衡 */
+  vertical-align: middle;
+  overflow: visible;
 }
 
-/* 6. Note 互動：微光標記法 */
-.math-note, .katex [data-note], .katex [note] {
-  cursor: pointer !important;
-  padding: 0.1em 0.3em;
-  border-radius: 4px;
-  background: rgba(184, 112, 42, 0.08); /* 平時微光 */
-  border: none !important;
-  transition: background 0.2s;
-}
-
-.math-note.active {
-  background: #F5E6C8 !important; /* 點擊後反白 */
-  box-shadow: 0 0 0 1px #A67C52;
-}
-
-.math-note-popover {
-  position: fixed; display: none; z-index: 9999;
-  background: rgba(42, 37, 32, 0.95); color: #FFF;
-  padding: 10px 14px; border-radius: 8px; font-size: 14px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3); pointer-events: none;
-}
-.math-note-popover.show { display: block; }
-
-/* 7. 藍色答案框樣式 */
-.answer-box {
-  display: inline-block;
-  margin-top: 1.5em;
-  padding: 12px 18px;
-  background: #EAF4FF;
-  border-left: 5px solid #3A7BD5;
-  border-radius: 4px;
-  font-weight: 700;
-  color: #1453B8;
-  font-size: 15px;
+.katex .vlist-t,
+.katex .vlist-b {
+  overflow: visible;
 }

@@ -1,12 +1,12 @@
 /* 選項 (A)～(E)：上下排列，換行與說明開頭對齊（懸掛縮排） */
 .ai-plain .plain-line--choice {
-  margin-bottom: 0.28em;
+  margin-bottom: 0.5em;
 }
 
 .ai-plain .choice-option-group {
   display: flex;
   flex-direction: column;
-  gap: 0.42em;
+  gap: 0.5em;
 }
 
 .ai-plain .choice-option {
@@ -14,7 +14,7 @@
   grid-template-columns: 2.1em minmax(0, 1fr);
   column-gap: 0.35em;
   align-items: start;
-  line-height: 1.72;
+  line-height: 1.75;
 }
 
 .ai-plain .choice-label {
@@ -40,7 +40,7 @@
 .ai-plain .choice-body--steps {
   display: flex;
   flex-direction: column;
-  gap: 0.44em;
+  gap: 0.5em;
   min-width: 0;
   line-height: inherit;
 }
