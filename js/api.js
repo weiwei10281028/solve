@@ -51,7 +51,8 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
     contents,
     generationConfig: {
       maxOutputTokens: genOpts.maxOutputTokens ?? 8192,
-      temperature: genOpts.temperature ?? 0.1
+      temperature: genOpts.temperature ?? 0.1,
+      ...(genOpts.temperature === 0 ? { seed: 0 } : {})
     }
   };
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${encodeURIComponent(apiKey)}`;

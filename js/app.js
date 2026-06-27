@@ -120,8 +120,23 @@ document.addEventListener('paste', e => {
 function setDetailMode(detailed) {
   detailMode = !!detailed;
   localStorage.setItem('ai-detail-mode', detailMode ? '1' : '0');
+  sessionStorage.setItem('ai-detail-mode', detailMode ? '1' : '0');
   document.getElementById('modeConciseBtn')?.classList.toggle('topo-active', !detailMode);
   document.getElementById('modeDetailedBtn')?.classList.toggle('topo-active', detailMode);
+}
+
+function getSolveModeTag() {
+  const modelMeta = PROVIDERS.gemini.models.find(m => m.id === cfg.model);
+  const modelLabel = modelMeta?.name?.split('（')[0]?.trim() || cfg.model;
+  return `${detailMode ? '詳細' : '精簡'}·${modelLabel}`;
+}
+
+function appendSolveModeTag(text) {
+  const base = String(text || '').trim();
+  const tag = getSolveModeTag();
+  if (!base) return tag;
+  if (base.includes(tag) || /精簡·|詳細·/.test(base)) return base;
+  return `${base}｜${tag}`;
 }
 
 function hasSolveInput() {
@@ -493,7 +508,7 @@ async function startSolve() {
       if (match?.teachingRuleIds?.length) {
         badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
       }
-      setBadge(badgeNote + noteBadgeSuffix, match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
+      setBadge(appendSolveModeTag(badgeNote + noteBadgeSuffix), match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
       if (verify.ok === false) toast(verify.note);
       else if (match.tier === 1) {
         toast(match.solutionOnly
@@ -512,7 +527,7 @@ async function startSolve() {
       const ruleNote = match?.teachingRuleIds?.length
         ? `（規定：${match.teachingRuleIds.join('、')}）`
         : '';
-      setBadge(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`, '#F9EDED', '#9B4444');
+      setBadge(appendSolveModeTag(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`), '#F9EDED', '#9B4444');
       toast(autoHints
         ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
         : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
@@ -558,7 +573,7 @@ async function sendFollowUp() {
     });
     apiMessages.push({ role: 'assistant', content: reply });
     fillFollowupReply(block, reply);
-    setBadge('完成', '#EAF2ED', '#3D6B52');
+    setBadge(appendSolveModeTag('完成'), '#EAF2ED', '#3D6B52');
   } catch (err) {
     apiMessages.pop();
     fillFollowupReply(block, `❌ ${formatError(err.message)}`);

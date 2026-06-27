@@ -731,7 +731,7 @@ function fallbackPlainLayout(text) {
 
 function measureLineOverflow(inner, content) {
   if (!inner || !content) return false;
-  const avail = inner.clientWidth;
+  const avail = inner.clientWidth || inner.getBoundingClientRect().width;
   if (avail <= 0) return false;
   content.classList.add('plain-line-xcontent--measure');
   const needX = content.scrollWidth > avail + 1;
@@ -739,8 +739,36 @@ function measureLineOverflow(inner, content) {
   return needX;
 }
 
+let boardScrollRerunTimer = null;
+
+function scheduleBoardLineScrollRerun(root) {
+  if (boardScrollRerunTimer) clearTimeout(boardScrollRerunTimer);
+  boardScrollRerunTimer = setTimeout(() => {
+    const targets = root
+      ? [root]
+      : [...document.querySelectorAll('#mainSolution, .board-reply, .followup-reply')];
+    targets.forEach((el) => {
+      if (el?.isConnected) setupHorizontalLineScroll(el);
+    });
+  }, 80);
+}
+
+if (typeof window !== 'undefined' && !window.__boardScrollViewportBound) {
+  window.__boardScrollViewportBound = true;
+  window.addEventListener('orientationchange', () => scheduleBoardLineScrollRerun());
+  window.addEventListener('resize', () => scheduleBoardLineScrollRerun());
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => scheduleBoardLineScrollRerun()).catch(() => {});
+  }
+}
+
 function applyLineHorizontalScroll(inner, wrap, content) {
   if (!inner?.isConnected || !wrap || !content) return;
+  const avail = inner.clientWidth || inner.getBoundingClientRect().width;
+  if (avail <= 0) {
+    requestAnimationFrame(() => applyLineHorizontalScroll(inner, wrap, content));
+    return;
+  }
   const needX = measureLineOverflow(inner, content);
   wrap.classList.toggle('plain-line-xwrap--scroll', needX);
   inner.classList.toggle('plain-line-inner--xscroll', needX);
@@ -868,6 +896,7 @@ function postProcessPlainBoard(root) {
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
   setupHorizontalLineScroll(root);
+  scheduleBoardLineScrollRerun(root);
 }
 
 function doKaTeX(element) {
