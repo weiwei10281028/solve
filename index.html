@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250626a">
   <link rel="stylesheet" href="css/plain-choice-options.css?v=20250625g">
   <link rel="stylesheet" href="css/math-note/math-note.css?v=20250626b">
+  <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
 </head>
 <body class="app-page">
 
@@ -39,7 +40,7 @@
     </div>
 
     <div class="upload-zone" id="zone">
-      <input type="file" id="fileInput" accept="image/*" onchange="onFile(this.files[0])">
+      <input type="file" id="fileInput" accept="image/*" onchange="onFilesSelected(this.files)">
       <div class="upload-graphic" aria-hidden="true">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
           <rect x="4" y="8" width="32" height="26" rx="3" stroke="currentColor" stroke-width="1.5"/>
@@ -52,17 +53,25 @@
     </div>
 
     <div class="preview-wrap" id="prevWrap">
-      <button type="button" class="preview-btn" id="previewBtn" onclick="openLightbox()" title="點擊放大">
+      <button type="button" class="preview-btn" id="previewBtn" onclick="openLightbox(0)" title="點擊放大">
         <img class="preview-img" id="prevImg" src="" alt="題目預覽">
         <span class="preview-zoom-hint">點擊放大</span>
       </button>
       <p class="preview-name" id="prevName"></p>
     </div>
 
+    <div class="preview-wrap" id="prevWrap2">
+      <button type="button" class="preview-btn" id="previewBtn2" onclick="openLightbox(1)" title="點擊放大">
+        <img class="preview-img" id="prevImg2" src="" alt="題目預覽（圖 2）">
+        <span class="preview-zoom-hint">點擊放大</span>
+      </button>
+      <p class="preview-name" id="prevName2"></p>
+    </div>
+
     <div class="field-group">
-      <label class="field-label" for="textQuestionInput">直接輸入題目（可不傳圖）</label>
-      <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="貼上題幹、選項、數據；圖片被裁切時請在此補齊缺漏"></textarea>
-      <p class="field-hint">有圖片時以圖為主；僅填此欄也可開始解題並配對資料庫</p>
+      <label class="field-label" for="textQuestionInput">補充說明（選填）</label>
+      <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="圖被裁切、選項看不清時請補上；沒圖時也可直接貼完整題目"></textarea>
+      <p class="field-hint">有圖片時以圖為主，此欄補齊缺漏；沒圖時填此欄即可解題</p>
     </div>
 
     <div class="field-group">
@@ -74,6 +83,15 @@
       <label class="field-label" for="answerInput">參考答案（選填）</label>
       <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、2.42、0.33 mol…" autocomplete="off">
       <p class="field-hint">若已知正確選項或數值，填入後 AI 會對照檢核，準確率通常更高</p>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">詳解模式</span>
+      <div class="topology-toggle" role="group" aria-label="詳解模式">
+        <button type="button" class="topo-btn topo-active" id="modeConciseBtn" onclick="setDetailMode(false)">精簡</button>
+        <button type="button" class="topo-btn" id="modeDetailedBtn" onclick="setDetailMode(true)">詳細</button>
+      </div>
+      <p class="field-hint">詳細模式會先說明本題相關概念與背景，再進入解題</p>
     </div>
 
     <div class="action-row">
@@ -164,12 +182,14 @@
 <script src="js/db-meta.js"></script>
 <script src="js/db-rules.js?v=20250626r"></script>
 <script src="js/database.js?v=20250626r"></script>
-<script src="js/prompts.js?v=20250626w"></script>
+<script src="js/prompts.js?v=20250627c"></script>
 <script src="js/plain-reaction-table.js?v=20250626x"></script>
 <script src="js/plain-choice-options.js?v=20250626x"></script>
 <script src="js/math-note/math-note.js?v=20250626b"></script>
-<script src="js/render.js?v=20250626x"></script>
+<script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
+<script src="js/smiles-draw.js?v=20250627c"></script>
+<script src="js/render.js?v=20250626y"></script>
 <script src="js/api.js"></script>
-<script src="js/app.js?v=20250626x"></script>
+<script src="js/app.js?v=20250627b"></script>
 </body>
 </html>

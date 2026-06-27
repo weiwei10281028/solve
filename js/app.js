@@ -5,7 +5,7 @@ const PROVIDERS = {
     keyUrl: 'https://aistudio.google.com/apikey',
     models: [
       { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite（推薦，一般解題）' },
-      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash（較強推理）' },
+      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash（較強推理）' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro（進階推理）' }
     ]
   }
@@ -20,7 +20,8 @@ const DEPRECATED = {
   'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
   'gemini-2.5-pro': 'gemini-3.1-pro-preview',
   'gemini-3.1-flash-lite-preview': 'gemini-3.1-flash-lite',
-  'gemini-3-pro-preview': 'gemini-3.1-pro-preview'
+  'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
+  'gemini-3-flash-preview': 'gemini-3.5-flash'
 };
 
 function cleanKey(value) {
@@ -36,7 +37,9 @@ function keySummary(key) {
 }
 
 
-let imgDataURL = null, apiMessages = [], busy = false, lastMatchInput = '';
+let imgDataURLs = [], apiMessages = [], busy = false, lastMatchInput = '';
+let detailMode = loadSetting('ai-detail-mode', '') === '1';
+const MAX_IMAGES = 2;
 const GEMINI_MODEL_IDS = new Set(PROVIDERS.gemini.models.map(m => m.id));
 const savedModel = loadSetting('aim', 'gemini-3.1-flash-lite');
 const cfg = {
@@ -84,10 +87,11 @@ function saveSettings() {
   toast(`設定已儲存：${keySummary(cfg.key)}`);
 }
 
-function openLightbox() {
-  if (!imgDataURL) return;
+function openLightbox(index = 0) {
+  const img = imgDataURLs[index];
+  if (!img) return;
   const lb = document.getElementById('imgLightbox');
-  document.getElementById('lightboxImg').src = imgDataURL;
+  document.getElementById('lightboxImg').src = img.dataUrl;
   lb.hidden = false;
   document.body.style.overflow = 'hidden';
 }
@@ -105,17 +109,24 @@ zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add(
 zone.addEventListener('dragleave', () => zone.classList.remove('over'));
 zone.addEventListener('drop', e => {
   e.preventDefault(); zone.classList.remove('over');
-  const f = e.dataTransfer.files[0];
-  if (f?.type.startsWith('image/')) onFile(f);
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  if (files.length) onFilesSelected(files);
 });
 document.addEventListener('paste', e => {
   const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
-  if (item) onFile(item.getAsFile());
+  if (item) onFilesSelected([item.getAsFile()]);
 });
+
+function setDetailMode(detailed) {
+  detailMode = !!detailed;
+  localStorage.setItem('ai-detail-mode', detailMode ? '1' : '0');
+  document.getElementById('modeConciseBtn')?.classList.toggle('topo-active', !detailMode);
+  document.getElementById('modeDetailedBtn')?.classList.toggle('topo-active', detailMode);
+}
 
 function hasSolveInput() {
   const textQ = document.getElementById('textQuestionInput')?.value.trim() || '';
-  return !!(imgDataURL || textQ);
+  return !!(imgDataURLs.length || textQ);
 }
 
 function updateSolveButtonState() {
@@ -123,14 +134,54 @@ function updateSolveButtonState() {
   if (btn) btn.disabled = busy || !hasSolveInput();
 }
 
-function onFile(file) {
-  if (!file) return;
+function refreshPreviewUI() {
+  const slots = [
+    { wrap: 'prevWrap', img: 'prevImg', name: 'prevName' },
+    { wrap: 'prevWrap2', img: 'prevImg2', name: 'prevName2' }
+  ];
+  slots.forEach((slot, i) => {
+    const item = imgDataURLs[i];
+    const wrap = document.getElementById(slot.wrap);
+    if (!wrap) return;
+    if (item) {
+      document.getElementById(slot.img).src = item.dataUrl;
+      document.getElementById(slot.name).textContent = item.name || `圖片 ${i + 1}`;
+      wrap.classList.add('show');
+    } else {
+      document.getElementById(slot.img).src = '';
+      document.getElementById(slot.name).textContent = '';
+      wrap.classList.remove('show');
+    }
+  });
+}
+
+function onFilesSelected(fileList) {
+  const files = [...(fileList || [])].filter(f => f?.type?.startsWith('image/'));
+  if (!files.length) return;
+  let added = 0;
+  for (const file of files) {
+    if (imgDataURLs.length >= MAX_IMAGES) {
+      if (!added) toast(`最多上傳 ${MAX_IMAGES} 張圖片`);
+      break;
+    }
+    addImage(file);
+    added++;
+  }
+  document.getElementById('fileInput').value = '';
+}
+
+function addImage(file) {
+  if (!file || imgDataURLs.length >= MAX_IMAGES) {
+    if (imgDataURLs.length >= MAX_IMAGES) toast(`最多上傳 ${MAX_IMAGES} 張圖片`);
+    return;
+  }
+  const index = imgDataURLs.length;
+  const defaultName = file.name || (index ? '貼上的圖片（2）' : '貼上的圖片');
+  imgDataURLs.push({ dataUrl: '', name: defaultName });
   const reader = new FileReader();
   reader.onload = e => {
-    imgDataURL = e.target.result;
-    document.getElementById('prevImg').src = imgDataURL;
-    document.getElementById('prevName').textContent = file.name || '貼上的圖片';
-    document.getElementById('prevWrap').classList.add('show');
+    imgDataURLs[index] = { dataUrl: e.target.result, name: defaultName };
+    refreshPreviewUI();
     apiMessages = [];
     clearThreads();
     document.getElementById('chatInputWrap').classList.remove('show');
@@ -140,13 +191,13 @@ function onFile(file) {
 }
 
 function clearAll() {
-  imgDataURL = null; apiMessages = []; lastMatchInput = '';
+  imgDataURLs = []; apiMessages = []; lastMatchInput = '';
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('questionInput').value = '';
   document.getElementById('answerInput').value = '';
   document.getElementById('chatInput').value = '';
-  document.getElementById('prevWrap').classList.remove('show');
+  refreshPreviewUI();
   document.getElementById('resultCard').classList.remove('show');
   clearThreads();
   document.getElementById('chatInputWrap').classList.remove('show');
@@ -229,8 +280,15 @@ function renderAiInto(container, text) {
     if (typeof render !== 'function' || typeof doKaTeX !== 'function') {
       throw new Error('render.js 未載入，請強制重新整理頁面');
     }
-    container.innerHTML = render(text || '');
+    let body = text || '';
+    if (typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
+      body = SmilesDraw.preprocess(body);
+    }
+    container.innerHTML = render(body);
     doKaTeX(container);
+    if (typeof SmilesDraw !== 'undefined' && SmilesDraw.scan) {
+      SmilesDraw.scan(container);
+    }
   } catch (err) {
     console.error('詳解渲染失敗', err);
     container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
@@ -277,10 +335,11 @@ async function startSolve() {
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const q = document.getElementById('questionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
-  const textOnly = !imgDataURL && !!textQuestion;
+  const hasImage = imgDataURLs.length > 0;
+  const textOnly = !hasImage && !!textQuestion;
 
-  if (!imgDataURL && !textQuestion) {
-    toast('請上傳題目圖片，或在「直接輸入題目」填寫題幹');
+  if (!hasImage && !textQuestion) {
+    toast('請上傳題目圖片，或在「補充說明」填寫題目內容');
     return;
   }
 
@@ -306,7 +365,8 @@ async function startSolve() {
       if (isDatabaseEnabled()) {
         try {
           const catalogLine = await buildMatchCatalogLine();
-          autoHints = await extractImageMatchHints(cfg, imgDataURL, catalogLine);
+          const urls = imgDataURLs.map(item => item.dataUrl);
+          autoHints = await extractImageMatchHints(cfg, urls, catalogLine);
         } catch (err) {
           console.warn('自動配對辨識失敗', err);
         }
@@ -327,11 +387,13 @@ async function startSolve() {
       questionBody: textQuestion,
       supplement: textQuestion,
       keywords: q,
-      hasImage: !!imgDataURL,
+      hasImage,
+      imageCount: imgDataURLs.length,
+      detailed: detailMode,
       scopeInput
     };
     updateSolveHeadingMode(scopeInput || matchInput);
-    const userText = buildSolveUserText(scopeInput, refAnswer, solveOpts);
+    const userText = window.buildSolveUserText(scopeInput, refAnswer, solveOpts);
     const dbUserBlock = await buildDatabaseUserBlock(matchInput);
     const systemText = await getSystemPromptForSolve(matchInput, solveOpts);
 
@@ -341,10 +403,14 @@ async function startSolve() {
         content: userText + dbUserBlock
       }];
     } else {
+      const imageParts = imgDataURLs.map(item => ({
+        type: 'image_url',
+        image_url: { url: item.dataUrl, detail: 'high' }
+      }));
       apiMessages = [{
         role: 'user',
         content: [
-          { type: 'image_url', image_url: { url: imgDataURL, detail: 'high' } },
+          ...imageParts,
           { type: 'text', text: userText + dbUserBlock }
         ]
       }];
@@ -426,8 +492,9 @@ async function sendFollowUp() {
     updateSolveHeadingMode(scopeInput || lastMatchInput);
     const followOpts = {
       scopeInput,
-      textOnly: !imgDataURL,
-      hasImage: !!imgDataURL
+      textOnly: !imgDataURLs.length,
+      hasImage: !!imgDataURLs.length,
+      detailed: detailMode
     };
     const { text: reply } = await callAPI(cfg, apiMessages, await getSystemPromptForSolve(lastMatchInput, followOpts), {
       temperature: 0,
@@ -446,6 +513,7 @@ async function sendFollowUp() {
 }
 
 onProviderChange();
+setDetailMode(detailMode);
 document.getElementById('chatInput').addEventListener('keydown', chatKeydown);
 document.getElementById('textQuestionInput').addEventListener('input', updateSolveButtonState);
 document.getElementById('questionInput').addEventListener('keydown', e => {

@@ -244,6 +244,7 @@ body {
   contain: layout;
 }
 .preview-wrap.show { display: block; }
+.preview-wrap + .preview-wrap { margin-top: 14px; }
 .preview-btn {
   display: block;
   width: 100%;

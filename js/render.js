@@ -347,6 +347,43 @@ function mergeOrphanPunctuationLines(raw) {
   return out.join('\n');
 }
 
+/** 修復 AI 斷裂或誤用的 $：單獨一行 $、純中文算式被包進 $…$／$$…$$ */
+function repairOrphanDollarLines(text) {
+  const lines = String(text || '').split('\n');
+  const merged = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t === '$' || t === '$$') {
+      if (i + 1 < lines.length) {
+        const inner = lines[i + 1].trim();
+        const close = (i + 2 < lines.length) ? lines[i + 2].trim() : '';
+        if (inner && (close === '$' || close === '$$') && !/\\[a-zA-Z]/.test(inner)) {
+          merged.push(inner);
+          i += 2;
+          continue;
+        }
+      }
+      continue;
+    }
+    merged.push(lines[i]);
+  }
+
+  const unwrapPlainMath = (inner) => {
+    const s = String(inner || '').trim();
+    if (!s || /\\[a-zA-Z]/.test(s)) return null;
+    if (/[\u4e00-\u9fff]/.test(s) && !/[_^{}\\]/.test(s)) return s;
+    if (/^[\u4e00-\u9fffA-Za-z0-9\s=+\-×÷*/（）().,，、：:次個片段段莫耳mol%％°℃]+$/.test(s)) return s;
+    return null;
+  };
+
+  return merged.map((line) => {
+    let s = String(line || '');
+    s = s.replace(/\$\$([^$]+)\$\$/g, (m, inner) => unwrapPlainMath(inner) || m);
+    s = s.replace(/\$([^$\n\\]+)\$/g, (m, inner) => unwrapPlainMath(inner) || m);
+    return s;
+  }).join('\n');
+}
+
 function preprocessPlainText(raw) {
   let text = stripMatchComments(String(raw || '').trim());
   text = normalizeAiHeadings(text);
@@ -357,6 +394,7 @@ function preprocessPlainText(raw) {
   if (typeof flattenReactionIceTables === 'function') text = flattenReactionIceTables(text);
   if (typeof collapseReactionTableBlocks === 'function') text = collapseReactionTableBlocks(text);
   text = dropNoiseLines(text);
+  text = repairOrphanDollarLines(text);
   text = mergeBrokenSummaryLines(text);
   text = dropRedundantTailSummary(text);
   text = wrapOrphanCasesLineGroups(text);
@@ -369,6 +407,7 @@ function preprocessPlainText(raw) {
   if (typeof mergeOrphanMathContinuationLines === 'function') text = mergeOrphanMathContinuationLines(text);
   if (typeof mergeOrphanUnitLines === 'function') text = mergeOrphanUnitLines(text);
   text = mergeOrphanPunctuationLines(text);
+  text = repairOrphanDollarLines(text);
   text = fixLatexBlocks(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
   return text;
