@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/plain-choice-options.css?v=20250625g">
   <link rel="stylesheet" href="css/math-note/math-note.css?v=20250626b">
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
+  <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
 </head>
 <body class="app-page">
 
@@ -71,7 +72,7 @@
     <div class="field-group">
       <label class="field-label" for="textQuestionInput">補充說明（選填）</label>
       <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="圖被裁切、選項看不清時請補上；沒圖時也可直接貼完整題目"></textarea>
-      <p class="field-hint">有圖片時以圖為主，此欄補齊缺漏；沒圖時填此欄即可解題</p>
+      <p class="field-hint">有圖片時以圖為主，此欄補齊缺漏；沒圖時填此欄即可解題。預覽預存結構：只填 @@MOL:aspirin@@ 後按開始解題（不需 API）</p>
     </div>
 
     <div class="field-group">
@@ -182,14 +183,20 @@
 <script src="js/db-meta.js"></script>
 <script src="js/db-rules.js?v=20250626r"></script>
 <script src="js/database.js?v=20250626r"></script>
-<script src="js/prompts.js?v=20250627c"></script>
+<script src="js/prompts.js?v=20250627i"></script>
 <script src="js/plain-reaction-table.js?v=20250626x"></script>
-<script src="js/plain-choice-options.js?v=20250626x"></script>
+<script src="js/plain-choice-options.js?v=20250627i"></script>
 <script src="js/math-note/math-note.js?v=20250626b"></script>
+<script src="js/math-note/note-rules.js?v=20250627i"></script>
+<script src="js/math-note/note-presets.js?v=20250627c"></script>
+<script src="js/math-note/note-block.js?v=20250627c"></script>
+<script src="js/math-note/note-check.js?v=20250627c"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
-<script src="js/smiles-draw.js?v=20250627c"></script>
-<script src="js/render.js?v=20250626y"></script>
+<script src="js/smiles-draw.js?v=20250627d"></script>
+<script src="js/structures-bundle.js?v=20250627b"></script>
+<script src="js/molfile-draw.js?v=20250627d"></script>
+<script src="js/render.js?v=20250627i"></script>
 <script src="js/api.js"></script>
-<script src="js/app.js?v=20250627b"></script>
+<script src="js/app.js?v=20250627f"></script>
 </body>
 </html>

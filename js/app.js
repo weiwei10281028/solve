@@ -286,9 +286,14 @@ function renderAiInto(container, text) {
     }
     container.innerHTML = render(body);
     doKaTeX(container);
+    const drawTasks = [];
     if (typeof SmilesDraw !== 'undefined' && SmilesDraw.scan) {
-      SmilesDraw.scan(container);
+      drawTasks.push(SmilesDraw.scan(container));
     }
+    if (typeof MolfileDraw !== 'undefined' && MolfileDraw.scan) {
+      drawTasks.push(MolfileDraw.scan(container));
+    }
+    if (drawTasks.length) Promise.all(drawTasks).catch((err) => console.warn('結構圖繪製', err));
   } catch (err) {
     console.error('詳解渲染失敗', err);
     container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
@@ -329,13 +334,43 @@ function chatKeydown(e) {
 }
 
 async function startSolve() {
-  if (!cfg.key) { openModal(); toast('請先設定 Gemini API Key'); return; }
   if (busy || !hasSolveInput()) return;
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const q = document.getElementById('questionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
   const hasImage = imgDataURLs.length > 0;
+  const molPreview = typeof MolfileDraw !== 'undefined' && MolfileDraw.parseRequest
+    ? MolfileDraw.parseRequest(textQuestion)
+    : null;
+
+  if (molPreview && !hasImage) {
+    document.getElementById('resultCard').classList.add('show');
+    document.getElementById('chatInputWrap').classList.remove('show');
+    clearThreads();
+    setBusy(true);
+    setBadge('預存結構…', '#F9F3E6', '#8A6D3B');
+    try {
+      const el = document.getElementById('mainSolution');
+      el.innerHTML = '';
+      const result = await MolfileDraw.drawById(molPreview.id, molPreview.label);
+      if (result.node) el.appendChild(result.node);
+      if (result.ok) {
+        setBadge('預存結構', '#EAF2ED', '#3D6B52');
+      } else {
+        setBadge('錯誤', '#F9EDED', '#9B4444');
+        toast('結構繪製失敗，請確認 id 是否在 structures/index.json');
+      }
+    } catch (err) {
+      setMainSolution(`❌ ${formatError(err.message)}`);
+      setBadge('錯誤', '#F9EDED', '#9B4444');
+    } finally {
+      setBusy(false);
+    }
+    return;
+  }
+
+  if (!cfg.key) { openModal(); toast('請先設定 Gemini API Key'); return; }
   const textOnly = !hasImage && !!textQuestion;
 
   if (!hasImage && !textQuestion) {
@@ -395,12 +430,22 @@ async function startSolve() {
     updateSolveHeadingMode(scopeInput || matchInput);
     const userText = window.buildSolveUserText(scopeInput, refAnswer, solveOpts);
     const dbUserBlock = await buildDatabaseUserBlock(matchInput);
+    const dbMatch = typeof getLastDatabaseMatch === 'function' ? getLastDatabaseMatch() : null;
+    const noteUserBlock = typeof NoteBlock !== 'undefined' && NoteBlock.buildUserBlock
+      ? NoteBlock.buildUserBlock({
+        matchInput,
+        detailed: detailMode,
+        conceptLabels: dbMatch?.conceptLabels || [],
+        match: dbMatch
+      })
+      : '';
+    const fullUserText = userText + dbUserBlock + noteUserBlock;
     const systemText = await getSystemPromptForSolve(matchInput, solveOpts);
 
     if (textOnly) {
       apiMessages = [{
         role: 'user',
-        content: userText + dbUserBlock
+        content: fullUserText
       }];
     } else {
       const imageParts = imgDataURLs.map(item => ({
@@ -411,7 +456,7 @@ async function startSolve() {
         role: 'user',
         content: [
           ...imageParts,
-          { type: 'text', text: userText + dbUserBlock }
+          { type: 'text', text: fullUserText }
         ]
       }];
     }
@@ -429,6 +474,15 @@ async function startSolve() {
     });
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
+    const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check
+      ? NoteCheck.check(reply)
+      : null;
+    if (noteReport && !noteReport.skipped && !noteReport.ok) {
+      console.warn('[NOTE 檢查]', noteReport);
+    }
+    const noteBadgeSuffix = noteReport && !noteReport.skipped && !noteReport.ok
+      ? `｜${noteReport.summary}`
+      : '';
     const match = getLastDatabaseMatch();
     if (match?.tier && match.tier < 3) {
       const verify = verifyAnswerLocally(reply, match.answerKey);
@@ -439,7 +493,7 @@ async function startSolve() {
       if (match?.teachingRuleIds?.length) {
         badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
       }
-      setBadge(badgeNote, match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
+      setBadge(badgeNote + noteBadgeSuffix, match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
       if (verify.ok === false) toast(verify.note);
       else if (match.tier === 1) {
         toast(match.solutionOnly
@@ -458,7 +512,7 @@ async function startSolve() {
       const ruleNote = match?.teachingRuleIds?.length
         ? `（規定：${match.teachingRuleIds.join('、')}）`
         : '';
-      setBadge(`未命中資料庫${styleNote}${conceptNote}${ruleNote}`, '#F9EDED', '#9B4444');
+      setBadge(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`, '#F9EDED', '#9B4444');
       toast(autoHints
         ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
         : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));

@@ -357,9 +357,18 @@ function repairOrphanDollarLines(text) {
       if (i + 1 < lines.length) {
         const inner = lines[i + 1].trim();
         const close = (i + 2 < lines.length) ? lines[i + 2].trim() : '';
-        if (inner && (close === '$' || close === '$$') && !/\\[a-zA-Z]/.test(inner)) {
-          merged.push(inner);
+        if (inner && (close === '$' || close === '$$')) {
+          if (!/\\[a-zA-Z]/.test(inner)) {
+            merged.push(inner);
+          } else {
+            merged.push(close === '$$' ? `$$${inner}$$` : `$${inner}$`);
+          }
           i += 2;
+          continue;
+        }
+        if (/^\$[^$]+\$$/.test(inner) || /^\$\$[\s\S]+\$\$$/.test(inner)) {
+          merged.push(lines[i + 1]);
+          i += 1;
           continue;
         }
       }
@@ -381,6 +390,26 @@ function repairOrphanDollarLines(text) {
     s = s.replace(/\$\$([^$]+)\$\$/g, (m, inner) => unwrapPlainMath(inner) || m);
     s = s.replace(/\$([^$\n\\]+)\$/g, (m, inner) => unwrapPlainMath(inner) || m);
     return s;
+  }).join('\n');
+}
+
+/** 計算式 $…$ 內移除 mol/g/g·mol⁻¹ 等（意義改由 NOTE 承載；保留 °C、M 等） */
+function stripCalcUnitsInInlineMath(text) {
+  const unitChunk = String.raw`\\,?\s*\\(?:text|mathrm)\{(?:mol|g|莫耳|克)(?:\s*\/\s*\\(?:text|mathrm)\{(?:mol|莫耳|g|克)\})?\}`;
+  const unitRatio = String.raw`\\(?:text|mathrm)\{g\/mol\}|\\(?:text|mathrm)\{mol\/g\}|\\(?:text|mathrm)\{g\\,mol\^\{-1\}\}`;
+  return String(text || '').split('\n').map((line) => {
+    if (!/\$/.test(line) || /^\s*\$\$/.test(line.trim())) return line;
+    return line.replace(/\$(?!\$)([\s\S]+?)\$/g, (full, inner) => {
+      if (/\\begin\{array\}|\\begin\{cases\}/.test(inner)) return full;
+      let s = inner;
+      s = s.replace(new RegExp(`(${unitChunk})(?=\\s*$|[；;])`, 'gi'), '');
+      s = s.replace(new RegExp(`([\\d.])${unitChunk}`, 'gi'), '$1');
+      s = s.replace(new RegExp(`\\}${unitChunk}`, 'gi'), '}');
+      s = s.replace(new RegExp(unitRatio, 'gi'), '');
+      s = s.replace(/\{\s*([^}]*?)\s*\\(?:text|mathrm)\{g\/mol\}\s*\}/gi, '{$1}');
+      s = s.replace(/\s{2,}/g, ' ');
+      return `$${s}$`;
+    });
   }).join('\n');
 }
 
@@ -408,8 +437,10 @@ function preprocessPlainText(raw) {
   if (typeof mergeOrphanUnitLines === 'function') text = mergeOrphanUnitLines(text);
   text = mergeOrphanPunctuationLines(text);
   text = repairOrphanDollarLines(text);
+  text = stripCalcUnitsInInlineMath(text);
   text = fixLatexBlocks(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
+  text = repairOrphanDollarLines(text);
   return text;
 }
 

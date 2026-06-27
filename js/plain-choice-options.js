@@ -92,15 +92,25 @@ function mergeTailLabelWithNextMath(lines) {
   const out = [];
   for (let i = 0; i < lines.length; i++) {
     let cur = String(lines[i] ?? '');
-    while (
-      i + 1 < lines.length
-      && lineEndsAwaitingMath(cur)
-      && lineLooksLikeMathContinuation(lines[i + 1])
-      && !/\\begin\{cases\}|^\$\$/.test(String(lines[i + 1]).trim())
-      && !/\\frac|\\dfrac|\\times/.test(String(lines[i + 1]).trim())
-    ) {
-      cur = `${cur.trim()} ${String(lines[i + 1]).trim()}`;
-      i++;
+    while (i + 1 < lines.length) {
+      let ni = i + 1;
+      let nt = String(lines[ni] ?? '').trim();
+      if ((nt === '$' || nt === '$$') && ni + 1 < lines.length) {
+        const after = String(lines[ni + 1] ?? '').trim();
+        if (lineLooksLikeMathContinuation(after)) {
+          ni += 1;
+          nt = after;
+        }
+      }
+      if (
+        !lineEndsAwaitingMath(cur)
+        || !lineLooksLikeMathContinuation(nt)
+        || /\\begin\{cases\}|^\$\$/.test(nt)
+      ) {
+        break;
+      }
+      cur = `${cur.trim()} ${nt}`;
+      i = ni;
     }
     out.push(cur);
   }
@@ -147,8 +157,12 @@ function mergeSplitWordLines(lines) {
 }
 
 function mergePlainLineFragments(lines) {
+  const cleaned = lines.filter((l) => {
+    const t = String(l ?? '').trim();
+    return t !== '$' && t !== '$$';
+  });
   return mergeTailLabelWithNextMath(
-    mergeChemStepLabelLines(mergeSplitWordLines(mergeMultilineDisplayMath(lines)))
+    mergeChemStepLabelLines(mergeSplitWordLines(mergeMultilineDisplayMath(cleaned)))
   );
 }
 

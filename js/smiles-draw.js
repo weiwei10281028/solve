@@ -9,8 +9,19 @@
 (function (global) {
   'use strict';
 
-  const BLOCK_RE = /@@SMILES@@\s*\n?\s*([^\n@]+?)\s*\n?\s*@@\/SMILES@@/gi;
-  const INLINE_RE = /^@@SMILES:([^|@\n]+)(?:\|([^\n@]+))?@@$/i;
+  const BLOCK_RE = /@@SMILES@@\s*\n?\s*([\s\S]+?)\s*\n?\s*@@\/SMILES@@/gi;
+
+  /** 解析單行 @@SMILES:…@@（SMILES 可含立體標記 @，不可含 |） */
+  function parseInlineLine(text) {
+    const t = String(text || '').trim();
+    const labeled = /^@@SMILES:([^|\n]+)\|([^\n]+)@@$/i.exec(t);
+    if (labeled) {
+      return { smiles: labeled[1].trim(), label: labeled[2].trim() };
+    }
+    const plain = /^@@SMILES:([^\n]+)@@$/i.exec(t);
+    if (plain) return { smiles: plain[1].trim(), label: '' };
+    return null;
+  }
 
   function esc(s) {
     return String(s || '')
@@ -130,14 +141,14 @@
   async function scan(root) {
     const el = root && root.querySelector ? root : document;
     const targets = [...el.querySelectorAll('.plain-line-inner')].filter((inner) => {
-      return INLINE_RE.test((inner.textContent || '').trim());
+      return parseInlineLine(inner.textContent) !== null;
     });
     if (!targets.length) return 0;
 
     await Promise.all(targets.map(async (inner) => {
-      const m = (inner.textContent || '').trim().match(INLINE_RE);
-      if (!m) return;
-      const block = createBlock(m[1].trim(), (m[2] || '').trim());
+      const parsed = parseInlineLine(inner.textContent);
+      if (!parsed) return;
+      const block = createBlock(parsed.smiles, parsed.label);
       replacePlainLine(inner, block.wrap);
       await renderInto(block);
     }));
