@@ -186,7 +186,19 @@ async function matchTeachingRules(userInput = '') {
 
 function formatTeachingRuleBlock(rule) {
   const label = rule.meta.label || rule.id;
-  return `【教學規定｜${label}｜僅在須計算時套用，勿寫入詳解標題】\n${rule.content.trim()}`;
+  return `【教學規定｜${label}｜內部依據，勿寫入詳解標題】\n${rule.content.trim()}`;
+}
+
+function buildTeachingRulesApplyFooter(matched = []) {
+  const ids = matched.map(m => m.rule?.id).filter(Boolean);
+  const lines = ['【套用時機】依各段「何時套用」與「方法選擇」判定；未達條件不強套。禁止把本段標題、三法全文或禁止事項複製到詳解正文。'];
+  if (ids.includes('colligative-dimer-half-alpha')) {
+    lines.push('偶合：須用依數性公式求 $i$、$\\alpha$ 或 $M_{\\text{avg}}$，且為反應物係數 1 之偶合（$i<1$）時，計算須用規定中的反應式與 $i$ 式。');
+  }
+  if (ids.includes('hybridization-methods')) {
+    lines.push('混成：須判斷中心原子混成種類時，詳解每題只呈現所選一法之推導（預設 (a) 法；有機用 (b)；單中心偶數價電子可 (c)）；勿貼三法講義。');
+  }
+  return lines.join('\n');
 }
 
 async function buildTeachingRulesUserBlock(userInput = '') {
@@ -201,7 +213,7 @@ async function buildTeachingRulesUserBlock(userInput = '') {
   if (!matched.length) return '';
 
   const parts = matched.map(m => formatTeachingRuleBlock(m.rule));
-  return `\n\n[教學規定｜內部依據]\n${parts.join('\n\n')}\n\n【套用時機】僅當解題過程須用依數性公式求 $i$、$\alpha$ 或 $M_{\text{avg}}$，且判定為反應物係數 1 之偶合時，計算步驟須用規定中的反應式與 $i$ 式。概念說明或無計算需求時不套用。禁止把本段標題或條列複製到詳解正文。`;
+  return `\n\n[教學規定｜內部依據]\n${parts.join('\n\n')}\n\n${buildTeachingRulesApplyFooter(matched)}`;
 }
 
 function getLastTeachingRuleMatch() {

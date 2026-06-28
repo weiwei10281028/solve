@@ -35,6 +35,7 @@ function fixLatexBlocks(text) {
     const p = String(prefix || '').trimEnd();
     return p ? `${p}\n\n$$${body}$$\n` : `$$${body}$$\n`;
   });
+  s = s.replace(/^\$\s*(\\begin\{cases\}[\s\S]*?\\end\{cases\})\s*\$/gm, '$$$1$$');
   s = s.replace(/([：:])\s*\$\s*(\\begin\{cases\}[\s\S]*?\\end\{cases\})\s*\$/g, '$1\n\n$$$2$$');
 
   const beginRe = new RegExp(`\\\\begin\\{(${LATEX_ENV_NAMES})\\}`, 'g');
@@ -83,13 +84,26 @@ function fixLatexBlocks(text) {
   return s;
 }
 
-/** 裸寫 \\text{…} 包進 $…$ */
+/** 行內未閉合 $、孤立 $$（選項評析常見） */
+function repairUnclosedInlineMath(text) {
+  return String(text || '').split('\n').map((line) => {
+    if (/^\s*\$\$/.test(line.trim())) return line;
+    let s = line;
+    s = s.replace(/(?<!\$)\$\$(?!\$)/g, '');
+    const singles = s.match(/(?<!\\)\$/g);
+    if (singles && singles.length % 2 === 1) s += '$';
+    return s;
+  }).join('\n');
+}
+
+/** 裸寫 \\text{…}、\\mathrm{…}（含上下標）包進 $…$ */
 function repairBareTextMacros(text) {
   return String(text || '').replace(
-    /(?<!\$)\\text\{([^{}]+)\}(_\{?[^{}$]+\}?)?/g,
-    (m, inner, sub, off) => {
+    /(?<!\$)\\(?:text|mathrm)\{([^{}]+)\}((?:_\{?[^{}$]+\}?|\^\{?[^{}$]+\}?)*)/g,
+    (m, inner, tail, off) => {
       if (isInsideDollarMath(text, off)) return m;
-      return `$\\text{${inner}}${sub || ''}$`;
+      const macro = m.includes('\\mathrm') ? 'mathrm' : 'text';
+      return `$\\${macro}{${inner}}${tail || ''}$`;
     }
   );
 }
@@ -106,6 +120,10 @@ function wrapBareLatexSnippets(text) {
     s = s.replace(/(?<!\$)(\\Delta\s+[A-Za-z_]+(?:_\{?[A-Za-z0-9]+\}?)?\s*[=≈＝]\s*[^，。；\n$]{1,80})(?!\$)/g, (m, expr, off) => {
       if (isInsideDollarMath(s, off) || /\$/.test(expr)) return m;
       return `$${expr.trim()}$`;
+    });
+    s = s.replace(/(?<!\$)(\d(?:\\text\{[spdf]\}\^?\{?\d+\}?)+)(?!\$)/gi, (m, expr, off) => {
+      if (isInsideDollarMath(s, off)) return m;
+      return `$${expr}$`;
     });
     return s;
   }).join('\n');
@@ -440,6 +458,8 @@ function preprocessPlainText(raw) {
   if (typeof mergeOrphanUnitLines === 'function') text = mergeOrphanUnitLines(text);
   text = mergeOrphanPunctuationLines(text);
   text = repairOrphanDollarLines(text);
+  text = repairUnclosedInlineMath(text);
+  text = repairBareTextMacros(text);
   text = stripCalcUnitsInInlineMath(text);
   text = fixLatexBlocks(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
@@ -745,6 +765,24 @@ function measureLineOverflow(inner, content) {
   return needX;
 }
 
+function lineHasLeakedLatex(el) {
+  if (!el) return false;
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = node.textContent || '';
+      if (/\\(?:text|mathrm)\{/.test(t)) return true;
+      if (/(?<!\$)\d\\text\{[spdf]\}/i.test(t)) return true;
+      return false;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (node.classList?.contains('katex')) return false;
+      for (const ch of node.childNodes) if (walk(ch)) return true;
+    }
+    return false;
+  };
+  return walk(el);
+}
+
 function applyLineHorizontalScroll(inner, wrap, content) {
   if (!inner?.isConnected || !wrap || !content) return;
   const avail = inner.clientWidth
@@ -753,6 +791,13 @@ function applyLineHorizontalScroll(inner, wrap, content) {
     || 0;
   if (avail <= 0) {
     requestAnimationFrame(() => applyLineHorizontalScroll(inner, wrap, content));
+    return;
+  }
+  if (lineHasLeakedLatex(content)) {
+    wrap.classList.remove('plain-line-xwrap--scroll');
+    inner.classList.remove('plain-line-inner--xscroll');
+    content.style.whiteSpace = 'normal';
+    inner.style.whiteSpace = 'normal';
     return;
   }
   const needX = measureLineOverflow(inner, content);
@@ -852,6 +897,33 @@ function hideKatexErrors(root) {
   });
 }
 
+const LEAKED_LATEX_SNIPPET_RE = /\\(?:text|mathrm)\{[^{}]+\}(?:_\{?[^{}$]+\}?|\^\{?[^{}$]+\}?)*|\d(?:\\text\{[spdf]\}\^?\{?\d+\}?)+/gi;
+
+function recoverLeakedLatexInDom(root) {
+  if (!root) return;
+  root.querySelectorAll('.plain-line-inner, .choice-body').forEach((inner) => {
+    [...inner.childNodes].forEach((node) => {
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const t = node.textContent || '';
+      if (!LEAKED_LATEX_SNIPPET_RE.test(t)) return;
+      LEAKED_LATEX_SNIPPET_RE.lastIndex = 0;
+      const parent = node.parentNode;
+      if (!parent) return;
+      const frag = document.createDocumentFragment();
+      let lastIdx = 0;
+      let m;
+      while ((m = LEAKED_LATEX_SNIPPET_RE.exec(t))) {
+        if (m.index > lastIdx) frag.appendChild(document.createTextNode(t.slice(lastIdx, m.index)));
+        const holder = tryRenderLatex(m[0], false);
+        frag.appendChild(holder || document.createTextNode(m[0]));
+        lastIdx = LEAKED_LATEX_SNIPPET_RE.lastIndex;
+      }
+      if (lastIdx < t.length) frag.appendChild(document.createTextNode(t.slice(lastIdx)));
+      parent.replaceChild(frag, node);
+    });
+  });
+}
+
 function recoverLeakedStashCases(root) {
   if (!root) return;
   root.querySelectorAll('.plain-line-inner, .choice-body').forEach((inner) => {
@@ -877,8 +949,8 @@ function postProcessPlainBoard(root) {
   if (typeof bindKatexNumericUnits === 'function') bindKatexNumericUnits(root);
   if (typeof keepMathUnitTails === 'function') keepMathUnitTails(root);
   if (typeof adjustPlainReactionTables === 'function') adjustPlainReactionTables(root);
-  setupHorizontalLineScroll(root);
   hideKatexErrors(root);
+  recoverLeakedLatexInDom(root);
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
   setupHorizontalLineScroll(root);

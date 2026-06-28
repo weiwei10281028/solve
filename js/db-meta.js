@@ -176,15 +176,21 @@ function extractMatchKeywords(questionMd = '', fingerprint = [], conceptTags = [
   if (matchComment) {
     for (const part of matchComment[1].split(/[,，、]/)) {
       const s = part.trim();
-      if (s) kw.add(s);
+      if (s) {
+        kw.add(s);
+        for (const sub of s.split(/\s+/)) {
+          const t = sub.trim();
+          if (t.length >= 2) kw.add(t);
+        }
+      }
     }
   }
   const stem = extractQuestionStem(questionMd);
-  for (const w of ['二質子弱酸', '二質子', '弱酸', '解離度', '酸鹼中和', '電解', '並聯', '平衡', '氧化還原', '同溫同壓', '亞佛加厥', '氣體化合體積', '甲乙丙', '限量試劑']) {
+  for (const w of ['二質子弱酸', '二質子', '弱酸', '解離度', '酸鹼中和', '電解', '並聯', '平衡', '氧化還原', '同溫同壓', '亞佛加厥', '氣體化合體積', '甲乙丙', '限量試劑', '平面分子', '混成', '游離能', '八隅體', '共振', '鍵角', '鍵長', '晶格能', '三氯化磷', '三氟化硼', '三氧化硫', '乙醇', '乙烯']) {
     if (stem.includes(w)) kw.add(w);
   }
   if (/H_2A|H2A/.test(stem)) kw.add('H2A');
-  return Array.from(kw).slice(0, 20);
+  return Array.from(kw).slice(0, 48);
 }
 
 function getCoreFingerprints(meta = {}) {
@@ -334,7 +340,7 @@ function parseUserDbHints(userInput = '') {
     hints.tokens.push(`α${m[1]}/${m[2]}`);
   }
   for (const m of raw.matchAll(/比\s*(\d+)/g)) hints.tokens.push(`比${m[1]}`);
-  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類', '甲醛', '葡萄糖', '實驗式', '滴定', '當量點', '分離', '萃取', '化學式', '限量試劑', '燃燒', '甲烷', '氫氣', '凝固點', '依數性', '締合', '偶合', '凡特荷夫', '滲透壓', '沸點', '蒸氣壓', '反應速率', '碰撞', '半生期', '速率定律', '拉午耳', '酸鹼', '弱酸', '分子量', '平均分子量', '解離度']) {
+  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類', '甲醛', '葡萄糖', '實驗式', '滴定', '當量點', '分離', '萃取', '化學式', '限量試劑', '燃燒', '甲烷', '氫氣', '凝固點', '依數性', '締合', '偶合', '凡特荷夫', '滲透壓', '沸點', '蒸氣壓', '反應速率', '碰撞', '半生期', '速率定律', '拉午耳', '酸鹼', '分子量', '平均分子量', '解離度', '平面分子', '混成', '游離能', '八隅體', '共振', '鍵角', '鍵長', '晶格能', '三氯化磷', '三氟化硼', '三氧化硫', '乙醇', '乙烯', '路易斯', '分子形狀', '化學鍵']) {
     if (raw.includes(tag)) hints.tags.push(tag);
   }
   if (/MA[_\\]?3|MA₃/i.test(raw)) hints.tokens.push('MA3');
@@ -432,7 +438,7 @@ function scoreQuestionKeywords(meta, userInput = '') {
   for (const kw of keywords) {
     const k = String(kw).toLowerCase();
     if (k.length < 2 || hitKw.has(k)) continue;
-    if (raw.includes(k)) {
+    if (raw.includes(k) || raw.toLowerCase().includes(k)) {
       kwHits++;
       hitKw.add(k);
       score += 12;
@@ -449,7 +455,7 @@ function scoreQuestionKeywords(meta, userInput = '') {
     }
   }
 
-  const strong = fpHits >= 2 || (fpHits >= 1 && kwHits >= 2) || (fpHits >= 1 && tagHits >= 1 && kwHits >= 1);
+  const strong = fpHits >= 2 || (fpHits >= 1 && kwHits >= 2) || (fpHits >= 1 && tagHits >= 1 && kwHits >= 1) || kwHits >= 3;
   if (strong) {
     score = Math.max(score, TIER1_SCORE);
     reasons.push('關鍵字吻合');
@@ -478,6 +484,25 @@ function splitSolutionIntoSections(solutionMd = '') {
   return items;
 }
 
+function extractRequestedQuestionNums(userInput = '') {
+  const nums = new Set();
+  const raw = String(userInput || '');
+  for (const m of raw.matchAll(/第\s*(\d{1,2})\s*題/g)) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 99) nums.add(n);
+  }
+  for (const m of raw.matchAll(/(?:^|[\s,，、])(\d{1,2})\s*題(?=[\s,，、]|$)/g)) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 99) nums.add(n);
+  }
+  return Array.from(nums);
+}
+
+function sectionQuestionNumber(title = '') {
+  const m = String(title || '').match(/第\s*(\d{1,2})\s*題/);
+  return m ? Number(m[1]) : NaN;
+}
+
 function findBestSolutionSectionMatch(entry, solutionText, userInput) {
   if (!userInput?.trim() || !solutionText) return null;
   if (!entry._solutionSectionCache || entry._solutionSectionCacheSrc !== solutionText) {
@@ -487,6 +512,7 @@ function findBestSolutionSectionMatch(entry, solutionText, userInput) {
   const sections = entry._solutionSectionCache;
   if (!sections.length) return null;
 
+  const reqNums = extractRequestedQuestionNums(userInput);
   let best = null;
   for (const sec of sections) {
     const fp = extractFingerprint(sec.text);
@@ -498,12 +524,18 @@ function findBestSolutionSectionMatch(entry, solutionText, userInput) {
       concept_tags: tags
     };
     const result = scoreQuestionKeywords(meta, userInput);
+    const secNum = sectionQuestionNumber(sec.title);
+    if (reqNums.length && !Number.isNaN(secNum) && reqNums.includes(secNum)) {
+      result.score += 120;
+      result.reasons.push(`題號:${secNum}`);
+      result.score = Math.max(result.score, TIER1_SCORE);
+    }
     if (!best || result.score > best.score) {
       best = { ...result, sectionTitle: sec.title, solutionText: sec.text, meta };
     }
   }
   if (!best) return null;
-  const ok = best.score >= TIER2_SCORE && (best.fpHits >= 1 || best.kwHits >= 2);
+  const ok = best.score >= TIER2_SCORE && (best.fpHits >= 1 || best.kwHits >= 2 || best.score >= TIER1_SCORE);
   if (!ok) return null;
   return best;
 }
@@ -710,8 +742,8 @@ function buildDbMatchUserAddon(matchInfo = {}) {
   if (!matchInfo || !matchInfo.tier) return '';
   if (matchInfo.tier === 1) {
     const hint = matchInfo.solutionOnly
-      ? '以上為純詳解範例命中；數字依學生題目圖驗算，步驟與排版須一致。'
-      : '須依「權威參考詳解」的方法與步驟解題；直接進入推導，勿輸出參考資料內的內部標記。';
+      ? '以上為純詳解範例命中；數字依學生題目圖驗算；**正文須克隆參考詳解之段落順序、標題與 bullet 評析**，禁止改寫成講義體。'
+      : '須依「權威參考詳解」克隆解題；直接進入推導，勿輸出參考資料內的內部標記；**版型與參考一致**為最高優先。';
     return `\n\n【資料庫已命中：${matchInfo.entryId}】${hint}`;
   }
   if (matchInfo.tier === 2) {
@@ -744,10 +776,119 @@ function formatMethodBlock(methodId, excerpt = '', entryMeta = {}) {
   return block;
 }
 
+/** 從參考詳解摘「符號／版式指紋」，供 Tier 1 強制克隆 */
+function extractNotationFingerprint(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const noteMatches = text.match(/\\htmlData\{note=[^}]+\}\{[^}]*\}/g) || [];
+  const parts = [];
+
+  if (noteMatches.length) {
+    parts.push(`NOTE(htmlData)×${noteMatches.length}（關鍵數須 $\\htmlData{note=白話短註}{數值}$）`);
+  }
+  if (/^\|[^\n]+\|/m.test(text) && /\|[\s:]*-+[\s:]*\|/.test(text)) {
+    parts.push('markdown 摘要表（須保留；表後可補 1～4 行 $…$ 橋接）');
+  }
+  if (/\\begin\{cases\}/.test(text)) {
+    parts.push('cases 併列條件（須保留；可接橋接等號式）');
+  }
+  if (/\\begin\{array\}/.test(text)) {
+    parts.push('array 變化表（須保留；可接橋接等號式）');
+  }
+  if (/\[[A-Za-z][A-Za-z0-9+\-_]*\]/.test(text)) {
+    parts.push('方括號記號（如 $[A]$；參考怎麼寫就怎麼寫）');
+  }
+  if (/\\dfrac/.test(text)) {
+    parts.push('分式用 $\\dfrac{}{}$');
+  }
+  if (/；.*\$/.test(text)) {
+    parts.push('可用「；」或少量 $\\implies$ 串接推導');
+  }
+  parts.push('篇幅不可比參考更省略（DATABASE 為下限，可略詳）');
+
+  const layout = extractLayoutFingerprint(text);
+  if (layout.hasOptionAnalysisHeader) {
+    parts.push('須保留「各選項分析如下」標題與 * (A)～(E) bullet 評析');
+  }
+  if (layout.structureCount) {
+    parts.push(`@@MOL 行×${layout.structureCount}（須克隆行數與順序）`);
+  }
+  if (layout.has3PlusNNotation) {
+    parts.push('混成／形狀用「3+1 型」「3+0 型」等用語（與參考一致）');
+  }
+
+  return {
+    summary: parts.length ? parts.join('；') : '等號式為主；關鍵結論宜標 htmlData；不可過度省略',
+    noteCount: noteMatches.length,
+    hasMdTable: /^\|[^\n]+\|/m.test(text) && /\|[\s:]*-+[\s:]*\|/.test(text),
+    hasCases: /\\begin\{cases\}/.test(text),
+    hasArray: /\\begin\{array\}/.test(text),
+    hasHtmlData: noteMatches.length > 0,
+    refEqLines: countEqLines(text),
+    layout
+  };
+}
+
+/** 從參考詳解摘「段落／選項評析」指紋 */
+function extractLayoutFingerprint(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const bulletMatches = text.match(/^\*\s+\([A-E]\)/gm) || [];
+  const structureCount = (text.match(/@@(?:MOL|SMILES):/gi) || []).length;
+  return {
+    hasOptionAnalysisHeader: /各選項分析/.test(text),
+    bulletOptionCount: bulletMatches.length,
+    structureCount,
+    smilesCount: structureCount,
+    has3PlusNNotation: /\d+\s*\+\s*\d+\s*型/.test(text),
+    opensWithStructure: /^\s*@@(?:MOL|SMILES):/m.test(text),
+    opensWithSmiles: /^\s*@@(?:MOL|SMILES):/m.test(text)
+  };
+}
+
+/** MATCH 註解中的結構圖政策：必須｜克隆｜選用 */
+function parseStructurePolicy(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const tags = [];
+  const re = /<!--\s*MATCH:\s*([^-]+?)-->/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    for (const part of m[1].split(/[,，、]/)) {
+      const s = part.trim();
+      if (s) tags.push(s);
+    }
+  }
+  const required = tags.some(t =>
+    /^(?:MOL|SMILES)\s*[:：]\s*(必須|必须|required|must)$/i.test(t)
+  );
+  const refStruct = (text.match(/@@(?:MOL|SMILES):/gi) || []).length;
+  if (required) return { mode: 'required', refStruct, tags };
+  if (refStruct > 0) return { mode: 'clone', refStruct, tags };
+  if (tags.some(t => /^(?:MOL|SMILES)$/i.test(t))) return { mode: 'optional', refStruct, tags };
+  return { mode: 'optional', refStruct, tags };
+}
+
+function parseSmilesPolicy(solutionMd = '') {
+  const p = parseStructurePolicy(solutionMd);
+  return { mode: p.mode, refSmiles: p.refStruct, tags: p.tags };
+}
+
+function countEqLines(text) {
+  let n = 0;
+  for (const line of String(text || '').split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    if (/^\$\$[\s\S]+\$\$$/.test(t)) { n += 2; continue; }
+    if (/\$[^$]+[=＝≈][^$]+\$/.test(t)) n++;
+  }
+  return n;
+}
+
 function buildTier1Block(entry, questionText, solutionText) {
   const meta = entry.meta || {};
   const label = [entry.qLabel, entry.topic, entry.id].filter(Boolean).join('｜');
   const lines = [`【權威參考詳解｜資料庫命中：${label}】`];
+  const notation = extractNotationFingerprint(solutionText);
+  const layout = notation.layout || extractLayoutFingerprint(solutionText);
+  const structPolicy = parseStructurePolicy(solutionText);
 
   const internal = [];
   if (meta.critical_judgment) internal.push(meta.critical_judgment);
@@ -761,11 +902,35 @@ function buildTier1Block(entry, questionText, solutionText) {
     lines.push(`\n【標準答案】${meta.answer_key}（結論須一致）`);
   }
 
+  let structRule = '6. **MOL（自行判斷）**：僅在須比較鍵線／路易斯／共振或非選要求畫結構時輸出 @@MOL；**僅判混成型（3+0、3+1）、平面與否、鍵角時用文字即可**，勿硬畫結構。參考有 @@MOL 時可保留，亦可改為 3+N 型文字評析。';
+  if (structPolicy.mode === 'clone') {
+    structRule = `6. **MOL（自行判斷）**：參考含 ${structPolicy.refStruct} 行 @@MOL；若僅判混成／平面，可改以「3+1 型」「3+0 型」文字評析，**須保留**「各選項分析如下」與 * (A)～(E) bullet。`;
+  } else if (structPolicy.mode === 'required') {
+    structRule = '6. **MOL**：MATCH 標 MOL:必須，須輸出 @@MOL:物種id|標籤@@ 鍵線式。';
+  }
+
+  const layoutHints = [];
+  if (layout.hasOptionAnalysisHeader) {
+    layoutHints.push('須保留「各選項分析如下：」標題');
+  }
+  if (layout.bulletOptionCount >= 3) {
+    layoutHints.push(`須以 * (A)～(E) bullet 逐項評析（參考約 ${layout.bulletOptionCount} 項）`);
+  }
+  if (layout.has3PlusNNotation) {
+    layoutHints.push('混成／形狀判斷用「3+1 型」「3+0 型」等（勿改寫成長段 VSEPR 講義或價電子加總）');
+  }
+  const layoutLine = layoutHints.length
+    ? `\n5. **段落克隆**：${layoutHints.join('；')}。禁止改寫成講義體、禁止添加參考中沒有的開場概念段。`
+    : '\n5. **段落克隆**：段落順序與標題須與參考一致；禁止添加參考中沒有的開場概念段。';
+
   lines.push(`
 要求：
-1. 解題方法與步驟順序須與下方參考詳解一致；數字依題目圖重算。
-2. 模仿參考詳解的板書排版與 Note 節奏；**直接進入推導**，禁止輸出「關鍵判斷」「違反即錯」「禁止」等改卷標題或開場陷阱條列。
-3. 選項判定須與標準答案一致（若有）。
+0. **最高優先**：下方【參考詳解】為權威范本；正文須**克隆**其段落順序、標題、bullet 評析與符號版式；數字依題目圖重算。**詳細模式亦不得**自加參考沒有的概念開場。
+1. 解題方法與步驟順序須與參考詳解一致。
+2. **改卷用壓縮板書（DATABASE 為下限）**：表格／cases／array、符號、Note 與參考同型；**不可比參考更省略**。表後可補 1～4 行 $…$ 橋接。
+3. **符號克隆**：${notation.summary}；禁止擅自改記號。
+4. 選項判定須與標準答案一致（若有）。${layoutLine}
+${structRule}
 
 【參考題目】
 ${questionText || '（無）'}

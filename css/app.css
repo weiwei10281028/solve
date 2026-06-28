@@ -254,9 +254,33 @@ body {
   margin-top: 14px;
   display: none;
   contain: layout;
+  position: relative;
 }
 .preview-wrap.show { display: block; }
 .preview-wrap + .preview-wrap { margin-top: 14px; }
+.preview-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(42, 37, 32, .72);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.preview-remove-btn:hover {
+  background: rgba(155, 68, 68, .92);
+}
+.preview-remove-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
 .preview-btn {
   display: block;
   width: 100%;

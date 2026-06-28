@@ -164,7 +164,11 @@
     const block = createBlock('');
     try {
       const { map } = await loadIndex();
-      const entry = map.get(String(id || '').trim());
+      const rawId = String(id || '').trim();
+      let entry = map.get(rawId);
+      if (!entry && /離子$/.test(rawId)) {
+        entry = map.get(rawId.replace(/離子$/, ''));
+      }
       if (!entry) {
         showFallback(block.wrap, id, '找不到結構 id');
         return { ok: false, node: block.wrap, error: 'not found' };

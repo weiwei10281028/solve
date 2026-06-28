@@ -7,6 +7,7 @@ let databaseFileCache = {};
 let databaseIndexCache = null;
 let lastDatabaseMatch = null;
 let lastDatabaseInject = '';
+let lastDatabaseRefSolution = '';
 let lastResolveInput = '';
 
 function isFileProtocol() { return location.protocol === 'file:'; }
@@ -210,6 +211,7 @@ async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
       })
       : { tier, entryId: entry.id, tierLabel: tier === 1 ? '精確命中' : '同型方法', answerKey };
     lastDatabaseInject = injectBlock;
+    lastDatabaseRefSolution = solutionText || '';
     return { tier, entry, injectBlock };
   }
 
@@ -225,10 +227,12 @@ async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
     styleEntryIds: []
   };
   lastDatabaseInject = '';
+  lastDatabaseRefSolution = '';
   return { tier: 3, entry: null, injectBlock: '' };
 }
 
 function getLastDatabaseInject() { return lastDatabaseInject || ''; }
+function getLastDatabaseRefSolution() { return lastDatabaseRefSolution || ''; }
 function getLastDatabaseMatch() { return lastDatabaseMatch; }
 
 async function buildDatabaseUserBlock(userInput = '') {
@@ -257,7 +261,7 @@ async function buildDatabaseUserBlock(userInput = '') {
   if (match?.tier === 1 || match?.tier === 2) {
     const block = stripMatchCommentsForDb(getLastDatabaseInject());
     if (block) {
-      const base = `\n\n[參考資料庫內容]\n${block}\n\n【硬性要求】以上為內部參考：模仿排版、換行與 Note 節奏；數字與選項依題目重算。禁止把「關鍵判斷」「違反即錯」「禁止」等內部標記寫入詳解正文；禁止輸出 <!-- MATCH: ... --> 註解。`;
+      const base = `\n\n[參考資料庫內容]\n${block}\n\n【硬性要求】以上為內部參考：**Tier 1 命中時正文須克隆【參考詳解】**（段落順序、各選項分析、bullet、@@MOL 行數、表／cases／$[A]$／\\htmlData）；**不可比參考更省略**，禁止改寫成講義體；數字依題目重算。禁止內部標記寫入正文；禁止 <!-- MATCH: ... --> 註解。`;
       return `${rulesBlock}${base}`;
     }
     if (rulesBlock) return rulesBlock;

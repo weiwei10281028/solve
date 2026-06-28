@@ -164,6 +164,30 @@
   text-align: left;
 }
 
+.ai-plain .katex-display > .katex {
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* cases 大括號：靠左對齊，避免整塊被 KaTeX 預設置中 */
+.board-scroll .katex-display,
+.board-scroll .katex-display > .katex {
+  text-align: left;
+}
+
+.board-scroll .katex-display > .katex {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.ai-plain .plain-line-xcontent .katex-display,
+.ai-plain .plain-line-xcontent .katex-display > .katex {
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+}
+
 /* 舊版 hscroll 類別保留相容，但不再設 overflow */
 .ai-plain .plain-line-inner.plain-line--hscroll,
 .ai-plain .choice-body.plain-line--hscroll {

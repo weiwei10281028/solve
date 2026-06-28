@@ -38,7 +38,7 @@ function keySummary(key) {
 
 
 let imgDataURLs = [], apiMessages = [], busy = false, lastMatchInput = '';
-let detailMode = loadSetting('ai-detail-mode', '') === '1';
+const detailMode = true;
 const MAX_IMAGES = 2;
 const GEMINI_MODEL_IDS = new Set(PROVIDERS.gemini.models.map(m => m.id));
 const savedModel = loadSetting('aim', 'gemini-3.1-flash-lite');
@@ -117,25 +117,17 @@ document.addEventListener('paste', e => {
   if (item) onFilesSelected([item.getAsFile()]);
 });
 
-function setDetailMode(detailed) {
-  detailMode = !!detailed;
-  localStorage.setItem('ai-detail-mode', detailMode ? '1' : '0');
-  sessionStorage.setItem('ai-detail-mode', detailMode ? '1' : '0');
-  document.getElementById('modeConciseBtn')?.classList.toggle('topo-active', !detailMode);
-  document.getElementById('modeDetailedBtn')?.classList.toggle('topo-active', detailMode);
-}
-
 function getSolveModeTag() {
   const modelMeta = PROVIDERS.gemini.models.find(m => m.id === cfg.model);
   const modelLabel = modelMeta?.name?.split('（')[0]?.trim() || cfg.model;
-  return `${detailMode ? '詳細' : '精簡'}·${modelLabel}`;
+  return modelLabel;
 }
 
 function appendSolveModeTag(text) {
   const base = String(text || '').trim();
   const tag = getSolveModeTag();
   if (!base) return tag;
-  if (base.includes(tag) || /精簡·|詳細·/.test(base)) return base;
+  if (base.includes(tag)) return base;
   return `${base}｜${tag}`;
 }
 
@@ -151,23 +143,44 @@ function updateSolveButtonState() {
 
 function refreshPreviewUI() {
   const slots = [
-    { wrap: 'prevWrap', img: 'prevImg', name: 'prevName' },
-    { wrap: 'prevWrap2', img: 'prevImg2', name: 'prevName2' }
+    { wrap: 'prevWrap', img: 'prevImg', name: 'prevName', remove: 'previewRemove0' },
+    { wrap: 'prevWrap2', img: 'prevImg2', name: 'prevName2', remove: 'previewRemove1' }
   ];
   slots.forEach((slot, i) => {
     const item = imgDataURLs[i];
     const wrap = document.getElementById(slot.wrap);
     if (!wrap) return;
+    const removeBtn = document.getElementById(slot.remove);
     if (item) {
       document.getElementById(slot.img).src = item.dataUrl;
       document.getElementById(slot.name).textContent = item.name || `圖片 ${i + 1}`;
       wrap.classList.add('show');
+      if (removeBtn) {
+        removeBtn.hidden = false;
+        removeBtn.disabled = busy;
+      }
     } else {
       document.getElementById(slot.img).src = '';
       document.getElementById(slot.name).textContent = '';
       wrap.classList.remove('show');
+      if (removeBtn) removeBtn.hidden = true;
     }
   });
+}
+
+function removeImage(index) {
+  if (busy) return;
+  const i = Number(index);
+  if (i < 0 || i >= imgDataURLs.length) return;
+  imgDataURLs.splice(i, 1);
+  apiMessages = [];
+  lastMatchInput = '';
+  refreshPreviewUI();
+  clearThreads();
+  document.getElementById('chatInputWrap')?.classList.remove('show');
+  document.getElementById('resultCard')?.classList.remove('show');
+  setBadge('就緒');
+  updateSolveButtonState();
 }
 
 function onFilesSelected(fileList) {
@@ -240,6 +253,7 @@ function setBusy(on) {
   document.getElementById('loading').classList.toggle('show', on);
   document.getElementById('sendBtn').disabled = on;
   updateSolveButtonState();
+  refreshPreviewUI();
 }
 
 function clearThreads() {
@@ -262,7 +276,10 @@ async function ensureBoardStyleReply(cfg, apiMessages, systemText, reply, genOpt
     : null;
   if (!check || !buildFix || genOpts._boardStyleFixed) return reply;
 
-  const issues = check(reply);
+  const refText = typeof getLastDatabaseRefSolution === 'function'
+    ? getLastDatabaseRefSolution()
+    : '';
+  const issues = check(reply, refText);
   if (!issues.length) return reply;
 
   const fixMessages = [
@@ -276,12 +293,44 @@ async function ensureBoardStyleReply(cfg, apiMessages, systemText, reply, genOpt
       maxContinue: 0,
       _boardStyleFixed: true
     });
-    if (fixed && !check(fixed).length) return fixed;
+    if (fixed && !check(fixed, refText).length) return fixed;
     if (fixed) return fixed;
   } catch (err) {
     console.warn('板書修正重試失敗', err);
   }
   toast('詳解開場可能未符合板書格式（避免裸數字開場）');
+  return reply;
+}
+
+async function ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
+  const check = typeof window.checkFollowUpBoardStyle === 'function'
+    ? window.checkFollowUpBoardStyle
+    : null;
+  const buildFix = typeof window.buildFollowUpStyleFixUserText === 'function'
+    ? window.buildFollowUpStyleFixUserText
+    : null;
+  if (!check || !buildFix || genOpts._followUpStyleFixed) return reply;
+
+  const issues = check(reply);
+  if (!issues.length) return reply;
+
+  const fixMessages = [
+    ...apiMessages,
+    { role: 'assistant', content: reply },
+    { role: 'user', content: buildFix(issues) }
+  ];
+  try {
+    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
+      ...genOpts,
+      maxContinue: 0,
+      _followUpStyleFixed: true
+    });
+    if (fixed && !check(fixed).length) return fixed;
+    if (fixed) return fixed;
+  } catch (err) {
+    console.warn('追問板書修正重試失敗', err);
+  }
+  toast('追問可能未符合板書或混成規定');
   return reply;
 }
 
@@ -295,19 +344,34 @@ function renderAiInto(container, text) {
       throw new Error('render.js 未載入，請強制重新整理頁面');
     }
     let body = text || '';
+    if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
+      body = MolResolver.preprocessSmilesToMol(body);
+    }
     if (typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
       body = SmilesDraw.preprocess(body);
     }
     container.innerHTML = render(body);
     doKaTeX(container);
     const drawTasks = [];
-    if (typeof SmilesDraw !== 'undefined' && SmilesDraw.scan) {
-      drawTasks.push(SmilesDraw.scan(container));
-    }
     if (typeof MolfileDraw !== 'undefined' && MolfileDraw.scan) {
       drawTasks.push(MolfileDraw.scan(container));
     }
-    if (drawTasks.length) Promise.all(drawTasks).catch((err) => console.warn('結構圖繪製', err));
+    if (typeof SmilesDraw !== 'undefined' && SmilesDraw.scan) {
+      drawTasks.push(SmilesDraw.scan(container));
+    }
+    const afterDraw = () => {
+      if (typeof StructureLayout !== 'undefined' && StructureLayout.apply) {
+        StructureLayout.apply(container);
+      }
+    };
+    if (drawTasks.length) {
+      Promise.all(drawTasks).then(afterDraw).catch((err) => {
+        console.warn('結構圖繪製', err);
+        afterDraw();
+      });
+    } else {
+      afterDraw();
+    }
   } catch (err) {
     console.error('詳解渲染失敗', err);
     container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
@@ -442,6 +506,9 @@ async function startSolve() {
       scopeInput
     };
     updateSolveHeadingMode(scopeInput || matchInput);
+    if (typeof window.buildSolveUserText !== 'function') {
+      throw new Error('prompts.js 未載入（buildSolveUserText 不存在）。請按 Ctrl+Shift+R 強制重新整理；若仍失敗，請用「啟動網頁.bat」開啟並確認主控台是否有 js 語法錯誤。');
+    }
     const userText = window.buildSolveUserText(scopeInput, refAnswer, solveOpts);
     const dbUserBlock = await buildDatabaseUserBlock(matchInput);
     const dbMatch = typeof getLastDatabaseMatch === 'function' ? getLastDatabaseMatch() : null;
@@ -551,28 +618,63 @@ async function sendFollowUp() {
   const block = appendFollowupUser(text);
   setBusy(true);
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
-  apiMessages.push({ role: 'user', content: text });
   try {
     const supplementHint = document.getElementById('textQuestionInput')?.value.trim() || '';
     const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題/.test(text)
       ? [supplementHint, text].filter(Boolean).join(' ')
       : supplementHint;
+    const combinedInput = [lastMatchInput, supplementHint, text].filter(Boolean).join(' ');
     updateSolveHeadingMode(scopeInput || lastMatchInput);
     const followOpts = {
       scopeInput,
       textOnly: !imgDataURLs.length,
       hasImage: !!imgDataURLs.length,
-      detailed: detailMode
+      detailed: detailMode,
+      followUp: true
     };
-    const { text: reply } = await callAPI(cfg, apiMessages, await getSystemPromptForSolve(lastMatchInput, followOpts), {
+
+    let rulesBlock = '';
+    if (typeof buildTeachingRulesUserBlock === 'function') {
+      try {
+        rulesBlock = await buildTeachingRulesUserBlock(combinedInput);
+      } catch (err) {
+        console.warn('追問教學規定載入失敗', err);
+      }
+    }
+    const dbMatch = typeof getLastDatabaseMatch === 'function' ? getLastDatabaseMatch() : null;
+    const noteUserBlock = typeof NoteBlock !== 'undefined' && NoteBlock.buildUserBlock
+      ? NoteBlock.buildUserBlock({
+        matchInput: combinedInput,
+        detailed: detailMode,
+        conceptLabels: dbMatch?.conceptLabels || [],
+        match: dbMatch,
+        followUp: true
+      })
+      : '';
+    const followUserText = typeof window.buildFollowUpUserText === 'function'
+      ? window.buildFollowUpUserText(text, {
+        rulesBlock,
+        noteBlock: noteUserBlock,
+        detailed: detailMode
+      })
+      : text;
+
+    apiMessages.push({ role: 'user', content: followUserText });
+    const systemText = await getSystemPromptForSolve(combinedInput, followOpts);
+    const genOpts = {
       temperature: 0,
       maxOutputTokens: 4096,
       timeoutMs: 90000,
       maxContinue: 1
-    });
+    };
+    let { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
+    reply = await ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, genOpts);
     apiMessages.push({ role: 'assistant', content: reply });
     fillFollowupReply(block, reply);
-    setBadge(appendSolveModeTag('完成'), '#EAF2ED', '#3D6B52');
+    const ruleNote = typeof getLastTeachingRuleMatch === 'function'
+      ? (getLastTeachingRuleMatch() || []).map(r => r.id).join('、')
+      : '';
+    setBadge(appendSolveModeTag(ruleNote ? `追問完成（規定：${ruleNote}）` : '追問完成'), '#EAF2ED', '#3D6B52');
   } catch (err) {
     apiMessages.pop();
     fillFollowupReply(block, `❌ ${formatError(err.message)}`);
@@ -581,7 +683,6 @@ async function sendFollowUp() {
 }
 
 onProviderChange();
-setDetailMode(detailMode);
 document.getElementById('chatInput').addEventListener('keydown', chatKeydown);
 document.getElementById('textQuestionInput').addEventListener('input', updateSolveButtonState);
 document.getElementById('textQuestionInput').addEventListener('keydown', e => {
