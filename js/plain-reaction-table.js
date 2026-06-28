@@ -537,7 +537,7 @@ function applyPlainLineBreakFixes(root) {
   });
 }
 
-/** KaTeX 後清除行尾殘留 $ 文字 */
+/** KaTeX 後清除殘留 $ 文字（含單獨一行的 $） */
 function stripStrayDollarsInPlain(root) {
   if (!root) return;
   root.querySelectorAll('.plain-line-inner, .choice-body').forEach(inner => {
@@ -545,9 +545,15 @@ function stripStrayDollarsInPlain(root) {
       if (node.nodeType !== Node.TEXT_NODE) return;
       let t = node.textContent || '';
       const orig = t;
+      if (/^\s*\$+\s*$/.test(t)) {
+        node.textContent = '';
+        return;
+      }
       while (/\$(\s*)$/.test(t)) t = t.replace(/\$(\s*)$/, '$1');
       if (t !== orig) node.textContent = t;
     });
+    const flat = (inner.textContent || '').replace(/\s/g, '');
+    if (flat === '$' || flat === '$$') inner.textContent = '';
   });
 }
 

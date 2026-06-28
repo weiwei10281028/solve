@@ -209,7 +209,6 @@ function clearAll() {
   imgDataURLs = []; apiMessages = []; lastMatchInput = '';
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
-  document.getElementById('questionInput').value = '';
   document.getElementById('answerInput').value = '';
   document.getElementById('chatInput').value = '';
   refreshPreviewUI();
@@ -352,7 +351,6 @@ async function startSolve() {
   if (busy || !hasSolveInput()) return;
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
-  const q = document.getElementById('questionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
   const hasImage = imgDataURLs.length > 0;
   const molPreview = typeof MolfileDraw !== 'undefined' && MolfileDraw.parseRequest
@@ -389,7 +387,7 @@ async function startSolve() {
   const textOnly = !hasImage && !!textQuestion;
 
   if (!hasImage && !textQuestion) {
-    toast('請上傳題目圖片，或在「補充說明」填寫題目內容');
+    toast('請上傳題目圖片，或在「補充說明或者問題輸入」填寫題目內容');
     return;
   }
 
@@ -404,7 +402,7 @@ async function startSolve() {
   try {
     if (textOnly) {
       setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
-      matchInput = [textQuestion, q].filter(Boolean).join(' ').trim();
+      matchInput = textQuestion;
       lastMatchInput = matchInput;
       if (isDatabaseEnabled()) {
         await resolveDatabaseMatch(matchInput, { force: true });
@@ -421,7 +419,7 @@ async function startSolve() {
           console.warn('自動配對辨識失敗', err);
         }
       }
-      matchInput = [textQuestion, q, autoHints].filter(Boolean).join(' ').trim();
+      matchInput = [textQuestion, autoHints].filter(Boolean).join(' ').trim();
       lastMatchInput = matchInput;
 
       setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
@@ -431,12 +429,13 @@ async function startSolve() {
     }
 
     setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
-    const scopeInput = q || (typeof extractExplicitScopePhrase === 'function' ? extractExplicitScopePhrase(textQuestion) : '');
+    const scopeInput = typeof extractExplicitScopePhrase === 'function'
+      ? extractExplicitScopePhrase(textQuestion)
+      : '';
     const solveOpts = {
       textOnly,
       questionBody: textQuestion,
       supplement: textQuestion,
-      keywords: q,
       hasImage,
       imageCount: imgDataURLs.length,
       detailed: detailMode,
@@ -531,7 +530,7 @@ async function startSolve() {
       toast(autoHints
         ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
         : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
-    } else if (autoHints && !q && !textQuestion) {
+    } else if (autoHints && !textQuestion) {
       toast(`已自動配對：${autoHints.slice(0, 50)}${autoHints.length > 50 ? '…' : ''}`);
     }
   } catch (err) {
@@ -554,10 +553,10 @@ async function sendFollowUp() {
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   apiMessages.push({ role: 'user', content: text });
   try {
-    const qHint = document.getElementById('questionInput').value.trim();
+    const supplementHint = document.getElementById('textQuestionInput')?.value.trim() || '';
     const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題/.test(text)
-      ? [qHint, text].filter(Boolean).join(' ')
-      : qHint;
+      ? [supplementHint, text].filter(Boolean).join(' ')
+      : supplementHint;
     updateSolveHeadingMode(scopeInput || lastMatchInput);
     const followOpts = {
       scopeInput,
@@ -585,9 +584,6 @@ onProviderChange();
 setDetailMode(detailMode);
 document.getElementById('chatInput').addEventListener('keydown', chatKeydown);
 document.getElementById('textQuestionInput').addEventListener('input', updateSolveButtonState);
-document.getElementById('questionInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
-});
 document.getElementById('textQuestionInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); startSolve(); }
 });

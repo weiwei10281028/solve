@@ -193,25 +193,3 @@
 .katex .vlist-b {
   overflow: visible;
 }
-
-/* 窄螢幕：分式略增行高、橫捲留空，避免分子分母被裁切 */
-@media (max-width: 480px) {
-  .board-scroll {
-    padding-top: 12px;
-    padding-bottom: 12px;
-  }
-
-  .ai-plain .plain-line-inner:has(.mfrac) {
-    line-height: 2;
-    padding-bottom: 2px;
-  }
-
-  .ai-plain .plain-line-xwrap--scroll {
-    padding-bottom: 12px;
-    margin-bottom: 4px;
-  }
-
-  .ai-plain .katex {
-    font-size: 1.02em;
-  }
-}

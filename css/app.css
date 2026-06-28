@@ -165,7 +165,7 @@ body {
   overflow-x: hidden;
 }
 
-.panel {
+.panel:not(.panel-result) {
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
@@ -175,6 +175,18 @@ body {
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
+}
+
+.panel.panel-result {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: visible;
 }
 
 .panel-head { margin-bottom: 16px; }
@@ -913,16 +925,10 @@ body {
   }
   .btn-send { width: 100%; }
 
-  .page-main,
-  .panel-result {
+  .page-main {
     max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
-  }
-
-  /* 板書內算式橫向捲動：勿 hidden，否則窄螢幕分式／長式會被裁切 */
-  .panel-result {
-    overflow-x: visible;
   }
 
   .board,
@@ -930,18 +936,11 @@ body {
   .ai-plain {
     max-width: 100%;
     min-width: 0;
-    overflow-x: visible;
-    overflow-y: visible;
   }
 
   .board-scroll {
     padding-left: max(10px, env(safe-area-inset-left));
     padding-right: max(10px, env(safe-area-inset-right));
-  }
-
-  .ai-plain .plain-line-xwrap--scroll {
-    max-width: 100%;
-    margin-right: 0;
   }
 
   .result-header {

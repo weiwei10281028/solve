@@ -385,7 +385,10 @@ function repairOrphanDollarLines(text) {
     return null;
   };
 
-  return merged.map((line) => {
+  return merged.filter((line) => {
+    const t = String(line || '').trim();
+    return t !== '$' && t !== '$$';
+  }).map((line) => {
     let s = String(line || '');
     s = s.replace(/\$\$([^$]+)\$\$/g, (m, inner) => unwrapPlainMath(inner) || m);
     s = s.replace(/\$([^$\n\\]+)\$/g, (m, inner) => unwrapPlainMath(inner) || m);
@@ -731,7 +734,10 @@ function fallbackPlainLayout(text) {
 
 function measureLineOverflow(inner, content) {
   if (!inner || !content) return false;
-  const avail = inner.clientWidth || inner.getBoundingClientRect().width;
+  const avail = inner.clientWidth
+    || inner.getBoundingClientRect().width
+    || inner.parentElement?.clientWidth
+    || 0;
   if (avail <= 0) return false;
   content.classList.add('plain-line-xcontent--measure');
   const needX = content.scrollWidth > avail + 1;
@@ -739,32 +745,12 @@ function measureLineOverflow(inner, content) {
   return needX;
 }
 
-let boardScrollRerunTimer = null;
-
-function scheduleBoardLineScrollRerun(root) {
-  if (boardScrollRerunTimer) clearTimeout(boardScrollRerunTimer);
-  boardScrollRerunTimer = setTimeout(() => {
-    const targets = root
-      ? [root]
-      : [...document.querySelectorAll('#mainSolution, .board-reply, .followup-reply')];
-    targets.forEach((el) => {
-      if (el?.isConnected) setupHorizontalLineScroll(el);
-    });
-  }, 80);
-}
-
-if (typeof window !== 'undefined' && !window.__boardScrollViewportBound) {
-  window.__boardScrollViewportBound = true;
-  window.addEventListener('orientationchange', () => scheduleBoardLineScrollRerun());
-  window.addEventListener('resize', () => scheduleBoardLineScrollRerun());
-  if (document.fonts?.ready) {
-    document.fonts.ready.then(() => scheduleBoardLineScrollRerun()).catch(() => {});
-  }
-}
-
 function applyLineHorizontalScroll(inner, wrap, content) {
   if (!inner?.isConnected || !wrap || !content) return;
-  const avail = inner.clientWidth || inner.getBoundingClientRect().width;
+  const avail = inner.clientWidth
+    || inner.getBoundingClientRect().width
+    || inner.parentElement?.clientWidth
+    || 0;
   if (avail <= 0) {
     requestAnimationFrame(() => applyLineHorizontalScroll(inner, wrap, content));
     return;
@@ -817,6 +803,7 @@ function setupHorizontalLineScroll(root) {
       if (prev) prev.disconnect();
       const ro = new ResizeObserver(() => run());
       ro.observe(inner);
+      if (inner.parentElement) ro.observe(inner.parentElement);
       lineScrollObservers.set(inner, ro);
     }
   });
@@ -891,12 +878,11 @@ function postProcessPlainBoard(root) {
   if (typeof keepMathUnitTails === 'function') keepMathUnitTails(root);
   if (typeof adjustPlainReactionTables === 'function') adjustPlainReactionTables(root);
   setupHorizontalLineScroll(root);
-  if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);
   hideKatexErrors(root);
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
   setupHorizontalLineScroll(root);
-  scheduleBoardLineScrollRerun(root);
+  if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);
 }
 
 function doKaTeX(element) {

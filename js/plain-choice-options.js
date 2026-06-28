@@ -259,7 +259,8 @@ function layoutPlainSolveText(escapedMultiline) {
 }
 
 function wrapOnePlainLineInner(line) {
-  if (!String(line || '').trim()) return '<div class="plain-line plain-line--empty"></div>';
+  const trimmed = String(line || '').trim();
+  if (!trimmed || /^\$\s*$/.test(trimmed)) return '<div class="plain-line plain-line--empty"></div>';
   let cleaned = String(line);
   if (!/\$\$|\\begin\{/.test(cleaned)) {
     while (/\$(\s*)$/.test(cleaned) && (cleaned.match(/\$/g) || []).length % 2 === 1) {
