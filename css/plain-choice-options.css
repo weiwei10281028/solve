@@ -1,48 +1,64 @@
-/* 選項 (A)～(E)：上下排列，換行與說明開頭對齊（懸掛縮排） */
+/* 選項 (A)～(E)：靠左與正文並齊（懸掛式標籤 + 內文） */
+.ai-plain {
+  --choice-label-gap: 0.28em;
+  --choice-row-gap: 0.55em;
+}
+
 .ai-plain .plain-line--choice {
-  margin-bottom: 0.5em;
+  margin-top: var(--plain-line-gap);
+  margin-bottom: 0;
+  padding-left: 0;
+  margin-left: 0;
 }
 
 .ai-plain .choice-option-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
+  gap: var(--choice-row-gap);
+  padding-left: 0;
+  margin-left: 0;
 }
 
+.ai-plain .choice-option-group .choice-option,
+.ai-plain .plain-line--choice > .choice-option,
 .ai-plain .choice-option {
-  display: grid;
-  grid-template-columns: 2.1em minmax(0, 1fr);
-  column-gap: 0.35em;
-  align-items: start;
-  line-height: 1.75;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--choice-label-gap);
+  padding-left: 0;
+  margin-left: 0;
 }
 
 .ai-plain .choice-label {
+  flex: 0 0 auto;
   font-weight: 600;
   white-space: nowrap;
-  line-height: inherit;
+  line-height: 1.75;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 
 .ai-plain .choice-body {
+  flex: 1 1 auto;
   min-width: 0;
-  line-height: inherit;
+  line-height: 1.75;
+}
+
+.ai-plain .choice-body > .plain-line-inner {
+  display: block;
 }
 
 .ai-plain .choice-body .math-block {
-  margin: 0.12em 0;
-}
-
-/* 同一選項內多步驟：標籤左、步驟垂直排列（行距不變） */
-.ai-plain .choice-option--multistep {
-  align-items: start;
+  margin: 0.1em 0 0;
 }
 
 .ai-plain .choice-body--steps {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
+  gap: 0.32em;
   min-width: 0;
-  line-height: inherit;
 }
 
 .ai-plain .choice-step {
@@ -56,9 +72,6 @@
   line-height: inherit;
 }
 
-@media (max-width: 480px) {
-  .ai-plain .choice-option {
-    grid-template-columns: 1.9em minmax(0, 1fr);
-    column-gap: 0.28em;
-  }
+.ai-plain .choice-option--multistep .choice-step + .choice-step .plain-line-inner {
+  margin-top: 0.04em;
 }

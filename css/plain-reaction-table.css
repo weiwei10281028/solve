@@ -4,9 +4,11 @@
   --reaction-col-gap: 0.38em;
   display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
-  overflow: visible;
+  overflow-x: clip;
   text-align: left;
 }
 
@@ -17,10 +19,18 @@
   row-gap: var(--reaction-row-gap);
   justify-content: start;
   align-items: center;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+  isolation: isolate;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce #e8eaed;
 }
 
 .ai-plain .reaction-table-cell {
@@ -62,7 +72,12 @@
 
 .ai-plain .reaction-table-cell .katex {
   font-size: 1em;
-  line-height: 1.32;
+  line-height: inherit;
+  overflow: visible;
+}
+
+.ai-plain .reaction-table-cell .katex .msupsub {
+  overflow: visible;
 }
 
 .ai-plain .reaction-table-cell .katex-display {
@@ -87,7 +102,7 @@
   border: none;
   border-top: 1.5px solid #2A2520;
   margin: 0.12em 0 0;
-  opacity: 0.88;
+  opacity: 1;
 }
 
 .ai-plain .katex-display.reaction-table-fallback {

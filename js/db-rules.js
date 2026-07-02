@@ -198,6 +198,9 @@ function buildTeachingRulesApplyFooter(matched = []) {
   if (ids.includes('hybridization-methods')) {
     lines.push('混成：須判斷中心原子混成種類時，詳解每題只呈現所選一法之推導（預設 (a) 法；有機用 (b)；單中心偶數價電子可 (c)）；勿貼三法講義。');
   }
+  if (ids.includes('ksp-solubility-table')) {
+    lines.push('難溶鹽／Ksp：**僅**題幹須以 $K_{sp}$ 求濃度／溶解度或混合沉澱再溶解時套用；觀念敘述題（何者正確、沸騰汽化等）**不套用**。須寫「反應式如下：」＋含 $\\rightleftharpoons$ 之 array；四列表之中間列寫變化量。');
+  }
   return lines.join('\n');
 }
 

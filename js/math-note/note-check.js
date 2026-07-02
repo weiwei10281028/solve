@@ -1,5 +1,5 @@
 /**
- * js/math-note/note-check.js — NOTE 本地驗收（不擋渲染、預設不呼叫第二次 API）
+ * js/math-note/note-check.js — NOTE 密度驗收（配合 note-ensure.js 可觸發自動重寫）
  */
 (function (global) {
   'use strict';
@@ -44,6 +44,32 @@
     return notes.filter((n) => VAGUE_NOTE_RE.test(n));
   }
 
+  /** 濃度分式 n/V、9/2V 等：分子或分母裸數字／裸 2V */
+  function findBareConcentrationFractions(body) {
+    const issues = [];
+    const bareFracRe = /\\dfrac\{(?![^}]*\\htmlData)([^}]+)\}\{(?![^}]*\\htmlData)([^}]+)\}/g;
+    for (const line of body.split('\n')) {
+      const t = line.trim();
+      if (!/\\dfrac|\\frac/.test(t) || !/[=＝≈]|\\dfrac.*\\dfrac|r['′]*\s*\/\s*r|r\s*\/\s*a/i.test(t)) continue;
+      let m;
+      const re = new RegExp(bareFracRe.source, 'g');
+      while ((m = re.exec(t)) !== null) {
+        const num = String(m[1] || '').trim();
+        const den = String(m[2] || '').trim();
+        const looksConc = /V|v|莫耳|mol|\d/.test(den) || /^\d+$/.test(num) || /\d\s*V|V/.test(den);
+        if (!looksConc) continue;
+        if (!/\\htmlData/.test(num) && (/^\d+$/.test(num) || /^\d+\s*$/.test(num))) {
+          issues.push(`分式分子 ${num} 未標 NOTE（如莫耳數 9、6）`);
+        }
+        if (!/\\htmlData/.test(den) && (/\d*\s*V/i.test(den) || /^V$/i.test(den) || /^\d+$/.test(den))) {
+          issues.push(`分式分母 ${den} 未標 NOTE（如 V、2V、總莫耳）`);
+        }
+      }
+      if (issues.length >= 4) break;
+    }
+    return [...new Set(issues)].slice(0, 4);
+  }
+
   /**
    * @returns {{ ok: boolean, htmlDataCount: number, eqLineCount: number, issues: string[], vagueNotes: string[], summary: string }}
    */
@@ -61,7 +87,13 @@
     const effectiveLines = Math.max(1, eqLineCount - 1);
     const minNotes = opts.minNotes != null
       ? opts.minNotes
-      : Math.max(2, Math.ceil(effectiveLines * 0.35));
+      : Math.max(5, Math.ceil(effectiveLines * 0.85));
+
+    const hasNestedFrac = /\\dfrac\{[^}]*\\dfrac/.test(body) || /\\dfrac\{[^}]*\\frac/.test(body);
+    const hasChoiceMath = /^\([A-E]\)/m.test(body) && /\\dfrac|\\frac/.test(body);
+    const densityFloor = hasNestedFrac || hasChoiceMath
+      ? Math.max(minNotes, Math.ceil(effectiveLines * 0.9))
+      : minNotes;
 
     if (eqLineCount < minEq) {
       return {
@@ -72,21 +104,31 @@
         vagueNotes,
         summary: '算式行數少，略過 NOTE 密度檢查',
         skipped: true,
+        needsFix: false,
       };
     }
 
     if (htmlDataCount === 0) {
       issues.push('未發現 \\htmlData（關鍵數可能皆未標 NOTE）');
-    } else if (htmlDataCount < minNotes) {
-      issues.push(`NOTE 偏少（${htmlDataCount} 個，建議至少約 ${minNotes} 個）`);
+    } else if (htmlDataCount < densityFloor) {
+      issues.push(`NOTE 偏少（${htmlDataCount} 個，建議至少約 ${densityFloor} 個）`);
     }
 
     if (htmlDataCount <= 1 && eqLineCount >= 4) {
       issues.push('可能只在最終答案標 NOTE，缺少乘積因子或分數分子');
     }
 
+    if (hasNestedFrac && htmlDataCount < Math.max(3, Math.ceil(effectiveLines * 0.5))) {
+      issues.push('含巢狀分式時，分子／分母內關鍵數宜分標 \\htmlData');
+    }
+
     if (vagueNotes.length) {
       issues.push(`note 過泛：${vagueNotes.slice(0, 3).join('、')}`);
+    }
+
+    const bareFracIssues = findBareConcentrationFractions(body);
+    for (const bi of bareFracIssues) {
+      if (!issues.includes(bi)) issues.push(bi);
     }
 
     const ok = issues.length === 0;
@@ -102,6 +144,9 @@
       vagueNotes,
       summary,
       skipped: false,
+      minNotes: densityFloor,
+      densityFloor,
+      needsFix: !ok,
     };
   }
 

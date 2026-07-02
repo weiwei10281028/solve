@@ -36,7 +36,7 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  overflow-x: clip;
   overscroll-behavior-x: none;
 }
 
@@ -45,16 +45,20 @@ body {
   background: var(--bg);
   color: var(--ink);
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   overscroll-behavior-x: none;
   width: 100%;
   max-width: 100%;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  position: relative;
 }
 
 .app-page {
   touch-action: pan-y pinch-zoom;
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* ── Header ── */
@@ -186,7 +190,7 @@ body {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: visible;
+  overflow-x: clip;
 }
 
 .panel-head { margin-bottom: 16px; }
@@ -445,10 +449,10 @@ body {
   padding: 12px 14px;
   font-size: 15px;
   line-height: 1.6;
-  overflow-x: auto;
+  overflow-x: clip;
   overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
   max-width: 100%;
+  min-width: 0;
 }
 .msg-user {
   background: var(--copper-soft);
@@ -487,8 +491,18 @@ body {
   word-break: normal;
 }
 
-.msg-body .katex { font-size: 1em; line-height: 1.18; }
-.msg-body .katex-display { margin: 4px 0; overflow: visible; font-size: 1em; }
+.msg-body .katex {
+  line-height: 1.6;
+  overflow: visible;
+}
+.board-scroll .ai-plain .katex,
+.board-reply .ai-plain .katex,
+.msg-body .board-scroll .katex,
+.msg-body .board-reply .katex {
+  font-size: 1em;
+  line-height: inherit;
+}
+.msg-body .katex-display { margin: 4px 0; overflow: visible; }
 
 /* 板書區：算式完整顯示；過長行由 plain-line--hscroll 橫滑 */
 .board-scroll .katex-display,
@@ -631,6 +645,9 @@ body {
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--border-light);
+  overflow-x: clip;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .followup-area {
@@ -639,6 +656,9 @@ body {
   background: #F7F3EC;
   border: 1px solid #E8DFD2;
   border-radius: var(--radius-sm);
+  overflow-x: clip;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .followup-section-label {
@@ -696,6 +716,9 @@ body {
   background: #FDF9F0;
   border: 1px solid #E8DFD2;
   border-radius: 8px;
+  overflow-x: clip;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .followup-reply.board-reply {

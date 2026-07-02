@@ -8,12 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <link rel="stylesheet" href="css/app.css?v=20250628f">
-  <link rel="stylesheet" href="css/board.css?v=20250628e">
-  <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250626a">
-  <link rel="stylesheet" href="css/plain-choice-options.css?v=20250625g">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250626b">
+  <link rel="stylesheet" href="css/app.css?v=20250701i">
+  <link rel="stylesheet" href="css/board.css?v=20250702f">
+  <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250702b">
+  <link rel="stylesheet" href="css/plain-choice-options.css?v=20250630a">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250702c">
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
   <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
   <link rel="stylesheet" href="css/structure-layout.css?v=20250628a">
@@ -81,7 +82,7 @@
     <div class="field-group">
       <label class="field-label" for="answerInput">參考答案（選填）</label>
       <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、2.42、0.33 mol…" autocomplete="off">
-      <p class="field-hint">若已知正確選項或數值，填入後 AI 會對照檢核，準確率通常更高</p>
+      <p class="field-hint">填入正確選項或數值後，詳解將以此為準撰寫並檢核</p>
     </div>
 
     <div class="action-row">
@@ -169,25 +170,26 @@
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <script src="js/database-bundle.js"></script>
 <script src="js/db-parse.js"></script>
-<script src="js/db-meta.js?v=20250628i"></script>
-<script src="js/db-rules.js?v=20250627h"></script>
-<script src="js/database.js?v=20250628i"></script>
-<script src="js/prompts.js?v=20250628i"></script>
-<script src="js/plain-reaction-table.js?v=20250627k"></script>
-<script src="js/plain-choice-options.js?v=20250627k"></script>
+<script src="js/db-meta.js?v=20250702r"></script>
+<script src="js/db-rules.js?v=20250702i"></script>
+<script src="js/database.js?v=20250702v"></script>
+<script src="js/prompts.js?v=20250702h"></script>
+<script src="js/plain-reaction-table.js?v=20250702v"></script>
+<script src="js/plain-choice-options.js?v=20250630a"></script>
 <script src="js/math-note/math-note.js?v=20250626b"></script>
-<script src="js/math-note/note-rules.js?v=20250627i"></script>
+<script src="js/math-note/note-rules.js?v=20250702h"></script>
 <script src="js/math-note/note-presets.js?v=20250627c"></script>
 <script src="js/math-note/note-block.js?v=20250627c"></script>
-<script src="js/math-note/note-check.js?v=20250627c"></script>
+<script src="js/math-note/note-check.js?v=20250702a"></script>
+<script src="js/math-note/note-ensure.js?v=20250702e"></script>
 <script src="js/structures-bundle.js?v=20250628j"></script>
 <script src="js/mol-resolver.js?v=20250628j"></script>
 <script src="js/molfile-draw.js?v=20250628j"></script>
 <script src="js/structure-layout.js?v=20250628a"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
 <script src="js/smiles-draw.js?v=20250628h"></script>
-<script src="js/render.js?v=20250628e"></script>
+<script src="js/render.js?v=20250702g"></script>
 <script src="js/api.js?v=20250627j"></script>
-<script src="js/app.js?v=20250628k"></script>
+<script src="js/app.js?v=20250702v"></script>
 </body>
 </html>

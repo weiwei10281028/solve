@@ -46,7 +46,9 @@ const CONCEPT_TAG_RULES = [
   { tag: '酸鹼中和背景', patterns: [/酸鹼中和/, /中和背景/, /並非酸自身解離/] },
   { tag: '電解', patterns: [/電解/, /電極/, /電解槽/] },
   { tag: '並聯', patterns: [/並聯/, /匯流/] },
-  { tag: '氧化還原', patterns: [/氧化還原/, /e\^\-/, /電子/] },
+  { tag: '氧化還原', patterns: [/氧化還原/, /e\^\-/, /電子/, /氧化劑/, /還原劑/, /歧化/] },
+  { tag: 'HOCl', patterns: [/HOCl/i, /次氯酸/, /OCl[\^⁻\-]?/, /漂白水/, /NaOCl/] },
+  { tag: '物種分布', patterns: [/物種分布/, /物種含量/, /含量.*pH/, /pH.*含量/] },
   { tag: '平衡', patterns: [/平衡/, /\\rightleftharpoons/, /K_p/, /K_c/] },
   { tag: '解離度', patterns: [/解離度/, /\\alpha/] },
   { tag: '氣體體積比', patterns: [/同溫同壓/, /mL/, /體積比/, /亞佛加厥/, /氣體化合/] },
@@ -155,7 +157,8 @@ function extractStemPhraseKeywords(questionMd = '') {
     '酯類', '混合物', '弱酸', '解離度', '電解', '並聯', '平衡常數',
     '道耳頓', '實驗式', '分子式', '示性式', '熱重分析', '草酸鈣', '過錳酸',
     '甲醛', '葡萄糖', '分離方法', '萃取', '傾析', '色層分析', '甲烷', '氫氣',
-    '限量試劑', '化學式', '結構式', '平衡反應式', '係數和'
+    '限量試劑', '化學式', '結構式', '平衡反應式', '係數和',
+    '次氯酸', '漂白水', '物種分布', '物種含量', '歧化', '自身氧化還原', '消毒劑'
   ];
   for (const p of phrases) {
     if (stem.includes(p)) kw.add(p);
@@ -340,7 +343,7 @@ function parseUserDbHints(userInput = '') {
     hints.tokens.push(`α${m[1]}/${m[2]}`);
   }
   for (const m of raw.matchAll(/比\s*(\d+)/g)) hints.tokens.push(`比${m[1]}`);
-  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類', '甲醛', '葡萄糖', '實驗式', '滴定', '當量點', '分離', '萃取', '化學式', '限量試劑', '燃燒', '甲烷', '氫氣', '凝固點', '依數性', '締合', '偶合', '凡特荷夫', '滲透壓', '沸點', '蒸氣壓', '反應速率', '碰撞', '半生期', '速率定律', '拉午耳', '酸鹼', '分子量', '平均分子量', '解離度', '平面分子', '混成', '游離能', '八隅體', '共振', '鍵角', '鍵長', '晶格能', '三氯化磷', '三氟化硼', '三氧化硫', '乙醇', '乙烯', '路易斯', '分子形狀', '化學鍵']) {
+  for (const tag of ['弱酸', '電解', '並聯', '平衡', '二質子', '二質子弱酸', 'H2A', '酸鹼中和', '同溫同壓', '氣體', '亞佛加厥', '化合體積', '甲乙丙', '莫耳', '限量', '倍比', '重量百分', 'MA3', 'MA', '酯類', '甲醛', '葡萄糖', '實驗式', '滴定', '當量點', '分離', '萃取', '化學式', '限量試劑', '燃燒', '甲烷', '氫氣', '凝固點', '依數性', '締合', '偶合', '凡特荷夫', '滲透壓', '沸點', '蒸氣壓', '反應速率', '碰撞', '半生期', '速率定律', '拉午耳', '酸鹼', '分子量', '平均分子量', '解離度', '平面分子', '混成', '游離能', '八隅體', '共振', '鍵角', '鍵長', '晶格能', '三氯化磷', '三氟化硼', '三氧化硫', '乙醇', '乙烯', '路易斯', '分子形狀', '化學鍵', 'HOCl', '次氯酸', '漂白水', '歧化', '物種分布', '氯氣', '氯', '消毒劑', '自身氧化還原']) {
     if (raw.includes(tag)) hints.tags.push(tag);
   }
   if (/MA[_\\]?3|MA₃/i.test(raw)) hints.tokens.push('MA3');
@@ -463,23 +466,71 @@ function scoreQuestionKeywords(meta, userInput = '') {
   return { score, fpHits, kwHits, tagHits, reasons };
 }
 
+const SOLUTION_SECTION_HEAD_RE =
+  '(?:#{1,4}\\s*)?(?:SO-?\\d{3}(?:\\s*[｜|]\\s*[^\\n]+)?|第\\s*\\d+\\s*題|題\\s*\\d+|類題\\s*[\\d.\\-]+)';
+
+function extractChapterMainDetailPool(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const withHeader = text.match(
+    /##\s*詳解\s*\n([\s\S]*?)(?=\n##\s*SOLUTION\s+ONLY\s*(?:\n|$))/i
+  );
+  if (withHeader) return withHeader[1].trim();
+  // entry.solutionText 通常已是「詳解」內文（無 ## 詳解 標題）
+  const bodyOnly = text.match(/^([\s\S]*?)(?=\n##\s*SOLUTION\s+ONLY\s*(?:\n|$))/i);
+  if (bodyOnly) return bodyOnly[1].trim();
+  return /##\s*SOLUTION\s+ONLY/i.test(text) ? '' : text.trim();
+}
+
+function extractSolutionOnlyPool(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const m = text.match(/##\s*SOLUTION\s+ONLY\s*\n([\s\S]*)$/i);
+  return m ? m[1].trim() : '';
+}
+
+function isChapterSolutionPoolEntry(entry) {
+  const meta = entry?.meta || {};
+  if (meta.type === 'chapter_catalog') return true;
+  return String(entry?.file || '').replace(/\\/g, '/').startsWith('chapters/');
+}
+
+function solutionTextForSectionMatch(entry) {
+  const raw = entry?.solutionText || '';
+  if (!raw) return '';
+  if (entry?.meta?.solution_only) return raw;
+  if (isChapterSolutionPoolEntry(entry)) {
+    const main = extractChapterMainDetailPool(raw);
+    const hasSo = /##\s*SOLUTION\s+ONLY/i.test(raw);
+    const so = hasSo ? extractSolutionOnlyPool(raw) : '';
+    if (main && so) return `${main}\n\n---\n\n${so}`;
+    return main || so || raw;
+  }
+  return raw;
+}
+
 function splitSolutionIntoSections(solutionMd = '') {
-  const clean = String(solutionMd || '').replace(/<!--[\s\S]*?-->/g, '\n');
-  const re = /(?:^|\n)((?:#{1,3}\s*)?(?:第\s*\d+\s*題|類題\s*[\d.\-]+)[^\n]*)/g;
-  const heads = [...clean.matchAll(re)];
+  const raw = String(solutionMd || '');
+  const re = new RegExp(`(?:^|\\n)(${SOLUTION_SECTION_HEAD_RE}[^\\n]*)`, 'g');
+  const heads = [...raw.matchAll(re)];
   if (!heads.length) {
-    const text = clean.trim();
-    return text ? [{ title: '詳解', text }] : [];
+    const text = raw.replace(/<!--[\s\S]*?-->/g, '\n').trim();
+    return text ? [{ title: '詳解', text: raw.trim() }] : [];
   }
   const items = [];
   for (let i = 0; i < heads.length; i++) {
     const m = heads[i];
     const start = m.index + (m[0].startsWith('\n') ? 1 : 0);
     const next = heads[i + 1];
-    const end = next ? next.index + (next[0].startsWith('\n') ? 1 : 0) : clean.length;
-    const block = clean.slice(start, end).trim();
-    const title = (m[1] || m[0]).replace(/^#{1,3}\s*/, '').trim();
-    if (block) items.push({ title, text: block });
+    const end = next ? next.index + (next[0].startsWith('\n') ? 1 : 0) : raw.length;
+    const block = raw.slice(start, end).trim();
+    const title = (m[1] || m[0]).replace(/^#{1,4}\s*/, '').trim();
+    const soNum = sectionSoNumber(title);
+    if (block) {
+      items.push({
+        title,
+        text: block,
+        soNumber: Number.isNaN(soNum) ? null : soNum
+      });
+    }
   }
   return items;
 }
@@ -499,8 +550,26 @@ function extractRequestedQuestionNums(userInput = '') {
 }
 
 function sectionQuestionNumber(title = '') {
-  const m = String(title || '').match(/第\s*(\d{1,2})\s*題/);
+  const raw = String(title || '');
+  const m1 = raw.match(/第\s*(\d{1,2})\s*題/);
+  if (m1) return Number(m1[1]);
+  const m2 = raw.match(/題\s*(\d{1,2})/);
+  return m2 ? Number(m2[1]) : NaN;
+}
+
+function sectionSoNumber(title = '') {
+  const m = String(title || '').match(/SO-?(\d{3})/i);
   return m ? Number(m[1]) : NaN;
+}
+
+function extractRequestedSoNums(userInput = '') {
+  const nums = new Set();
+  const raw = String(userInput || '');
+  for (const m of raw.matchAll(/SO-?(\d{3})/gi)) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 999) nums.add(n);
+  }
+  return Array.from(nums);
 }
 
 function findBestSolutionSectionMatch(entry, solutionText, userInput) {
@@ -513,6 +582,7 @@ function findBestSolutionSectionMatch(entry, solutionText, userInput) {
   if (!sections.length) return null;
 
   const reqNums = extractRequestedQuestionNums(userInput);
+  const reqSoNums = extractRequestedSoNums(userInput);
   let best = null;
   for (const sec of sections) {
     const fp = extractFingerprint(sec.text);
@@ -528,6 +598,12 @@ function findBestSolutionSectionMatch(entry, solutionText, userInput) {
     if (reqNums.length && !Number.isNaN(secNum) && reqNums.includes(secNum)) {
       result.score += 120;
       result.reasons.push(`題號:${secNum}`);
+      result.score = Math.max(result.score, TIER1_SCORE);
+    }
+    const secSo = sectionSoNumber(sec.title);
+    if (reqSoNums.length && !Number.isNaN(secSo) && reqSoNums.includes(secSo)) {
+      result.score += 120;
+      result.reasons.push(`SO:${String(secSo).padStart(3, '0')}`);
       result.score = Math.max(result.score, TIER1_SCORE);
     }
     if (!best || result.score > best.score) {
@@ -575,42 +651,66 @@ function findBestExamQuestionMatch(entry, questionText, solutionText, userInput)
 
 function scoreEntry(entry, userInput = '') {
   const meta = entry.meta || {};
+  if (entry?.id === 'style-teacher-batch') {
+    return {
+      score: 0,
+      reasons: ['style-teacher-batch:fallback-only'],
+      fpHits: 0,
+      kwHits: 0,
+      tagHits: 0
+    };
+  }
+  const sectionPool = solutionTextForSectionMatch(entry);
+  const useSectionMatch = !!sectionPool
+    && userInput?.trim()
+    && (meta.solution_only || isChapterSolutionPoolEntry(entry));
 
-  if (meta.solution_only && entry.solutionText && userInput?.trim()) {
-    const hit = findBestSolutionSectionMatch(entry, entry.solutionText, userInput);
+  if (useSectionMatch) {
+    const hit = findBestSolutionSectionMatch(entry, sectionPool, userInput);
     if (hit) {
+      let score = hit.score;
+      const reasons = [...hit.reasons, meta.solution_only ? '純詳解段落配對' : '章節SO段落配對'];
+      if (!meta.solution_only && isChapterSolutionPoolEntry(entry)) {
+        score += 12;
+        reasons.push('章節SO優先');
+        if (hit.fpHits >= 2 || hit.kwHits >= 3 || hit.score >= TIER2_SCORE) {
+          score = Math.max(score, TIER1_SCORE);
+        }
+      }
       return {
-        score: hit.score,
-        reasons: [...hit.reasons, '純詳解段落配對'],
+        score,
+        reasons,
         fpHits: hit.fpHits,
         kwHits: hit.kwHits,
         tagHits: hit.tagHits,
         solutionOnlyHit: hit
       };
     }
-    const hints = parseUserDbHints(userInput);
-    const whole = scoreQuestionKeywords(meta, userInput);
-    let score = whole.score;
-    const reasons = [...whole.reasons, '純詳解整筆'];
-    if (entry.topic && userInput) {
-      for (const part of entry.topic.split(/\s+/)) {
-        if (part.length >= 2 && userInput.includes(part)) {
-          score += 6;
-          reasons.push(`topic:${part}`);
+    if (meta.solution_only) {
+      const hints = parseUserDbHints(userInput);
+      const whole = scoreQuestionKeywords(meta, userInput);
+      let score = whole.score;
+      const reasons = [...whole.reasons, '純詳解整筆'];
+      if (entry.topic && userInput) {
+        for (const part of entry.topic.split(/\s+/)) {
+          if (part.length >= 2 && userInput.includes(part)) {
+            score += 6;
+            reasons.push(`topic:${part}`);
+          }
         }
       }
+      if (entry.match_alias && userInput.includes(entry.match_alias)) {
+        score += 50;
+        reasons.push(`alias:${entry.match_alias}`);
+      }
+      return {
+        score,
+        reasons,
+        fpHits: whole.fpHits,
+        kwHits: whole.kwHits,
+        tagHits: whole.tagHits
+      };
     }
-    if (entry.match_alias && userInput.includes(entry.match_alias)) {
-      score += 50;
-      reasons.push(`alias:${entry.match_alias}`);
-    }
-    return {
-      score,
-      reasons,
-      fpHits: whole.fpHits,
-      kwHits: whole.kwHits,
-      tagHits: whole.tagHits
-    };
   }
 
   if (meta.catalog_only && entry.questionText && userInput?.trim()) {
@@ -723,7 +823,7 @@ function extractQuestionForQuestions(questionMd = '', numbers = []) {
 function buildCatalogIndex(examples = [], maxItems = 40) {
   const lines = [
     '【資料庫索引｜以題幹條件比對，不用題號】',
-    '讀圖後若某筆「核心指紋」全部出現在圖中，必須採該筆權威詳解，禁止自行改路徑。',
+    '讀圖後若某筆「核心指紋」全部出現在圖中，可參考該筆詳解之題型與板書節奏；數字與步驟須依本題重算，不符則忽略。',
     '標有「純詳解」者無題幹，依詳解內條件與 MATCH 關鍵字配對。'
   ];
   for (const ex of examples.slice(0, maxItems)) {
@@ -742,12 +842,12 @@ function buildDbMatchUserAddon(matchInfo = {}) {
   if (!matchInfo || !matchInfo.tier) return '';
   if (matchInfo.tier === 1) {
     const hint = matchInfo.solutionOnly
-      ? '以上為純詳解範例命中；數字依學生題目圖驗算；**正文須克隆參考詳解之段落順序、標題與 bullet 評析**，禁止改寫成講義體。'
-      : '須依「權威參考詳解」克隆解題；直接進入推導，勿輸出參考資料內的內部標記；**版型與參考一致**為最高優先。';
+      ? '以上為純詳解範例命中；【參考詳解】僅供同型題型與板書節奏參考；數字、反應式與選項結論須依本題重算，參考與本題不符則整段忽略。'
+      : '【參考詳解】僅供題型與板書節奏參考；須依本題自行判斷並列式，勿套用參考數值或段落；內部標記勿寫入正文。';
     return `\n\n【資料庫已命中：${matchInfo.entryId}】${hint}`;
   }
   if (matchInfo.tier === 2) {
-    return `\n\n【資料庫同型命中：${matchInfo.entryId}】須依參考內容之推理與板書節奏解題；內部提示勿寫入詳解正文。`;
+    return `\n\n【資料庫同型命中：${matchInfo.entryId}】可參考推理鏈與板書節奏；數字與結論須依本題重算，不符則忽略參考；內部提示勿寫入詳解正文。`;
   }
   return `\n\n【讀圖對照資料庫】若與某筆詳解條件吻合，可採該筆方法；判斷依題目與參考詳解，勿預設題型。`;
 }
@@ -828,6 +928,154 @@ function extractNotationFingerprint(solutionMd = '') {
   };
 }
 
+/** 正規化化學式／速率定律字串以便比對 */
+function normalizeChemExpr(s) {
+  return String(s || '')
+    .replace(/\\text\{[^}]*\}/g, '')
+    .replace(/\\mathrm\{([^}]*)\}/g, '$1')
+    .replace(/_\{([^}]+)\}/g, '_$1')
+    .replace(/\^\{([^}]+)\}/g, '^$1')
+    .replace(/\\cdot|\\times/g, '*')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+/** 從詳解摘速率定律式（$…$ 內或行內） */
+function extractRateLawExprs(text) {
+  const results = [];
+  const src = String(text || '');
+  for (const m of src.matchAll(/\$([^$]+)\$/g)) {
+    const inner = m[1];
+    const hit = inner.match(/(?:r|R)\s*=\s*k[\s\S]{0,100}/i);
+    if (hit) results.push(normalizeChemExpr(hit[0]));
+  }
+  for (const line of src.split('\n')) {
+    const t = line.replace(/<!--[\s\S]*?-->/g, '').trim();
+    const hit = t.match(/(?:r|R)\s*=\s*k[^\n]{0,120}/i);
+    if (hit) results.push(normalizeChemExpr(hit[0]));
+  }
+  return [...new Set(results.filter(Boolean))];
+}
+
+/** 解析速率定律中各物種次方（無 ^ 視為 1） */
+function extractSpeciesExponents(rateLawNorm) {
+  const exponents = new Map();
+  const s = String(rateLawNorm || '');
+  for (const m of s.matchAll(/\[([^\]]+)\](?:\^(\d+))?/g)) {
+    const species = m[1].replace(/_/g, '').toLowerCase();
+    exponents.set(species, m[2] ? Number(m[2]) : 1);
+  }
+  for (const m of s.matchAll(/p_?([a-z0-9]+)(?:\^(\d+))?/gi)) {
+    const species = `p_${m[1].toLowerCase()}`;
+    exponents.set(species, m[2] ? Number(m[2]) : 1);
+  }
+  return exponents;
+}
+
+function rateLawsCompatible(refLaw, outLaw) {
+  const refExp = extractSpeciesExponents(refLaw);
+  const outExp = extractSpeciesExponents(outLaw);
+  if (!refExp.size) return refLaw === outLaw;
+  for (const [sp, pow] of refExp) {
+    if (outExp.get(sp) !== pow) return false;
+  }
+  return true;
+}
+
+function formatRateLawHuman(norm) {
+  return String(norm || '')
+    .replace(/\*/g, '·')
+    .replace(/\[([^\]]+)\](?:\^(\d+))?/g, (_, sp, pow) => (pow && pow !== '1' ? `[${sp}]^${pow}` : `[${sp}]`));
+}
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findWrongExponentsInText(body, refExp) {
+  const wrong = [];
+  const norm = normalizeChemExpr(body);
+  for (const [species, refPow] of refExp) {
+    const bare = escapeRegExp(species.replace(/^p_/, ''));
+    if (!bare) continue;
+    let re;
+    try {
+      re = new RegExp(`\\[?_?${bare}\\]?(?:\\^(\\d+))?`, 'gi');
+    } catch {
+      continue;
+    }
+    let m;
+    while ((m = re.exec(norm))) {
+      const pow = m[1] ? Number(m[1]) : 1;
+      if (pow !== refPow) wrong.push(`[${species}]^${pow}`);
+    }
+  }
+  return [...new Set(wrong)];
+}
+
+/** 從參考詳解摘「內容指紋」（速率定律、判斷錨點） */
+function extractContentFingerprint(solutionMd = '') {
+  const text = String(solutionMd || '');
+  const rateLaws = extractRateLawExprs(text);
+  const anchors = [];
+  if (/定溫定容/.test(text)) anchors.push('定溫定容');
+  if (/定溫定壓/.test(text)) anchors.push('定溫定壓');
+  if (/\\Delta\s*n|Δn|delta\s*n/i.test(text)) anchors.push('Δn');
+  if (/C_M\s*\\propto\s*n|以莫耳數代濃度/.test(text)) anchors.push('CM∝n');
+  if (/V\s*\\propto\s*n|以總莫耳數代體積/.test(text)) anchors.push('V∝n');
+  if (/零級/.test(text)) anchors.push('零級');
+  if (/一級反應|濃度等比遞減/.test(text)) anchors.push('一級');
+  if (/二級/.test(text)) anchors.push('二級');
+  return { rateLaws, anchors };
+}
+
+/** 對照參考詳解檢查推導內容（僅參考模式：不強制對齊參考內容） */
+function checkContentFidelity(outputText, refText) {
+  return [];
+}
+
+function checkContentFidelityInner(outputText, refText) {
+  const issues = [];
+  const ref = String(refText || '');
+  if (!ref.trim()) return issues;
+  const fp = extractContentFingerprint(ref);
+  const body = String(outputText || '').split('@@ANSWER@@')[0];
+  const outLaws = extractRateLawExprs(body);
+
+  for (const refLaw of fp.rateLaws) {
+    const refExp = extractSpeciesExponents(refLaw);
+    if (!refExp.size) continue;
+    const compatible = outLaws.some(ol => rateLawsCompatible(refLaw, ol));
+    if (compatible) continue;
+    const wrong = [];
+    for (const outLaw of outLaws) {
+      const outExp = extractSpeciesExponents(outLaw);
+      for (const [sp, refPow] of refExp) {
+        const outPow = outExp.get(sp);
+        if (outPow !== undefined && outPow !== refPow) wrong.push(`[${sp}]^${outPow}`);
+      }
+    }
+    if (!wrong.length) wrong.push(...findWrongExponentsInText(body, refExp));
+    const human = formatRateLawHuman(refLaw);
+    if (wrong.length) {
+      issues.push(`速率定律須與參考詳解一致：${human}；禁止改成 ${[...new Set(wrong)].join('、')}（勿把反應式係數當反應級數）。`);
+    } else if (!outLaws.length) {
+      issues.push(`須寫出與參考一致的速率定律（${human}），勿自行改寫指數或物種次方。`);
+    } else {
+      issues.push(`速率定律須與參考詳解一致（${human}），輸出與參考不符。`);
+    }
+  }
+
+  if (fp.anchors.includes('CM∝n') && /定溫定容/.test(body) && !/莫耳|CM|C_M|\\propto|濃度/.test(body.slice(0, 800))) {
+    issues.push('參考詳解以「定溫定容、莫耳數代濃度」推導，輸出須沿用此判斷起點，勿改寫成其他模型。');
+  }
+  if (fp.anchors.includes('V∝n') && /定溫定壓/.test(body) && !/莫耳|體積|V\s*\\propto|\\propto/.test(body.slice(0, 800))) {
+    issues.push('參考詳解以「定溫定壓、總莫耳數代體積」推導，輸出須沿用此判斷起點。');
+  }
+
+  return issues;
+}
+
 /** 從參考詳解摘「段落／選項評析」指紋 */
 function extractLayoutFingerprint(solutionMd = '') {
   const text = String(solutionMd || '');
@@ -885,9 +1133,7 @@ function countEqLines(text) {
 function buildTier1Block(entry, questionText, solutionText) {
   const meta = entry.meta || {};
   const label = [entry.qLabel, entry.topic, entry.id].filter(Boolean).join('｜');
-  const lines = [`【權威參考詳解｜資料庫命中：${label}】`];
-  const notation = extractNotationFingerprint(solutionText);
-  const layout = notation.layout || extractLayoutFingerprint(solutionText);
+  const lines = [`【參考詳解｜資料庫命中：${label}】`];
   const structPolicy = parseStructurePolicy(solutionText);
 
   const internal = [];
@@ -899,37 +1145,22 @@ function buildTier1Block(entry, questionText, solutionText) {
     lines.push(`\n【內部提示｜勿寫入詳解正文】\n${internal.join('\n')}`);
   }
   if (meta.answer_key) {
-    lines.push(`\n【標準答案】${meta.answer_key}（結論須一致）`);
+    lines.push(`\n【參考標準答案】${meta.answer_key}（本題結論須依題目重算後與 @@ANSWER@@ 一致）`);
   }
 
-  let structRule = '6. **MOL（自行判斷）**：僅在須比較鍵線／路易斯／共振或非選要求畫結構時輸出 @@MOL；**僅判混成型（3+0、3+1）、平面與否、鍵角時用文字即可**，勿硬畫結構。參考有 @@MOL 時可保留，亦可改為 3+N 型文字評析。';
-  if (structPolicy.mode === 'clone') {
-    structRule = `6. **MOL（自行判斷）**：參考含 ${structPolicy.refStruct} 行 @@MOL；若僅判混成／平面，可改以「3+1 型」「3+0 型」文字評析，**須保留**「各選項分析如下」與 * (A)～(E) bullet。`;
-  } else if (structPolicy.mode === 'required') {
+  let structRule = '6. **MOL**：僅在須比較鍵線／路易斯／共振或非選要求畫結構時輸出 @@MOL；判混成／平面時可用「3+N 型」文字評析。';
+  if (structPolicy.mode === 'required') {
     structRule = '6. **MOL**：MATCH 標 MOL:必須，須輸出 @@MOL:物種id|標籤@@ 鍵線式。';
   }
 
-  const layoutHints = [];
-  if (layout.hasOptionAnalysisHeader) {
-    layoutHints.push('須保留「各選項分析如下：」標題');
-  }
-  if (layout.bulletOptionCount >= 3) {
-    layoutHints.push(`須以 * (A)～(E) bullet 逐項評析（參考約 ${layout.bulletOptionCount} 項）`);
-  }
-  if (layout.has3PlusNNotation) {
-    layoutHints.push('混成／形狀判斷用「3+1 型」「3+0 型」等（勿改寫成長段 VSEPR 講義或價電子加總）');
-  }
-  const layoutLine = layoutHints.length
-    ? `\n5. **段落克隆**：${layoutHints.join('；')}。禁止改寫成講義體、禁止添加參考中沒有的開場概念段。`
-    : '\n5. **段落克隆**：段落順序與標題須與參考一致；禁止添加參考中沒有的開場概念段。';
-
   lines.push(`
 要求：
-0. **最高優先**：下方【參考詳解】為權威范本；正文須**克隆**其段落順序、標題、bullet 評析與符號版式；數字依題目圖重算。**詳細模式亦不得**自加參考沒有的概念開場。
-1. 解題方法與步驟順序須與參考詳解一致。
-2. **改卷用壓縮板書（DATABASE 為下限）**：表格／cases／array、符號、Note 與參考同型；**不可比參考更省略**。表後可補 1～4 行 $…$ 橋接。
-3. **符號克隆**：${notation.summary}；禁止擅自改記號。
-4. 選項判定須與標準答案一致（若有）。${layoutLine}
+0. **題目為準**：本題以題目圖、【使用者補充】與【題目】文字為唯一依據；下方【參考詳解】**僅供**同型題型、推導節奏與板書用語參考，**不得**套用參考中的數值、中間結果或選項結論。
+1. **不符則忽略**：若參考之反應式、限定條件、判斷起點與本題不符，**整段參考視為不適用**，須依本題重判題型並自行列式；禁止硬套參考中的速率定律指數或選項評析結論。
+2. **數字重算**：參考出現的濃度、分壓、莫耳數、體積比等一律依本題重算。
+3. **版型**：依系統【第3～6層】板書規定撰寫；可參考下方 NOTE 密度與「各選項分析」節奏，**不必**複製段落順序、標題或 bullet 用語。
+4. **反應變化表**：僅在本題題型確實需要時才列表（限量試劑、氣體體積比、平衡 α 等）；實驗式／莫耳比題寫配平方程式＋莫耳推導即可。**同型須列表時**，須沿用參考表之列標（\\text{起始} 等）與列數，**僅數值依題重算**；禁止省略列標。
+5. 禁止 <!-- MATCH --> 與內部提示寫入正文；嚴禁開場白與結語。
 ${structRule}
 
 【參考題目】
@@ -939,6 +1170,54 @@ ${questionText || '（無）'}
 ${solutionText || '（無）'}`);
 
   return lines.join('');
+}
+
+function formatSoSectionLabel(title = '') {
+  const raw = String(title || '').trim();
+  const soNum = sectionSoNumber(raw);
+  const shortName = raw.replace(/^SO-?\d{3}\s*[｜|]\s*/i, '').replace(/^題\s*\d+\s*/i, '').trim();
+  if (!Number.isNaN(soNum)) {
+    const soLabel = `SO-${String(soNum).padStart(3, '0')}`;
+    return shortName ? `${soLabel}｜${shortName}` : soLabel;
+  }
+  const qNum = sectionQuestionNumber(raw);
+  if (!Number.isNaN(qNum)) {
+    return shortName ? `題 ${qNum}｜${shortName}` : `題 ${qNum}`;
+  }
+  return raw || '章節題';
+}
+
+function stripDbRoutineComments(md = '') {
+  return String(md || '')
+    .replace(/<!--\s*MATCH:[\s\S]*?-->\s*/gi, '')
+    .replace(/<!--\s*solve_mode:[\s\S]*?-->\s*/gi, '')
+    .replace(/<!--\s*chapter_hint:[\s\S]*?-->\s*/gi, '')
+    .replace(/^#{1,4}\s*SO-?\d{3}[^\n]*\n?/im, '')
+    .replace(/^#{1,4}\s*題\s*\d+[^\n]*\n?/im, '')
+    .trim();
+}
+
+/** 章節 MD 命中 SO 段落時，注入套路詳解（數字須依當題重算） */
+function buildChapterSoRoutineBlock(entry, hit, solutionText, tier = 2) {
+  const soTitle = hit?.sectionTitle || '';
+  const soLabel = formatSoSectionLabel(soTitle);
+  const chapter = entry?.topic || entry?.file || entry?.id || '章節題庫';
+  const body = stripDbRoutineComments(solutionText);
+  const header = `【章節套路參考｜${chapter}｜${soLabel}】`;
+
+  return `${header}
+來源：${entry?.file || entry?.id || 'database/chapters'}
+
+要求：
+1. **題目為準**：本題條件以題目圖與【使用者補充】為唯一依據；下方【套路詳解】供同型推導順序與板書格式參考。
+2. **禁止抄數值**：不得直接套用套路中的濃度、莫耳數或選項結論；須依本題重算。
+3. **同型須沿用表格式**：與套路同型時，**必須**寫出套路中的反應變化表（含 \\text{起始}、\\text{完全向左}、\\text{再向右}、\\text{平衡} 等列標與欄位對齊）；**僅**表內數值依題重算。禁止改成反應式下兩行無列標的裸數字。
+4. **不符則忽略**：若套路之試劑、反應類型與本題不符（如套路為氨錯合、本題為鹽酸混合），整段套路視為不適用，須依本題重判。
+5. **版型**：依系統板書規定撰寫；可參考套路的 NOTE 密度，不必複製 bullet 用語。
+6. 禁止 <!-- MATCH --> 註解出現在正文；嚴禁開場白與結語。
+
+【套路詳解】
+${body || '（無）'}`;
 }
 
 function resolveTier(score) {
@@ -951,6 +1230,11 @@ function getMatchSummary(entry, tier, score, reasons, extra = {}) {
   const meta = entry?.meta || {};
   const name = entry?.id || entry?.file || '未知';
   const tierLabel = tier === 1 ? '精確命中' : tier === 2 ? '同型方法' : '一般解題';
+  const sectionTitle = extra.sectionTitle || '';
+  const soNumber = extra.soNumber;
+  const soLabel = !Number.isNaN(soNumber) && soNumber >= 1
+    ? formatSoSectionLabel(`SO-${String(soNumber).padStart(3, '0')}${sectionTitle ? `｜${sectionTitle.replace(/^SO-?\d{3}\s*[｜|]\s*/i, '')}` : ''}`)
+    : (sectionTitle ? formatSoSectionLabel(sectionTitle) : '');
   return {
     tier,
     score,
@@ -960,6 +1244,12 @@ function getMatchSummary(entry, tier, score, reasons, extra = {}) {
     reasons: reasons || [],
     answerKey: extra.answerKey || meta.answer_key || '',
     solutionOnly: !!meta.solution_only || !!extra.solutionOnly,
+    isChapterSo: !!extra.isChapterSo,
+    isChapterRoutine: !!extra.isChapterRoutine,
+    chapterFile: extra.chapterFile || entry?.file || '',
+    sectionTitle,
+    soNumber: Number.isNaN(soNumber) ? null : soNumber,
+    soLabel,
     conceptLabels: extra.conceptLabels || []
   };
 }
@@ -1144,13 +1434,18 @@ function extractTypeProblemSection(solutionMd = '') {
   return m ? m[0].trim() : '';
 }
 
-function extractStyleExcerpt(solutionMd = '', userInput = '', { maxLen = 3600 } = {}) {
+function extractStyleExcerpt(solutionMd = '', userInput = '', { maxLen = 3600, styleOnly = false } = {}) {
   const text = String(solutionMd || '');
   if (!text) return '';
+  const stripQuestionHeadingNoise = (src = '') => String(src || '')
+    .replace(/^#{1,4}\s*第\s*[一二三四五六七八九十\d]+\s*題[^\n]*\n?/gim, '')
+    .replace(/(?:^|\n)第\s*[一二三四五六七八九十\d]+\s*題[^\n]*(?=\n|$)/gim, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   const parts = [];
   const seen = new Set();
   const add = block => {
-    const b = String(block || '').trim();
+    const b = stripQuestionHeadingNoise(block);
     if (!b || seen.has(b)) return;
     seen.add(b);
     parts.push(b);
@@ -1158,6 +1453,10 @@ function extractStyleExcerpt(solutionMd = '', userInput = '', { maxLen = 3600 } 
 
   add(extractStyleBoardTemplate(text));
   add(extractTypeProblemSection(text));
+
+  if (styleOnly) {
+    return stripQuestionHeadingNoise(parts.join('\n\n---\n\n')).slice(0, maxLen);
+  }
 
   const slices = splitMatchSlices(text);
   const ranked = slices
@@ -1180,12 +1479,13 @@ function extractStyleExcerpt(solutionMd = '', userInput = '', { maxLen = 3600 } 
     }
   }
 
-  return parts.join('\n\n---\n\n').slice(0, maxLen);
+  return stripQuestionHeadingNoise(parts.join('\n\n---\n\n')).slice(0, maxLen);
 }
 
 function pickStyleFallbackEntries(entries = [], userInput = '', maxItems = 2) {
   const pool = (entries || []).filter(e =>
-    e?.meta?.style_reference || e?.id === 'style-teacher-batch' || e?.meta?.style_scope === 'global'
+    e?.id !== 'style-teacher-batch'
+    && (e?.meta?.style_reference || e?.meta?.style_scope === 'global')
   );
   if (!pool.length) return [];
 
@@ -1197,14 +1497,13 @@ function pickStyleFallbackEntries(entries = [], userInput = '', maxItems = 2) {
   const hasId = id => picked.some(p => p.id === id);
 
   const chapter = scored.find(s =>
-    s.ex.id !== 'style-teacher-batch'
-    && s.ex.meta?.style_scope !== 'global'
+    s.ex.meta?.style_scope !== 'global'
     && s.score >= 14
   );
   if (chapter) picked.push(chapter.ex);
 
   const global = scored.find(s =>
-    s.ex.id === 'style-teacher-batch' || s.ex.meta?.style_scope === 'global'
+    s.ex.meta?.style_scope === 'global'
   );
   if (global && !hasId(global.ex.id)) picked.push(global.ex);
 

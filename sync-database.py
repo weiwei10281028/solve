@@ -15,22 +15,31 @@ RULES_INDEX_PATH = os.path.join(RULES_DIR, 'index.json')
 BUNDLE_PATH = os.path.join(ROOT, 'js', 'database-bundle.js')
 
 
-def read_md_files(folder, skip_prefix='_', skip_names=None):
-    skip_names = {n.lower() for n in (skip_names or [])}
+CHAPTERS_DIR = os.path.join(DB, 'chapters')
+CHAPTERS_INDEX_PATH = os.path.join(CHAPTERS_DIR, 'index.json')
+
+
+def read_md_files(folder, skip_prefix='_', skip_names=None, key_prefix=''):
+    skip_names = {n.lower() for n in (skip_names or ['lm-convert-prompt.md'])}
     files = {}
     names = []
     for fp in sorted(glob.glob(os.path.join(folder, '*.md'))):
         fn = os.path.basename(fp)
         if fn.startswith(skip_prefix) or fn.lower() in skip_names:
             continue
-        names.append(fn)
+        key = f'{key_prefix}{fn}' if key_prefix else fn
+        names.append(key)
         with open(fp, encoding='utf-8') as f:
-            files[fn] = f.read()
+            files[key] = f.read()
     return names, files
 
 
 def main():
     names, files = read_md_files(DB, skip_names=['readme.md'])
+    if os.path.isdir(CHAPTERS_DIR):
+        ch_names, ch_files = read_md_files(CHAPTERS_DIR, key_prefix='chapters/')
+        names.extend(ch_names)
+        files.update(ch_files)
     rule_names, rules = read_md_files(RULES_DIR) if os.path.isdir(RULES_DIR) else ([], {})
 
     methods = {'methods': {}}
@@ -60,7 +69,7 @@ def main():
         json.dump(bundle, f, ensure_ascii=False, indent=2)
         f.write(';\n')
 
-    print(f'已同步 {len(names)} 個題庫 .md、{len(rule_names)} 個教學規定')
+    print(f'已同步 {len(names)} 個題庫 .md（含章節）、{len(rule_names)} 個教學規定')
     return 0
 
 

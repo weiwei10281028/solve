@@ -256,6 +256,190 @@ function splitArrayBodyRows(body) {
   return rows;
 }
 
+function isHlineRow(r) {
+  return r === '\\hline' || /^\\hline\b/.test(String(r || '').trim());
+}
+
+/** 反應式列中物種欄位索引（跳過空白與 +、→ 等運算符） */
+function getReactionSpeciesColumnIndices(cells) {
+  const indices = [];
+  for (let i = 0; i < cells.length; i++) {
+    const c = String(cells[i] || '').trim();
+    if (!c || isOperatorCell(c)) continue;
+    indices.push(i);
+  }
+  return indices;
+}
+
+/** 資料列是否已與反應式列同欄數對齊（含運算符空欄） */
+function isGridAlignedDataRow(reactionCells, dataCells) {
+  return dataCells.length === reactionCells.length && dataCells.length > 1;
+}
+
+/** 緊湊資料列（起始／變化／結果）展開到反應式欄位網格 */
+function expandDataRowToReactionGrid(reactionCells, dataCells) {
+  const rCells = reactionCells.map((c) => String(c || '').trim());
+  const dCells = dataCells.map((c) => String(c || '').trim());
+  if (isGridAlignedDataRow(rCells, dCells)) return dCells;
+
+  const grid = new Array(rCells.length).fill('');
+  const speciesIdx = getReactionSpeciesColumnIndices(rCells);
+  const hasLabel = /\\text\{/.test(dCells[0] || '');
+  if (hasLabel) grid[0] = dCells[0];
+
+  const rawVals = (hasLabel ? dCells.slice(1) : dCells).filter((v) => v !== '');
+  const vals = rawVals.slice(0, speciesIdx.length);
+  while (vals.length < speciesIdx.length) vals.push('');
+
+  for (let j = 0; j < speciesIdx.length; j++) {
+    grid[speciesIdx[j]] = normalizeTableDataCell(vals[j] || '');
+  }
+  return grid;
+}
+
+/** 化簡純數字合併結果（1-1→0） */
+function simplifyMergedCell(tex) {
+  let t = String(tex || '').trim();
+  if (!t) return t;
+  t = t.replace(/\s*([+\-−－])\s*/g, '$1');
+  const sub = t.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+  if (sub && parseFloat(sub[1]) === parseFloat(sub[2])) return '0';
+  const add = t.match(/^(\d+(?:\.\d+)?)\+(\d+(?:\.\d+)?)$/);
+  if (add) {
+    const sum = parseFloat(add[1]) + parseFloat(add[2]);
+    return Number.isInteger(sum) ? String(sum) : String(sum);
+  }
+  return t;
+}
+
+function normalizeTableDataCell(tex) {
+  const t = String(tex || '').trim();
+  if (/^\d+(?:\.\d+)?\s*[-+]\s*\d+(?:\.\d+)?$/.test(t)) return simplifyMergedCell(t);
+  return t;
+}
+
+/** 起始量 + 變化量 → 結果量（字串拼接，保留 LaTeX） */
+function mergeStartChangeCells(start, change) {
+  const s = String(start || '').trim();
+  let c = String(change || '').trim();
+  if (!c || c === '-' || c === '—' || c === '－') return s || '—';
+  if (/^[+＋]/.test(c)) {
+    const tail = c.replace(/^[+＋]\s*/, '').trim();
+    if (!s || s === '0' || s === '-') return simplifyMergedCell(tail || '0');
+    return simplifyMergedCell(`${s}+${tail}`);
+  }
+  if (/^[-−－]/.test(c)) {
+    const tail = c.replace(/^[-−－]\s*/, '').trim();
+    if (!s || s === '0') return simplifyMergedCell(tail ? `-${tail}` : '0');
+    if (!tail) return s;
+    return simplifyMergedCell(`${s}-${tail}`);
+  }
+  return simplifyMergedCell(`${s}${c}`);
+}
+
+/**
+ * 反應表結構正規化：保留多列資料（含中間步驟），僅做欄位對齊；不壓成三列、不推斷 1/2/0。
+ * 僅在「有起始＋單一變化、缺結果」時才補結果列。
+ */
+function ensureReactionTableStructure(rows) {
+  const items = (rows || []).map((r) => String(r || '').trim()).filter(Boolean);
+  const dataRows = items.filter((r) => !isHlineRow(r));
+  if (dataRows.length < 2) return items;
+
+  const firstIsReaction = /\\rightleftharpoons|\\rightarrow/.test(dataRows[0] || '');
+  if (!firstIsReaction) return items;
+
+  const reaction = dataRows[0];
+  const rCells = splitArrayRowCells(reaction);
+  const speciesCount = getReactionSpeciesColumnIndices(rCells).length;
+  let bodyRows = dataRows.slice(1).map((row) => {
+    const cells = splitArrayRowCells(row);
+    if (!isGridAlignedDataRow(rCells, cells) && speciesCount > 0) {
+      return expandDataRowToReactionGrid(rCells, cells).join(' & ');
+    }
+    return row;
+  });
+
+  const hasStart = bodyRows.some((r) => /\\text\{(?:起始|初|I)\}/.test(r));
+  const hasResult = bodyRows.some((r) => /\\text\{(?:結果|平衡|E|平)\}/.test(r));
+  const changeLike = (r) => /\\text\{(?:變化|變|C|完全反應|移至左|移至右|完全移至|完全向左|再向右)\}/.test(r);
+  const changeCount = bodyRows.filter(changeLike).length;
+
+  if (!hasResult && hasStart && changeCount === 1 && bodyRows.length === 2) {
+    const startRow = bodyRows.find((r) => /\\text\{(?:起始|初|I)\}/.test(r));
+    const changeRow = bodyRows.find(changeLike);
+    if (startRow && changeRow) {
+      bodyRows = [...bodyRows, buildResultRowFromStartChange(reaction, startRow, changeRow)];
+    }
+  }
+
+  return normalizeReactionTableHline([reaction, ...bodyRows]);
+}
+
+function buildResultRowFromStartChange(reactionRow, startRow, changeRow) {
+  const rCells = splitArrayRowCells(reactionRow);
+  const sCells = splitArrayRowCells(startRow);
+  const cCells = splitArrayRowCells(changeRow);
+
+  if (isGridAlignedDataRow(rCells, sCells) && isGridAlignedDataRow(rCells, cCells)) {
+    const out = sCells.map((s, i) => {
+      if (i === 0 && /\\text\{/.test(s)) return '\\text{結果}';
+      if (!s && !cCells[i]) return '';
+      if (isOperatorCell(rCells[i])) return '';
+      return mergeStartChangeCells(s, cCells[i]);
+    });
+    if (/\\text\{/.test(out[0] || '')) out[0] = '\\text{結果}';
+    return out.join(' & ');
+  }
+
+  const speciesIdx = getReactionSpeciesColumnIndices(rCells);
+  const sHas = /\\text\{/.test(sCells[0] || '');
+  const cHas = /\\text\{/.test(cCells[0] || '');
+  const sVals = (sHas ? sCells.slice(1) : sCells).filter((v) => String(v).trim() !== '');
+  const cVals = (cHas ? cCells.slice(1) : cCells).filter((v) => String(v).trim() !== '');
+  const resultVals = [];
+  for (let j = 0; j < speciesIdx.length; j++) {
+    resultVals.push(mergeStartChangeCells(sVals[j] || '', cVals[j] || ''));
+  }
+  return ['\\text{結果}', ...resultVals].join(' & ');
+}
+
+/** @deprecated 使用 ensureReactionTableStructure */
+function ensureReactionTableResultRow(rows) {
+  return ensureReactionTableStructure(rows);
+}
+
+/** 將 \\hline 校正到最末資料列之前；反應表須有結果列才畫線，避免孤兒橫線造成空白 */
+function normalizeReactionTableHline(rows) {
+  const items = rows.map((r) => String(r || '').trim()).filter(Boolean);
+  const isHline = (r) => r === '\\hline' || /^\\hline\b/.test(r);
+  const dataRows = items.filter((r) => !isHline(r));
+  if (dataRows.length < 2) return dataRows;
+
+  const firstIsReaction = /\\rightleftharpoons|\\rightarrow/.test(dataRows[0] || '');
+  const minRowsForHline = firstIsReaction ? 3 : 2;
+
+  if (dataRows.length >= minRowsForHline) {
+    const out = [...dataRows];
+    out.splice(out.length - 1, 0, '\\hline');
+    return out;
+  }
+  return dataRows;
+}
+
+/** 移除沒有後續資料列的孤兒橫線 */
+function dropOrphanReactionHlines(parsedRows) {
+  const out = [];
+  for (let i = 0; i < parsedRows.length; i++) {
+    if (parsedRows[i].type === 'hline') {
+      const hasDataAfter = parsedRows.slice(i + 1).some((p) => p.type === 'data');
+      if (!hasDataAfter) continue;
+    }
+    out.push(parsedRows[i]);
+  }
+  return out;
+}
+
 /** 將 \\hline 與同一列的資料拆開 */
 function normalizeArrayRows(rows) {
   const out = [];
@@ -336,7 +520,11 @@ function splitPlainReactionArray(tex) {
 
   const alignSpec = String(arr[1] || '').replace(/\|/g, '') || 'ccccc';
   const rows = normalizeArrayRows(
-    splitArrayBodyRows(arr[2]).map(r => r.trim()).filter(Boolean)
+    normalizeReactionTableHline(
+      ensureReactionTableStructure(
+        splitArrayBodyRows(arr[2]).map((r) => r.trim()).filter(Boolean)
+      )
+    )
   );
   if (rows.length < 3) return null;
 
@@ -344,27 +532,39 @@ function splitPlainReactionArray(tex) {
   if (dataRows.length < 3) return null;
 
   const parsedRows = [];
+  let reactionCells = null;
   let maxCols = 0;
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row === '\\hline' || /^\\hline\s*$/.test(row)) {
       parsedRows.push({ type: 'hline' });
       continue;
     }
-    const cells = splitArrayRowCells(row);
-    maxCols = Math.max(maxCols, cells.length);
+    let cells = splitArrayRowCells(row);
+    if (!reactionCells && /\\rightleftharpoons|\\rightarrow/.test(row)) {
+      reactionCells = cells;
+      maxCols = cells.length;
+    } else if (reactionCells) {
+      cells = expandDataRowToReactionGrid(reactionCells, cells);
+    } else {
+      maxCols = Math.max(maxCols, cells.length);
+    }
     const next = rows[i + 1];
     const nextIsHline = next === '\\hline' || /^\\hline\s*$/.test(next || '');
     parsedRows.push({ type: 'data', cells, preHline: nextIsHline });
   }
+  if (!maxCols && reactionCells) maxCols = reactionCells.length;
   if (maxCols < 2) return null;
+
+  const rowsForRender = dropOrphanReactionHlines(parsedRows);
 
   const parts = [
     '<div class="reaction-table-stacked">',
     `<div class="reaction-table-grid" style="--rt-cols:${maxCols}">`
   ];
 
-  for (const item of parsedRows) {
+  for (const item of rowsForRender) {
     if (item.type === 'hline') {
       parts.push('<div class="reaction-table-hline" aria-hidden="true"></div>');
       continue;
@@ -597,21 +797,322 @@ function mergeMultilineDisplayMath(lines) {
   return out;
 }
 
-/** 化學平衡 ICE：拆開 array 內誤嵌的 cases，並清除多餘列距指令 */
-function flattenReactionIceTables(text) {
+function parseNumericTableCell(tex) {
+  const t = String(tex || '').trim();
+  if (!t || /[xXyYsS]/.test(t)) return null;
+  const m = t.match(/^([+\−－-])?\s*([\d.]+)/);
+  if (!m) return null;
+  const sign = m[1] && /^[-−－]/.test(m[1]) ? -1 : 1;
+  return sign * parseFloat(m[2]);
+}
+
+function formatTableChangeCell(delta, refCell) {
+  if (Math.abs(delta) < 1e-12) return '0';
+  const refDec = decimalPlacesOfNum(String(refCell || '').replace(/^[+\−－-]/, ''));
+  const dec = Math.max(refDec, 2);
+  let s = Math.abs(delta).toFixed(dec);
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return delta > 0 ? `+${s}` : `-${s}`;
+}
+
+/** 步驟列若為無正負號之濃度快照，視為「結果列」誤放在變化步驟 */
+function isKspResultStyleStepRow(stepRow) {
+  const cells = splitArrayRowCells(stepRow);
+  const vals = cells.slice(1).map((c) => String(c || '').trim()).filter(Boolean);
+  if (!vals.length) return false;
+  const hasNumericChange = vals.some((c) => /^[+\−－-]\s*[\d.]/.test(c));
+  if (hasNumericChange) return false;
+  const hasVarChange = vals.some((c) => /^[+\−－-]?[xXyYsS]\b/.test(c));
+  if (hasVarChange) return false;
+  return vals.some((c) => /^[\d.]+$/.test(c));
+}
+
+function convertStepRowResultsToChanges(reaction, startRow, stepRow) {
+  const rCells = splitArrayRowCells(reaction);
+  const sGrid = expandDataRowToReactionGrid(rCells, splitArrayRowCells(startRow));
+  const lGrid = expandDataRowToReactionGrid(rCells, splitArrayRowCells(stepRow));
+  const label = splitArrayRowCells(stepRow)[0] || '\\text{完全向左}';
+  const out = rCells.map(() => '');
+  out[0] = /\\text\{/.test(label) ? label : '\\text{完全向左}';
+  for (let i = 0; i < rCells.length; i++) {
+    if (i === 0) continue;
+    if (isOperatorCell(rCells[i])) continue;
+    const sv = parseNumericTableCell(sGrid[i]);
+    const lv = parseNumericTableCell(lGrid[i]);
+    if (sv !== null && lv !== null) {
+      out[i] = formatTableChangeCell(lv - sv, sGrid[i] || lGrid[i]);
+    } else {
+      out[i] = lGrid[i] || '';
+    }
+  }
+  return out.join(' & ');
+}
+
+function recomputeBalanceRowFromChanges(reaction, startRow, changeRows) {
+  const rCells = splitArrayRowCells(reaction);
+  let merged = expandDataRowToReactionGrid(rCells, splitArrayRowCells(startRow));
+  for (const ch of changeRows) {
+    const cGrid = expandDataRowToReactionGrid(rCells, splitArrayRowCells(ch));
+    merged = merged.map((v, i) => {
+      if (i === 0) return v;
+      if (isOperatorCell(rCells[i])) return '';
+      return mergeStartChangeCells(v, cGrid[i]);
+    });
+  }
+  merged[0] = '\\text{平衡}';
+  return merged.join(' & ');
+}
+
+/** Ksp 四列表：中間步驟列寫變化量，平衡列寫最終量（泛用，不限 AgCl） */
+function normalizeKspPrecipitationSemantics(block) {
+  const full = String(block || '').trim();
+  if (!/\\begin\{array\}/.test(full) || !/\\rightleftharpoons/.test(full)) return null;
+  if (!/\\text\{(?:起始|初)\}/.test(full)) return null;
+  if (!/\\text\{(?:完全向左|移至左|完全移至|完全反應)\}/.test(full)) return null;
+
+  const inner = full.startsWith('$$') && full.endsWith('$$') ? full.slice(2, -2).trim() : full;
+  const arr = inner.match(/\\begin\{array\}\{([^}]*)\}([\s\S]*?)\\end\{array\}/);
+  if (!arr) return null;
+
+  const spec = arr[1] || 'ccccc';
+  const bodyRows = normalizeArrayRows(
+    splitArrayBodyRows(arr[2]).map((r) => r.trim()).filter((r) => r && !isHlineRow(r))
+  );
+  if (bodyRows.length < 4 || !/\\rightleftharpoons/.test(bodyRows[0])) return null;
+
+  const reaction = bodyRows[0];
+  const rows = bodyRows.slice(1);
+  const findIdx = (pat) => rows.findIndex((r) => pat.test(r));
+  const startIdx = findIdx(/\\text\{(?:起始|初)\}/);
+  const leftIdx = findIdx(/\\text\{(?:完全向左|移至左|完全移至|完全反應)\}/);
+  const rightIdx = findIdx(/\\text\{再向右\}/);
+  const balIdx = findIdx(/\\text\{(?:平衡|結果)\}/);
+  if (startIdx < 0 || leftIdx < 0) return null;
+
+  let changed = false;
+  const startRow = rows[startIdx];
+  if (isKspResultStyleStepRow(rows[leftIdx])) {
+    rows[leftIdx] = convertStepRowResultsToChanges(reaction, startRow, rows[leftIdx]);
+    changed = true;
+  }
+
+  const changeRows = [rows[leftIdx]];
+  if (rightIdx >= 0) changeRows.push(rows[rightIdx]);
+  if (changed && balIdx >= 0 && changeRows.length) {
+    rows[balIdx] = recomputeBalanceRowFromChanges(reaction, startRow, changeRows);
+  }
+  if (!changed) return null;
+
+  const newRows = normalizeReactionTableHline([reaction, ...rows]);
+  return `$$\\begin{array}{${spec}}\n${newRows.join(' \\\\\n ')}\n\\end{array}$$`;
+}
+
+/** 從離子濃度敘述行取最後一個數值（混合稀釋後濃度） */
+function lastNumericOnChemLine(line) {
+  const nums = String(line || '').match(/[\d.]+/g);
+  return nums && nums.length ? nums[nums.length - 1] : null;
+}
+
+function decimalPlacesOfNum(s) {
+  const m = String(s || '').match(/\.(\d+)/);
+  return m ? m[1].length : 0;
+}
+
+function formatChemDifference(a, b) {
+  const pa = parseFloat(a);
+  const pb = parseFloat(b);
+  if (Number.isNaN(pa) || Number.isNaN(pb)) return null;
+  const dec = Math.max(decimalPlacesOfNum(a), decimalPlacesOfNum(b), 3);
+  const r = pa - pb;
+  let out = r.toFixed(dec);
+  if (out.includes('.')) out = out.replace(/0+$/, '').replace(/\.$/, '');
+  return out;
+}
+
+function parseAgClInitFromContext(ctx) {
+  const text = String(ctx || '');
+  const agLine = text.match(/\[Ag\^\+?\][^\n]+/);
+  const clLine = text.match(/\[Cl\^\-?\][^\n]+/);
+  const ag0 = agLine ? lastNumericOnChemLine(agLine[0]) : null;
+  const cl0 = clLine ? lastNumericOnChemLine(clLine[0]) : null;
+  return { ag0, cl0 };
+}
+
+function buildLabeledKspRow(rCells, label, speciesVals) {
+  const speciesIdx = getReactionSpeciesColumnIndices(rCells);
+  const out = new Array(rCells.length).fill('');
+  out[0] = label;
+  speciesIdx.forEach((idx, j) => {
+    out[idx] = speciesVals[j] != null ? speciesVals[j] : '';
+  });
+  return out.join(' & ');
+}
+
+function inferKspStartValues(rCells, contextBefore, bodyRows) {
+  const speciesIdx = getReactionSpeciesColumnIndices(rCells);
+  const startVals = new Array(speciesIdx.length).fill('0');
+  const ctx = String(contextBefore || '');
+  const { ag0, cl0 } = parseAgClInitFromContext(ctx);
+
+  if (ag0 && cl0 && speciesIdx.length >= 3) {
+    return ['0', ag0, cl0];
+  }
+
+  const ionLines = ctx.match(/\[[^\]]+\](?:_0|_\{0\})?[^\n]+/g) || [];
+  const ionNums = ionLines.map((line) => lastNumericOnChemLine(line)).filter(Boolean);
+  if (ionNums.length >= speciesIdx.length - 1) {
+    for (let j = 1; j < speciesIdx.length; j++) {
+      startVals[j] = ionNums[j - 1] || '0';
+    }
+    return startVals;
+  }
+
+  if (bodyRows.length >= 1) {
+    const expanded = expandDataRowToReactionGrid(rCells, splitArrayRowCells(bodyRows[0]));
+    const snap = speciesIdx.map((i) => expanded[i]);
+    const precip = parseNumericTableCell(snap[0]);
+    const ion1 = parseNumericTableCell(snap[1]);
+    const ion2 = parseNumericTableCell(snap[2]);
+    if (precip != null && precip > 0 && ion1 === 0 && ion2 != null) {
+      startVals[0] = '0';
+      startVals[1] = String(precip);
+      startVals[2] = String(precip + ion2);
+      return startVals;
+    }
+  }
+  return null;
+}
+
+/** 難溶鹽混合沉澱題：裸數字兩列 → 四列標準表（中間列寫變化量） */
+function tryRebuildBareKspTable(block, contextBefore) {
+  const full = String(block || '').trim();
+  if (!/\\begin\{array\}/.test(full) || !/\\rightleftharpoons/.test(full)) return null;
+  if (/\\text\{(?:起始|初)\}/.test(full)) return null;
+
+  const inner = full.startsWith('$$') && full.endsWith('$$') ? full.slice(2, -2).trim() : full;
+  const arr = inner.match(/\\begin\{array\}\{([^}]*)\}([\s\S]*?)\\end\{array\}/);
+  if (!arr) return null;
+
+  const spec = arr[1] || 'ccccc';
+  const dataRows = splitArrayBodyRows(arr[2]).map((r) => r.trim()).filter((r) => r && !isHlineRow(r));
+  if (dataRows.length < 2 || !/\\rightleftharpoons/.test(dataRows[0])) return null;
+
+  const reaction = dataRows[0];
+  const bodyRows = dataRows.slice(1);
+  const rCells = splitArrayRowCells(reaction);
+  const speciesIdx = getReactionSpeciesColumnIndices(rCells);
+  if (speciesIdx.length < 2) return null;
+
+  const startVals = inferKspStartValues(rCells, contextBefore, bodyRows);
+  if (!startVals) return null;
+
+  const ionNums = startVals.slice(1).map((v) => parseFloat(v)).filter((n) => !Number.isNaN(n));
+  if (!ionNums.length) return null;
+  const limitAmt = String(Math.min(...ionNums));
+  const limitedIonVal = Math.min(...ionNums);
+
+  const leftVals = startVals.map((_, j) => (j === 0 ? `+${limitAmt}` : `-${limitAmt}`));
+  const rightVals = startVals.map((_, j) => (j === 0 ? '-x' : '+x'));
+  const balVals = startVals.map((s, j) => {
+    if (j === 0) return `${limitAmt}-x`;
+    if (parseFloat(s) === limitedIonVal) return 'x';
+    const res = formatChemDifference(s, limitAmt);
+    return res ? `${res}+x` : 'x';
+  });
+
+  const newRows = normalizeReactionTableHline([
+    reaction,
+    buildLabeledKspRow(rCells, '\\text{起始}', startVals),
+    buildLabeledKspRow(rCells, '\\text{完全向左}', leftVals),
+    buildLabeledKspRow(rCells, '\\text{再向右}', rightVals),
+    buildLabeledKspRow(rCells, '\\text{平衡}', balVals),
+  ]);
+  return `$$\\begin{array}{${spec}}\n${newRows.join(' \\\\\n ')}\n\\end{array}$$`;
+}
+
+/** @deprecated 保留舊名；請用 tryRebuildBareKspTable */
+function tryRebuildAgClKspArrayBlock(block, contextBefore) {
+  return tryRebuildBareKspTable(block, contextBefore);
+}
+
+/** 觀念題：移除誤套之 Ksp／反應表 */
+function stripMisplacedKspTables(text, questionCtx) {
+  const body = String(text || '').split('@@ANSWER@@')[0];
+  const conceptualReply = /各選項分析如下/.test(body)
+    && !/K_\{sp\}\s*=|Ksp\s*=\s*[\d.]|溶解度積\s*=\s*[\d.]/.test(body);
+  const ctx = String(questionCtx || '') + '\n' + body.slice(0, 600);
+  const conceptual = (typeof isConceptualJudgmentContext === 'function' && isConceptualJudgmentContext(ctx))
+    || conceptualReply;
+  if (!conceptual) return String(text || '');
   let s = String(text || '');
+  s = s.replace(/反應式如下：\s*\n?\s*\$\$[\s\S]*?\\begin\{array\}[\s\S]*?\\end\{array\}[\s\S]*?\$\$/g, '');
+  s = s.replace(/\$\$[\s\S]*?\\begin\{array\}[\s\S]*?(?:完全向左|AgCl|K_\{sp\})[\s\S]*?\\end\{array\}[\s\S]*?\$\$/g, '');
+  return s;
+}
+
+/** 全文掃描：修補並正規化 Ksp 沉澱四列表 */
+function repairKspAgClReactionTables(text, questionCtx) {
+  const full = stripMisplacedKspTables(text, questionCtx);
+  const q = String(questionCtx || '');
+  if (typeof isConceptualJudgmentContext === 'function' && isConceptualJudgmentContext(q + '\n' + full)) {
+    return full;
+  }
+  if (typeof needsKspPrecipitationTable === 'function' && !needsKspPrecipitationTable(q + '\n' + full)) {
+    return full;
+  }
+  if (!/K_\{sp\}|Ksp|溶解度積|溶解平衡|沉澱平衡/.test(full) || !/反應式如下/.test(full)) {
+    return full;
+  }
+
+  const re = /(\$\$[\s\S]*?\$\$)/g;
+  let out = '';
+  let last = 0;
+  let ctx = '';
+  let m;
+  while ((m = re.exec(full)) !== null) {
+    const before = full.slice(0, m.index);
+    out += full.slice(last, m.index);
+    let block = m[1];
+    const prefix = ctx + before.slice(Math.max(0, before.length - 2500));
+    if (/\\begin\{array\}/.test(block) && /\\rightleftharpoons/.test(block)) {
+      const rebuilt = tryRebuildBareKspTable(block, prefix);
+      if (rebuilt) block = rebuilt;
+      const normalized = normalizeKspPrecipitationSemantics(block);
+      if (normalized) block = normalized;
+    }
+    out += block;
+    ctx += full.slice(last, m.index) + block;
+    last = m.index + m[0].length;
+  }
+  out += full.slice(last);
+  return out;
+}
+
+/** 化學平衡反應表：拆開 array 內誤嵌的 cases，校正 hline 位置，並清除多餘列距指令 */
+function flattenReactionIceTables(text) {
+  let s = repairKspAgClReactionTables(String(text || ''));
   s = s.replace(/\$\$([\s\S]*?)\$\$/g, (full, inner) => {
-    if (!/\\begin\{array\}/.test(inner) || !/\\begin\{cases\}/.test(inner)) return full;
+    if (!/\\begin\{array\}/.test(inner)) return full;
+    if (!/\\rightleftharpoons|\\rightarrow/.test(inner)) return full;
     const specM = inner.match(/\\begin\{array\}\{([^}]*)\}/);
     const spec = specM ? specM[1] : 'ccccc';
     let body = inner
       .replace(/\\begin\{array\}\{[^}]*\}/, '')
       .replace(/\\end\{array\}\s*$/, '');
-    body = body.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (_, cb) => (
-      cb.replace(/\\+\[[^\]]*\]/g, '\\\\').trim()
-    ));
+    if (/\\begin\{cases\}/.test(body)) {
+      body = body.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (_, cb) => (
+        cb.replace(/\\+\[[^\]]*\]/g, '\\\\').trim()
+      ));
+    }
     body = body.replace(/\\+\[[^\]]*\]/g, '\\\\');
-    return `$$\\begin{array}{${spec}}\n${body.trim()}\n\\end{array}$$`;
+    const rowList = normalizeArrayRows(
+      normalizeReactionTableHline(
+        ensureReactionTableStructure(
+          splitArrayBodyRows(body).map((r) => r.trim()).filter(Boolean)
+        )
+      )
+    );
+    return `$$\\begin{array}{${spec}}\n${rowList.join(' \\\\\n ')}\n\\end{array}$$`;
   });
   s = s.replace(/\$\$\s*\\begin\{cases\}([\s\S]*?)\\end\{cases\}\s*\$\$/g, (full, inner) => {
     if (!/\\rightleftharpoons|\\rightarrow/.test(inner)) return full;

@@ -38,7 +38,7 @@ function keySummary(key) {
 
 
 let imgDataURLs = [], apiMessages = [], busy = false, lastMatchInput = '';
-const detailMode = true;
+const detailMode = false;
 const MAX_IMAGES = 2;
 const GEMINI_MODEL_IDS = new Set(PROVIDERS.gemini.models.map(m => m.id));
 const savedModel = loadSetting('aim', 'gemini-3.1-flash-lite');
@@ -274,31 +274,55 @@ async function ensureBoardStyleReply(cfg, apiMessages, systemText, reply, genOpt
   const buildFix = typeof window.buildBoardStyleFixUserText === 'function'
     ? window.buildBoardStyleFixUserText
     : null;
-  if (!check || !buildFix || genOpts._boardStyleFixed) return reply;
+  const fixCount = Number(genOpts._boardStyleFixed) || 0;
+  if (!check || !buildFix) return reply;
 
   const refText = typeof getLastDatabaseRefSolution === 'function'
     ? getLastDatabaseRefSolution()
     : '';
-  const issues = check(reply, refText);
+  const questionCtx = String(genOpts.questionCtx || '');
+  let issues = check(reply, refText, questionCtx);
   if (!issues.length) return reply;
+  console.warn('[板書檢查] 初稿問題：', issues);
 
-  const fixMessages = [
-    ...apiMessages,
-    { role: 'assistant', content: reply },
-    { role: 'user', content: buildFix(issues) }
-  ];
-  try {
-    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-      ...genOpts,
-      maxContinue: 0,
-      _boardStyleFixed: true
-    });
-    if (fixed && !check(fixed, refText).length) return fixed;
-    if (fixed) return fixed;
-  } catch (err) {
-    console.warn('板書修正重試失敗', err);
+  const maxFix = 1;
+  if (fixCount >= maxFix) return reply;
+
+  let current = reply;
+  for (let attempt = fixCount; attempt < maxFix; attempt++) {
+    const fixMessages = [
+      ...apiMessages,
+      { role: 'assistant', content: current },
+      { role: 'user', content: buildFix(issues) }
+    ];
+    try {
+      const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
+        ...genOpts,
+        maxContinue: 0,
+        temperature: 0.35,
+        _boardStyleFixed: attempt + 1
+      });
+      if (!fixed) break;
+      current = fixed;
+      issues = check(fixed, refText, questionCtx);
+      if (!issues.length) return fixed;
+    } catch (err) {
+      console.warn('板書修正重試失敗', err);
+      break;
+    }
   }
-  toast('詳解開場可能未符合板書格式（避免裸數字開場）');
+  if (issues.length) toast('反應變化表或板書格式可能未完全符合');
+  return current;
+}
+
+/** 第二層：參考答案與 @@ANSWER@@ 不一致時內部重寫（學生僅見最終版） */
+async function ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
+  if (!refAnswer || genOpts.refAnswerSkipped) return reply;
+  if (typeof window.answersMatch !== 'function' || typeof window.buildRefAnswerFixUserText !== 'function') {
+    return reply;
+  }
+  if (window.answersMatch(reply, refAnswer)) return reply;
+  console.warn('[參考答案] 與推導不一致，保留依題推導結果');
   return reply;
 }
 
@@ -465,10 +489,10 @@ async function startSolve() {
 
   try {
     if (textOnly) {
-      setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
       matchInput = textQuestion;
       lastMatchInput = matchInput;
       if (isDatabaseEnabled()) {
+        setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
         await resolveDatabaseMatch(matchInput, { force: true });
       }
     } else {
@@ -486,8 +510,8 @@ async function startSolve() {
       matchInput = [textQuestion, autoHints].filter(Boolean).join(' ').trim();
       lastMatchInput = matchInput;
 
-      setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
       if (isDatabaseEnabled()) {
+        setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
         await resolveDatabaseMatch(matchInput, { force: true });
       }
     }
@@ -496,6 +520,13 @@ async function startSolve() {
     const scopeInput = typeof extractExplicitScopePhrase === 'function'
       ? extractExplicitScopePhrase(textQuestion)
       : '';
+    const refConflict = (refAnswer && typeof window.checkObviousRefAnswerConflict === 'function')
+      ? window.checkObviousRefAnswerConflict(matchInput || textQuestion, refAnswer)
+      : { conflict: false };
+    if (refConflict.conflict) {
+      console.warn('[參考答案]', refConflict.reason || '與題意明顯不符');
+      toast(refConflict.reason || '參考答案與題意可能不符，已改依題目推導');
+    }
     const solveOpts = {
       textOnly,
       questionBody: textQuestion,
@@ -503,13 +534,15 @@ async function startSolve() {
       hasImage,
       imageCount: imgDataURLs.length,
       detailed: detailMode,
-      scopeInput
+      scopeInput,
+      refAnswer: refConflict.conflict ? '' : refAnswer,
+      refAnswerSkipped: !!refConflict.conflict
     };
     updateSolveHeadingMode(scopeInput || matchInput);
     if (typeof window.buildSolveUserText !== 'function') {
       throw new Error('prompts.js 未載入（buildSolveUserText 不存在）。請按 Ctrl+Shift+R 強制重新整理；若仍失敗，請用「啟動網頁.bat」開啟並確認主控台是否有 js 語法錯誤。');
     }
-    const userText = window.buildSolveUserText(scopeInput, refAnswer, solveOpts);
+    const userText = window.buildSolveUserText(scopeInput, solveOpts.refAnswer, solveOpts);
     const dbUserBlock = await buildDatabaseUserBlock(matchInput);
     const dbMatch = typeof getLastDatabaseMatch === 'function' ? getLastDatabaseMatch() : null;
     const noteUserBlock = typeof NoteBlock !== 'undefined' && NoteBlock.buildUserBlock
@@ -543,13 +576,32 @@ async function startSolve() {
     }
 
     let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
-      temperature: 0,
+      temperature: 0.25,
       maxOutputTokens: 8192,
       timeoutMs: 120000,
       maxContinue: 1
     });
     reply = await ensureBoardStyleReply(cfg, apiMessages, systemText, reply, {
-      temperature: 0,
+      questionCtx: scopeInput || matchInput || textQuestion,
+      temperature: 0.25,
+      maxOutputTokens: 8192,
+      timeoutMs: 90000
+    });
+    if (typeof NoteEnsure !== 'undefined' && NoteEnsure.ensureDensityReply) {
+      reply = await NoteEnsure.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        timeoutMs: 90000,
+        maxNoteFix: 1
+      });
+    }
+    if (typeof repairKspAgClReactionTables === 'function') {
+      const qctx = typeof getLastMatchInput === 'function' ? getLastMatchInput() : '';
+      reply = repairKspAgClReactionTables(reply, qctx);
+    }
+    reply = await ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
+      refAnswerSkipped: solveOpts.refAnswerSkipped,
+      temperature: 0.25,
       maxOutputTokens: 8192,
       timeoutMs: 90000
     });
@@ -561,45 +613,53 @@ async function startSolve() {
     if (noteReport && !noteReport.skipped && !noteReport.ok) {
       console.warn('[NOTE 檢查]', noteReport);
     }
-    const noteBadgeSuffix = noteReport && !noteReport.skipped && !noteReport.ok
-      ? `｜${noteReport.summary}`
-      : '';
-    const match = getLastDatabaseMatch();
-    if (match?.tier && match.tier < 3) {
-      const verify = verifyAnswerLocally(reply, match.answerKey);
-      let badgeNote = match.solutionOnly
-        ? `純詳解命中：${match.entryId}`
-        : `${match.tierLabel}：${match.entryId}`;
-      if (verify.note) badgeNote += verify.ok === false ? `（${verify.note}）` : '';
-      if (match?.teachingRuleIds?.length) {
-        badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
+    if (!isDatabaseEnabled()) {
+      setBadge('詳解完成（純提示詞）', '#EAF2ED', '#3D6B52');
+    } else {
+      const noteBadgeSuffix = noteReport && !noteReport.skipped && !noteReport.ok
+        ? `｜${noteReport.summary}`
+        : '';
+      const match = getLastDatabaseMatch();
+      if (match?.tier && match.tier < 3) {
+        const verify = verifyAnswerLocally(reply, match.answerKey);
+        let badgeNote = (match.isChapterRoutine || match.isChapterSo) && match.soLabel
+          ? `章節套路：${match.soLabel}`
+          : (match.solutionOnly
+            ? `純詳解命中：${match.entryId}`
+            : `${match.tierLabel}：${match.entryId}`);
+        if (verify.note) badgeNote += verify.ok === false ? `（${verify.note}）` : '';
+        if (match?.teachingRuleIds?.length) {
+          badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
+        }
+        setBadge(appendSolveModeTag(badgeNote + noteBadgeSuffix), match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
+        if (verify.ok === false) toast(verify.note);
+        else if (match.tier === 1) {
+          toast(match.isChapterRoutine && match.soLabel
+            ? `已命中章節套路：${match.soLabel}`
+            : (match.solutionOnly
+              ? `已命中純詳解範例：${match.entryId}`
+              : `已命中資料庫：${match.entryId}`));
+        }
       }
-      setBadge(appendSolveModeTag(badgeNote + noteBadgeSuffix), match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
-      if (verify.ok === false) toast(verify.note);
-      else if (match.tier === 1) {
-        toast(match.solutionOnly
-          ? `已命中純詳解範例：${match.entryId}`
-          : `已命中資料庫：${match.entryId}`);
+      if (!match?.tier || match.tier >= 3) {
+        const conceptNote = match?.conceptLabels?.length
+          ? `（概念參考：${match.conceptLabels.slice(0, 3).join('、')}）`
+          : '';
+        const styleNote = match?.styleEntryIds?.length
+          ? `（風格參考：${match.styleEntryIds.join('、')}）`
+          : '';
+        const ruleNote = match?.teachingRuleIds?.length
+          ? `（規定：${match.teachingRuleIds.join('、')}）`
+          : '';
+        setBadge(appendSolveModeTag(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`), '#F9EDED', '#9B4444');
+        toast(autoHints
+          ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
+          : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
+      } else if (autoHints && !textQuestion) {
+        toast(`已自動配對：${autoHints.slice(0, 50)}${autoHints.length > 50 ? '…' : ''}`);
       }
     }
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
-    if (!match?.tier || match.tier >= 3) {
-      const conceptNote = match?.conceptLabels?.length
-        ? `（概念參考：${match.conceptLabels.slice(0, 3).join('、')}）`
-        : '';
-      const styleNote = match?.styleEntryIds?.length
-        ? `（風格參考：${match.styleEntryIds.join('、')}）`
-        : '';
-      const ruleNote = match?.teachingRuleIds?.length
-        ? `（規定：${match.teachingRuleIds.join('、')}）`
-        : '';
-      setBadge(appendSolveModeTag(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`), '#F9EDED', '#9B4444');
-      toast(autoHints
-        ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
-        : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
-    } else if (autoHints && !textQuestion) {
-      toast(`已自動配對：${autoHints.slice(0, 50)}${autoHints.length > 50 ? '…' : ''}`);
-    }
   } catch (err) {
     console.error('解題失敗', err);
     setMainSolution(`❌ ${formatError(err.message)}`);
@@ -620,7 +680,7 @@ async function sendFollowUp() {
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   try {
     const supplementHint = document.getElementById('textQuestionInput')?.value.trim() || '';
-    const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題/.test(text)
+    const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題|[\(（][一二三四五六七八九十1-9][\)）]|題組全解|都解|全解|選項\s*[A-Ea-e]|只(?:解|講|評析)/.test(text)
       ? [supplementHint, text].filter(Boolean).join(' ')
       : supplementHint;
     const combinedInput = [lastMatchInput, supplementHint, text].filter(Boolean).join(' ');
@@ -634,7 +694,7 @@ async function sendFollowUp() {
     };
 
     let rulesBlock = '';
-    if (typeof buildTeachingRulesUserBlock === 'function') {
+    if (isDatabaseEnabled() && typeof buildTeachingRulesUserBlock === 'function') {
       try {
         rulesBlock = await buildTeachingRulesUserBlock(combinedInput);
       } catch (err) {
@@ -662,7 +722,7 @@ async function sendFollowUp() {
     apiMessages.push({ role: 'user', content: followUserText });
     const systemText = await getSystemPromptForSolve(combinedInput, followOpts);
     const genOpts = {
-      temperature: 0,
+      temperature: 0.25,
       maxOutputTokens: 4096,
       timeoutMs: 90000,
       maxContinue: 1

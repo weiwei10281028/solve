@@ -62,8 +62,7 @@ function splitInlineChoices(text) {
 }
 
 function buildChoiceOptionHtml(letter, body) {
-  const inner = body || '&nbsp;';
-  return `<div class="choice-option"><span class="choice-label">(${letter})</span><div class="choice-body">${inner}</div></div>`;
+  return buildChoiceOptionBlock(letter, [body]);
 }
 
 function isChemStepLabelLine(text) {
@@ -230,20 +229,68 @@ function groupPlainLinesForLayout(lines) {
   return result;
 }
 
+function coalesceChoiceGroups(groups) {
+  const out = [];
+  let buf = [];
+  for (const g of groups) {
+    if (g.type === 'choice') {
+      buf.push(g);
+    } else {
+      if (buf.length) {
+        out.push({ type: 'choice-group', items: buf.splice(0) });
+      }
+      out.push(g);
+    }
+  }
+  if (buf.length) out.push({ type: 'choice-group', items: buf });
+  return out;
+}
+
+function buildChoiceOptionBlock(letter, steps) {
+  const merged = mergePlainLineFragments(steps || []);
+  const letterUp = String(letter || '').toUpperCase();
+  if (merged.length <= 1) {
+    const body = String(merged[0] || '').trim() || '&nbsp;';
+    return `<div class="choice-option">` +
+      `<span class="choice-label">(${letterUp})</span>` +
+      `<div class="choice-body"><div class="plain-line-inner">${body}</div></div></div>`;
+  }
+  const stepsHtml = merged.map((step) => {
+    const inner = String(step || '').trim() || '&nbsp;';
+    return `<div class="choice-step"><div class="plain-line-inner">${inner}</div></div>`;
+  }).join('');
+  return `<div class="choice-option choice-option--multistep">` +
+    `<span class="choice-label">(${letterUp})</span>` +
+    `<div class="choice-body choice-body--steps">${stepsHtml}</div></div>`;
+}
+
+function buildChoiceGroupHtml(items) {
+  const blocks = items.map((g) => buildChoiceOptionBlock(g.letter, g.steps)).join('');
+  return `<div class="plain-line plain-line--choice"><div class="choice-option-group">${blocks}</div></div>`;
+}
+
 function classifyPlainLine(line) {
   const t = String(line || '').trim();
   if (!t) return 'empty';
   if (/^【[^【】]+】$/.test(t)) return 'section';
-  if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) return 'section';
+  if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) {
+    return (typeof window !== 'undefined' && window.__solveMultiQuestion) ? 'section' : 'skip';
+  }
   if (/^題目核心|^解題關鍵|^核心觀念/.test(t)) return 'skip';
   if (/^\(\d+\)/.test(t)) return 'step';
   return 'normal';
 }
 
 function renderPlainLayoutPart(g) {
+  if (g.type === 'choice-group') {
+    const items = g.items.map((item) => ({
+      ...item,
+      steps: mergePlainLineFragments(item.steps)
+    }));
+    return buildChoiceGroupHtml(items);
+  }
   if (g.type === 'choice') {
-    g.steps = mergePlainLineFragments(g.steps);
-    return buildMultistepChoiceHtml(g.letter, g.steps);
+    return buildChoiceGroupHtml([{ letter: g.letter, steps: mergePlainLineFragments(g.steps) }]);
   }
   const choiceHtml = wrapPlainLineAsChoices(g.text);
   if (choiceHtml) return choiceHtml;
@@ -254,7 +301,7 @@ function renderPlainLayoutPart(g) {
 function layoutPlainSolveText(escapedMultiline) {
   const rawLines = String(escapedMultiline || '').split('\n');
   const merged = mergePlainLineFragments(rawLines);
-  const groups = groupPlainLinesForLayout(merged);
+  const groups = coalesceChoiceGroups(groupPlainLinesForLayout(merged));
   return groups.map(g => renderPlainLayoutPart(g)).join('');
 }
 
@@ -283,13 +330,7 @@ function wrapOnePlainLineInner(line) {
 }
 
 function buildMultistepChoiceHtml(letter, steps) {
-  const stepsHtml = steps.map(step => {
-    const inner = String(step || '').trim() || '&nbsp;';
-    return `<div class="choice-step"><div class="plain-line-inner">${inner}</div></div>`;
-  }).join('');
-  return `<div class="plain-line plain-line--choice"><div class="choice-option choice-option--multistep">` +
-    `<span class="choice-label">(${letter})</span>` +
-    `<div class="choice-body choice-body--steps">${stepsHtml}</div></div></div>`;
+  return buildChoiceGroupHtml([{ letter, steps }]);
 }
 
 function wrapPlainLineAsChoices(line) {

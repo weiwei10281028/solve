@@ -9,6 +9,10 @@ let lastDatabaseMatch = null;
 let lastDatabaseInject = '';
 let lastDatabaseRefSolution = '';
 let lastResolveInput = '';
+const DISABLED_DATABASE_FILES = new Set(['style-teacher-batch.md']);
+
+/** 設 true：解題完全不配對、不注入 DATABASE（僅 SYSTEM_CHEM + NOTE） */
+const DATABASE_SOLVE_DISABLED = true;
 
 function isFileProtocol() { return location.protocol === 'file:'; }
 
@@ -25,6 +29,7 @@ function getUserDatabaseBundle() {
 }
 
 function isDatabaseEnabled() {
+  if (DATABASE_SOLVE_DISABLED) return false;
   const v = localStorage.getItem('useDatabase');
   if (v === '0') return false;
   if (v === '1') return true;
@@ -54,13 +59,17 @@ async function fetchDatabaseIndex() {
     } catch { /* fallback to bundle */ }
   }
   databaseIndexCache = Array.from(names).filter(fn =>
-    fn.endsWith('.md') && !fn.startsWith('_') && fn.toLowerCase() !== 'readme.md'
+    fn.endsWith('.md')
+    && !fn.startsWith('_')
+    && fn.toLowerCase() !== 'readme.md'
+    && !DISABLED_DATABASE_FILES.has(fn)
   );
   return databaseIndexCache;
 }
 
 async function loadDatabaseFileContent(filename) {
   if (!filename) return '';
+  if (DISABLED_DATABASE_FILES.has(filename)) return '';
   if (databaseFileCache[filename]) return databaseFileCache[filename];
   const user = getUserDatabaseBundle();
   if (user?.files?.[filename]) {
@@ -132,8 +141,7 @@ function pickStyleFallbackEntry(entries = [], userInput = '') {
     const list = pickStyleFallbackEntries(entries, userInput, 1);
     return list[0] || null;
   }
-  return entries.find(e => e.id === 'style-teacher-batch')
-    || entries.find(e => e.meta?.solution_only)
+  return entries.find(e => e.meta?.solution_only)
     || entries[0]
     || null;
 }
@@ -149,6 +157,10 @@ async function buildMatchCatalogLine() {
     } else if (ex.meta?.solution_only) {
       const kws = (ex.meta.match_keywords || []).slice(0, 8).join(',');
       if (kws) parts.push(`${ex.id}[${kws}]`);
+    } else if (typeof isChapterSolutionPoolEntry === 'function' && isChapterSolutionPoolEntry(ex)) {
+      const kws = (ex.meta.match_keywords || []).slice(0, 8).join(',');
+      const topic = ex.topic || '';
+      parts.push(`${ex.id}[${topic}${kws ? ';' + kws : ''}]`);
     } else if (ex.topic) {
       parts.push(`${ex.id}[${ex.topic}]`);
     }
@@ -173,6 +185,10 @@ async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
     let questionText = texts?.questionText || '';
     let solutionText = texts?.solutionText || '';
     let answerKey = entry.meta?.answer_key || '';
+    const soHit = best.solutionOnlyHit || null;
+    const isChapterRoutine = !!soHit
+      && typeof isChapterSolutionPoolEntry === 'function'
+      && isChapterSolutionPoolEntry(entry);
 
     if (best.examHit) {
       questionText = best.examHit.questionText
@@ -181,37 +197,51 @@ async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
           : questionText);
       solutionText = best.examHit.solutionText || solutionText;
     }
-    if (best.solutionOnlyHit) {
-      solutionText = best.solutionOnlyHit.solutionText || solutionText;
+    if (soHit) {
+      solutionText = soHit.solutionText || solutionText;
     }
     if (typeof extractAnswerKey === 'function' && solutionText) {
       answerKey = extractAnswerKey(solutionText) || answerKey;
     }
 
+    const routineBody = typeof stripDbRoutineComments === 'function'
+      ? stripDbRoutineComments(solutionText)
+      : stripMatchCommentsForDb(solutionText);
+
     let injectBlock = '';
-    if (tier === 1 && typeof buildTier1Block === 'function') {
-      injectBlock = buildTier1Block(entry, questionText, solutionText);
+    if (isChapterRoutine && soHit && typeof buildChapterSoRoutineBlock === 'function') {
+      injectBlock = buildChapterSoRoutineBlock(entry, soHit, routineBody, tier);
+    } else if (tier === 1 && typeof buildTier1Block === 'function') {
+      injectBlock = buildTier1Block(entry, questionText, routineBody);
     } else if (typeof formatMethodBlock === 'function') {
       const excerpt = typeof extractStyleExcerpt === 'function'
-        ? extractStyleExcerpt(solutionText, userInput, { maxLen: 2000 })
-        : solutionText.slice(0, 1500);
+        ? extractStyleExcerpt(routineBody || solutionText, userInput, { maxLen: 2000 })
+        : (routineBody || solutionText).slice(0, 1500);
       injectBlock = formatMethodBlock(entry.meta?.method_id || '', excerpt, entry.meta || {});
       if (!injectBlock || injectBlock.length < 80) {
         injectBlock = `【相似題目參考：${entry.id}】\n解題邏輯範例：\n${excerpt}`;
       }
     } else {
-      injectBlock = `【相似題目參考：${entry.id}】\n解題邏輯範例：\n${solutionText}`;
+      injectBlock = `【相似題目參考：${entry.id}】\n解題邏輯範例：\n${routineBody || solutionText}`;
     }
     injectBlock = stripMatchCommentsForDb(injectBlock);
 
+    const sectionTitle = soHit?.sectionTitle || '';
+    const soNumber = typeof sectionSoNumber === 'function' ? sectionSoNumber(sectionTitle) : NaN;
+
     lastDatabaseMatch = typeof getMatchSummary === 'function'
       ? getMatchSummary(entry, tier, best.score, best.reasons, {
-        solutionOnly: !!entry.meta?.solution_only,
-        answerKey
+        solutionOnly: !!entry.meta?.solution_only || isChapterRoutine,
+        answerKey,
+        isChapterSo: isChapterRoutine,
+        isChapterRoutine,
+        chapterFile: entry.file || '',
+        sectionTitle,
+        soNumber
       })
       : { tier, entryId: entry.id, tierLabel: tier === 1 ? '精確命中' : '同型方法', answerKey };
     lastDatabaseInject = injectBlock;
-    lastDatabaseRefSolution = solutionText || '';
+    lastDatabaseRefSolution = routineBody || '';
     return { tier, entry, injectBlock };
   }
 
@@ -234,9 +264,16 @@ async function resolveDatabaseMatch(userInput = '', { force = false } = {}) {
 function getLastDatabaseInject() { return lastDatabaseInject || ''; }
 function getLastDatabaseRefSolution() { return lastDatabaseRefSolution || ''; }
 function getLastDatabaseMatch() { return lastDatabaseMatch; }
+function getLastMatchInput() { return lastResolveInput || ''; }
+window.getLastMatchInput = getLastMatchInput;
 
 async function buildDatabaseUserBlock(userInput = '') {
-  if (!isDatabaseEnabled()) return '';
+  if (!isDatabaseEnabled()) {
+    lastDatabaseMatch = null;
+    lastDatabaseInject = '';
+    lastDatabaseRefSolution = '';
+    return '';
+  }
 
   if (!lastDatabaseMatch || lastResolveInput !== String(userInput || '').trim()) {
     await resolveDatabaseMatch(userInput);
@@ -244,6 +281,7 @@ async function buildDatabaseUserBlock(userInput = '') {
 
   const match = getLastDatabaseMatch();
   const entries = await loadDatabaseEntries();
+  const blocks = [];
 
   let rulesBlock = '';
   if (typeof buildTeachingRulesUserBlock === 'function') {
@@ -257,14 +295,24 @@ async function buildDatabaseUserBlock(userInput = '') {
       console.warn('教學規定載入失敗', err);
     }
   }
+  if (rulesBlock) blocks.push(rulesBlock);
 
-  if (match?.tier === 1 || match?.tier === 2) {
-    const block = stripMatchCommentsForDb(getLastDatabaseInject());
-    if (block) {
-      const base = `\n\n[參考資料庫內容]\n${block}\n\n【硬性要求】以上為內部參考：**Tier 1 命中時正文須克隆【參考詳解】**（段落順序、各選項分析、bullet、@@MOL 行數、表／cases／$[A]$／\\htmlData）；**不可比參考更省略**，禁止改寫成講義體；數字依題目重算。禁止內部標記寫入正文；禁止 <!-- MATCH: ... --> 註解。`;
-      return `${rulesBlock}${base}`;
+  var tr = typeof getLastTeachingRuleMatch === 'function' ? getLastTeachingRuleMatch() : [];
+  var kspRule = (tr || []).some(function (r) { return r.id === 'ksp-solubility-table'; });
+  var kspChapter = match?.soLabel && /AgCl|混合稀釋|溶解平衡/.test(match.soLabel);
+  var kspInject = typeof needsKspPrecipitationTable === 'function'
+    && needsKspPrecipitationTable(userInput || lastResolveInput || '');
+  if ((kspRule || kspChapter) && kspInject && window.KSP_REACTION_TABLE_FORMAT_BLOCK) {
+    blocks.push('\n\n' + window.KSP_REACTION_TABLE_FORMAT_BLOCK);
+  }
+
+  const routineInject = getLastDatabaseInject();
+  const hasRoutineInject = (match?.tier === 1 || match?.tier === 2) && routineInject;
+  if (hasRoutineInject) {
+    blocks.push(routineInject);
+    if (lastDatabaseMatch) {
+      lastDatabaseMatch.injectMode = match?.isChapterRoutine ? 'chapterRoutine' : (match?.isChapterSo ? 'chapterSo' : 'routine');
     }
-    if (rulesBlock) return rulesBlock;
   }
 
   const concept = typeof buildConceptReferenceBlock === 'function'
@@ -274,43 +322,51 @@ async function buildDatabaseUserBlock(userInput = '') {
     lastDatabaseMatch.conceptLabels = concept.labels;
   }
 
-  const fallbackEntries = typeof pickStyleFallbackEntries === 'function'
-    ? pickStyleFallbackEntries(entries, userInput, 2)
-    : [pickStyleFallbackEntry(entries, userInput)].filter(Boolean);
-  const parts = [];
+  if (!hasRoutineInject) {
+    const fallbackEntries = typeof pickStyleFallbackEntries === 'function'
+      ? pickStyleFallbackEntries(entries, userInput, 2)
+      : [pickStyleFallbackEntry(entries, userInput)].filter(Boolean);
+    const parts = [];
 
-  if (concept.text) {
-    parts.push(`[概念參考段落｜題目不完全吻合，僅供解題思路與排版參考]\n${stripMatchCommentsForDb(concept.text)}`);
+    for (const fallbackEntry of fallbackEntries) {
+      const texts = await loadExampleTexts(fallbackEntry);
+      if (!texts?.solutionText) continue;
+      const excerpt = typeof extractStyleExcerpt === 'function'
+        ? extractStyleExcerpt(texts.solutionText, userInput, { maxLen: 2400, styleOnly: true })
+        : texts.solutionText.slice(0, 1200);
+      const label = fallbackEntry.topic || fallbackEntry.id;
+      parts.push(
+        `[板書版型參考｜${label}｜僅限排版與 NOTE 密度]\n【版型來源：${fallbackEntry.id}】\n${stripMatchCommentsForDb(excerpt)}`
+      );
+    }
+
+    if (fallbackEntries.length && lastDatabaseMatch) {
+      lastDatabaseMatch.styleEntryIds = fallbackEntries.map(e => e.id);
+    }
+
+    if (parts.length) {
+      const conceptHint = concept.labels?.length
+        ? `本題概念線索（僅輔助選擇公式，**不得**當成已算好的答案）：${concept.labels.slice(0, 5).join('、')}。`
+        : '';
+
+      blocks.push(`\n\n${parts.join('\n\n')}\n\n【版型參考｜僅限排版與 NOTE】
+1. **內容權威**：題目圖片與【使用者補充】為唯一依據；須自行判斷題型、列式、計算與選項對錯。
+2. **參考範圍**：上方 [板書版型參考] **僅供**模仿開場節奏、$…$ 寫法、\\htmlData{note=…}{…} 密度、算式間標點與「各選項分析如下」版型；**禁止**套用參考中的數值、反應式、中間結果或選項結論。
+3. **NOTE 密度**：含等號的推導行平均每行至少 **2 個** \\htmlData；乘積各因子、分式分子分母須分標；禁止只標最終答案數字。
+4. **選項評析**：計算求值選擇題推導完只寫「故答案為 (X)」與數值（含單位）；觀念判斷題再寫「各選項分析如下：」與 * (A)～(E)。**例外**：選項為不同分子式／反應式時，須逐選項列已配平反應式＋\\text{起始}／\\text{變化}／\\text{結果} 三行表。
+5. 圖中條件缺漏且無法由補充補齊時，@@ANSWER@@ 寫「題目資訊不足」。
+${conceptHint ? `6. ${conceptHint}\n` : ''}嚴禁開場白與結語，禁止 <!-- MATCH: ... --> 註解，直接進入解題。`);
+    }
+  } else if (concept.labels?.length) {
+    blocks.push(`\n\n【概念線索】${concept.labels.slice(0, 5).join('、')}（僅輔助選公式，不得當成已算好的答案）。`);
   }
 
-  for (const fallbackEntry of fallbackEntries) {
-    const texts = await loadExampleTexts(fallbackEntry);
-    if (!texts?.solutionText) continue;
-    const excerpt = typeof extractStyleExcerpt === 'function'
-      ? extractStyleExcerpt(texts.solutionText, userInput)
-      : texts.solutionText.slice(0, 2500);
-    const label = fallbackEntry.topic || fallbackEntry.id;
-    parts.push(
-      `[參考資料庫範本｜${label}（不論題目是否相符，請模仿板書風格與 NOTE 密度）]\n【板書風格：${fallbackEntry.id}】\n${stripMatchCommentsForDb(excerpt)}`
-    );
-  }
-
-  if (fallbackEntries.length && lastDatabaseMatch) {
-    lastDatabaseMatch.styleEntryIds = fallbackEntries.map(e => e.id);
-  }
-
-  if (!parts.length && !rulesBlock) return '';
-
-  const styleBlock = parts.length
-    ? `\n\n${parts.join('\n\n')}\n\n【最高指令】目前的題目在資料庫中無精準匹配，請模仿上述範例的排版與 Note 標註節奏：每個關鍵數字第一次出現須在 $…$ 等號式內並以 $\\htmlData{note=…}{…}$ 標註；禁止開場裸寫數字。數字與選項依題目重算，參考與題目不符時以題目為準。嚴禁開場白與結語，禁止輸出 <!-- MATCH: ... --> 註解，直接進入解題。`
-    : '';
-
-  return `${rulesBlock}${styleBlock}`;
+  if (!blocks.length) return '';
+  return blocks.join('');
 }
 
 async function buildDatabaseSystemAddon(userInput = '') {
-  if (!isDatabaseEnabled()) return '';
-  return '\n\n【指令】請讀取 User 訊息中的 [參考資料] 作為內部依據，以該板書風格撰寫詳解；勿把參考資料內的內部標記或條列複製到正文。';
+  return '';
 }
 
 const getLastStyleMatch = getLastDatabaseMatch;
@@ -371,4 +427,21 @@ function invalidateDatabaseCache() {
 
 function clearDatabaseCache() {
   invalidateDatabaseCache();
+}
+
+/** 頁面載入時預熱題庫，避免首次解題配對較慢或不完整 */
+async function warmDatabaseCache() {
+  if (!isDatabaseEnabled()) return;
+  try {
+    await loadDatabaseEntries();
+    await fetchDatabaseIndex();
+  } catch (err) {
+    console.warn('題庫預熱失敗', err);
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    warmDatabaseCache().catch(() => {});
+  });
 }

@@ -55,11 +55,12 @@
 }
 
 .structure-item-text .plain-line {
-  margin-bottom: 0.35em;
+  margin-top: var(--plain-line-gap, 8px);
+  margin-bottom: 0;
 }
 
-.structure-item-text .plain-line:last-child {
-  margin-bottom: 0;
+.structure-item-text .plain-line:first-child {
+  margin-top: 0;
 }
 
 @media (max-width: 520px) {

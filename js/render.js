@@ -28,7 +28,12 @@ function addCasesRowSpacing(block, env) {
 /** 統一修正 LaTeX 區塊邊界（cases/array、巢狀 $、連續算式） */
 function fixLatexBlocks(text) {
   let s = String(text || '');
+  s = s.replace(/(?<!d)\\frac\{/g, '\\dfrac{');
   s = s.replace(/\\(?:d)?frac\{\s*\$\s*([^$]+?)\s*\$\s*\}\{\s*\$\s*([^$]+?)\s*\$\s*\}/g, '\\dfrac{$1}{$2}');
+  s = s.replace(/([^\\a-zA-Z])\s*\\cdot\s*/g, '$1 \\cdot ');
+  // 結論前逗號改全形（與中文句號同級標點）
+  s = s.replace(/,\s*\\quad\s*\\text\{\s*故\s*\}/g, '\\text{，}\\quad\\text{故 }');
+  s = s.replace(/(\\dfrac\{[^}]+\}\{[^}]+\})\s*,\s*(\\quad\s*\\text\{\s*故)/g, '$1\\text{，}$2');
   s = s.replace(/\$\s*([0-9]+(?:\.[0-9]+)?(?:%|％)?)\s*\$/g, '$1');
   s = s.replace(/\$\s+(?=\\[a-zA-Z{])/g, '$');
   s = s.replace(/([^\n]*?)\$\s*(\\begin\{cases\}[\s\S]*?\\end\{cases\})\s*\$/g, (m, prefix, body) => {
@@ -93,6 +98,35 @@ function repairUnclosedInlineMath(text) {
     const singles = s.match(/(?<!\\)\$/g);
     if (singles && singles.length % 2 === 1) s += '$';
     return s;
+  }).join('\n');
+}
+
+/** 裸寫化學式（SO3、H2O）與 Unicode 下標統一包進 $…$ */
+const UNICODE_SUB_MAP = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+
+function normalizeUnicodeChemSubscripts(text) {
+  return String(text || '').replace(/([A-Z][a-z]?)([₀₁₂₃₄₅₆₇₈₉]+)/g, (m, el, subs, off) => {
+    if (isInsideDollarMath(text, off)) return m;
+    const digits = [...subs].map((c) => UNICODE_SUB_MAP[c] || c).join('');
+    return `$\\text{${el}}_{${digits}}$`;
+  });
+}
+
+function chemDigitsToSubscripts(formula) {
+  return String(formula || '').replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2');
+}
+
+function wrapBareChemicalFormulas(text) {
+  let s = normalizeUnicodeChemSubscripts(text);
+  const CHEM_RE = /(?<![$\w\\/])([A-Z][a-z]?(?:(?:_\{?\d+\}?)|\d+)+(?:[A-Z][a-z]?(?:(?:_\{?\d+\}?)|\d+)*)*)(?![A-Za-z])/g;
+  return s.split('\n').map((line) => {
+    if (/^\s*\$\$/.test(line.trim())) return line;
+    return line.replace(CHEM_RE, (m, formula, off) => {
+      if (isInsideDollarMath(line, off)) return m;
+      if (/^(Kp|Kc|ICE|Pa|atm|mol|K)$/i.test(formula)) return m;
+      const inner = /_\{?\d/.test(formula) ? formula : chemDigitsToSubscripts(formula);
+      return `$\\text{${inner}}$`;
+    });
   }).join('\n');
 }
 
@@ -351,6 +385,15 @@ function neutralizeQuestionHeadings(text) {
   }).join('\n');
 }
 
+/** 單題解題時移除 AI 誤當步驟標題的「第 N 題」獨立行 */
+function stripStandaloneQuestionHeadingLines(text) {
+  if (window.__solveMultiQuestion) return String(text || '');
+  return String(text || '').split('\n').filter((line) => {
+    const t = line.trim();
+    return !QUESTION_HEADING_LINE_RE.test(t);
+  }).join('\n');
+}
+
 function mergeOrphanPunctuationLines(raw) {
   const lines = String(raw || '').split('\n');
   const out = [];
@@ -434,6 +477,25 @@ function stripCalcUnitsInInlineMath(text) {
   }).join('\n');
 }
 
+/** 全形等號改半形；裸寫比例／等號式包進 $…$（走 KaTeX 字體，與電荷同路徑） */
+function normalizeMathOperatorsInPlain(text) {
+  const hasHan = (s) => /[\u4e00-\u9fff]/.test(s);
+  return String(text || '').split('\n').map((line) => {
+    if (/^\s*\$\$/.test(line)) return line;
+    let s = line;
+    s = s.replace(/\$([^$\n]+)\$/g, (_, inner) => `$${inner.replace(/＝/g, '=')}$`);
+    s = s.replace(
+      /(?<![$\w\u4e00-\u9fff（(])([0-9A-Za-z%％.+×·\s:：\-]+?)＝([0-9A-Za-z%％.+×·\s:：\-]+?)(?![$\w\u4e00-\u9fff）)])/g,
+      (m, a, b) => {
+        if (hasHan(a) || hasHan(b)) return m;
+        const expr = `${a.trim().replace(/：/g, ':')}=${b.trim().replace(/：/g, ':')}`;
+        return `$${expr}$`;
+      }
+    );
+    return s;
+  }).join('\n');
+}
+
 function preprocessPlainText(raw) {
   let text = stripMatchComments(String(raw || '').trim());
   text = normalizeAiHeadings(text);
@@ -451,6 +513,8 @@ function preprocessPlainText(raw) {
   text = organizeReactionCasesLayout(text);
   text = wrapSingleOrphanLatexLines(text);
   text = wrapBareLatexSnippets(text);
+  text = wrapBareChemicalFormulas(text);
+  text = normalizeMathOperatorsInPlain(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessEarly(text);
   text = repairBareTextMacros(text);
   if (typeof mergeAdjacentInlineMath === 'function') text = mergeAdjacentInlineMath(text);
@@ -473,6 +537,41 @@ function visiblePlainLen(line) {
     .replace(/\$[^$\n]+?\$/g, '§')
     .replace(/\s+/g, '').length;
 }
+
+function parseAnswerNumeric(text) {
+  const t = String(text || '').replace(/\$/g, '').trim();
+  const m = t.match(/(-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*([A-Za-z°%％μ\/·\-\^⁰¹²³⁴⁵⁶⁷⁸⁹]+)?/i);
+  if (!m) return null;
+  const value = parseFloat(m[1]);
+  if (!Number.isFinite(value)) return null;
+  const unit = (m[2] || '').trim().toLowerCase();
+  return { value, unit };
+}
+
+/** 從使用者輸入的參考答案解析 */
+window.parseReferenceAnswerInput = function(raw) {
+  const cleaned = cleanAnswerDisplay(raw);
+  if (!cleaned) return { raw: '', choices: '', numeric: null };
+  return {
+    raw: cleaned,
+    choices: extractChoiceLetters(cleaned),
+    numeric: parseAnswerNumeric(cleaned)
+  };
+};
+
+/** 從 AI 全文解析 @@ANSWER@@ 簡答 */
+window.extractAnswerFromReply = function(text) {
+  const { answerText } = splitBodyAndAnswer(text);
+  const cleaned = cleanAnswerDisplay(answerText);
+  if (!cleaned || cleaned === '—') {
+    return { raw: '', choices: '', numeric: null };
+  }
+  return {
+    raw: cleaned,
+    choices: extractChoiceLetters(cleaned),
+    numeric: parseAnswerNumeric(cleaned)
+  };
+};
 
 function cleanAnswerDisplay(raw) {
   return String(raw || '')
@@ -722,9 +821,10 @@ function render(rawText) {
   const { body, answerText } = splitBodyAndAnswer(String(rawText).trim());
   let preprocessed = preprocessPlainText(body);
   preprocessed = normalizeExamQuestionHeadings(preprocessed);
-  if (countQuestionSections(preprocessed) >= 2) {
+  if (window.__solveMultiQuestion && countQuestionSections(preprocessed) >= 2) {
     window.__solveHeadingMode = 'numbered';
   }
+  preprocessed = stripStandaloneQuestionHeadingLines(preprocessed);
   if (typeof neutralizeQuestionHeadings === 'function') {
     preprocessed = neutralizeQuestionHeadings(preprocessed);
   }
@@ -818,8 +918,8 @@ function setupHorizontalLineScroll(root) {
     if (!inner.querySelector('.katex, .math-block, .math-unit-tail')) return;
 
     inner.style.overflow = 'visible';
-    inner.style.overflowX = 'visible';
-    inner.style.overflowY = 'visible';
+    inner.style.overflowX = '';
+    inner.style.overflowY = '';
     inner.style.maxHeight = 'none';
     inner.style.whiteSpace = 'normal';
 
@@ -943,6 +1043,480 @@ function recoverLeakedStashCases(root) {
   });
 }
 
+/**
+ * 巢狀分式排版（KaTeX 0.16 vlist-t2）
+ * 1. 分子區內層：拉開內層分母離外層中線
+ * 2. 分母區內層：拉開內層分子離外層中線
+ * 3. 外層中線中心對齊同行所有等號（transform，不用 vertical-align）
+ */
+function markAndSpaceNestedFractions(root) {
+  if (!root) return;
+
+  const ATTR_ORIG_TOP = 'data-nfrac-orig-top';
+  const ATTR_ORIG_VH = 'data-nfrac-orig-vh';
+  const ATTR_ORIG_TF = 'data-nfrac-orig-tf';
+  const ATTR_BAR_ALIGN = 'data-nfrac-bar-align';
+
+  const INNER_SPREAD_EM = 0.16;
+  const INNER_SPREAD_NOTE_EM = 0.20;
+  const NUM_NUMPART_LIFT = 0.06;
+  const NUM_EXTRA_UP_PX = 2;
+  const INNER_VH_EM = 0.18;
+  const INNER_VH_NOTE_EM = 0.22;
+  const OUTER_VH_EM = 0.10;
+  const GAP_PX = 5;
+  const GAP_NOTE_PX = 6;
+
+  const isTopLevelMfrac = (mfrac) => !mfrac.parentElement?.closest('.mfrac');
+  const isEqualsRel = (el) => ['=', '＝', '≈'].includes((el.textContent || '').trim());
+  const centerY = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.top + r.height / 2;
+  };
+  const partHasNote = (part) => !!(part && part.querySelector('.math-note, [data-note]'));
+
+  const parseVlistT2 = (mfrac) => {
+    const vlistT = mfrac.querySelector(':scope > .vlist-t');
+    if (!vlistT) return null;
+    const mainRow = vlistT.querySelector(':scope > .vlist-r');
+    const vlist = mainRow?.querySelector(':scope > .vlist');
+    if (!vlist) return null;
+    const parts = [...vlist.children];
+    const lineIdx = parts.findIndex((el) => el.querySelector('.frac-line'));
+    if (lineIdx < 0) return null;
+    const linePart = parts[lineIdx];
+    return {
+      vlist,
+      numPart: parts[lineIdx - 1] || null,
+      linePart,
+      fracLine: linePart.querySelector('.frac-line'),
+      denPart: parts[lineIdx + 1] || null,
+    };
+  };
+
+  const restoreAll = () => {
+    root.querySelectorAll(`[${ATTR_ORIG_TOP}]`).forEach((el) => {
+      el.style.top = el.getAttribute(ATTR_ORIG_TOP);
+      el.removeAttribute(ATTR_ORIG_TOP);
+    });
+    root.querySelectorAll(`[${ATTR_ORIG_VH}]`).forEach((el) => {
+      el.style.height = el.getAttribute(ATTR_ORIG_VH);
+      el.removeAttribute(ATTR_ORIG_VH);
+    });
+    root.querySelectorAll(`[${ATTR_ORIG_TF}]`).forEach((el) => {
+      el.style.transform = el.getAttribute(ATTR_ORIG_TF) || '';
+      el.removeAttribute(ATTR_ORIG_TF);
+    });
+    root.querySelectorAll(`[${ATTR_BAR_ALIGN}]`).forEach((el) => {
+      el.style.transform = el.getAttribute(ATTR_BAR_ALIGN) || '';
+      el.removeAttribute(ATTR_BAR_ALIGN);
+    });
+    root.querySelectorAll('.mfrac-has-nested, .mfrac-has-note, .mfrac-inner-in-num, .mfrac-inner-in-den').forEach((mfrac) => {
+      mfrac.classList.remove('mfrac-has-nested', 'mfrac-has-note', 'mfrac-inner-in-num', 'mfrac-inner-in-den');
+      if (!mfrac.hasAttribute(ATTR_BAR_ALIGN)) {
+        mfrac.style.transform = '';
+        mfrac.style.verticalAlign = '';
+      }
+      mfrac.querySelectorAll('.frac-line').forEach((line) => {
+        const wrap = line.parentElement;
+        if (wrap) {
+          wrap.style.position = '';
+          wrap.style.zIndex = '';
+        }
+        line.style.position = '';
+        line.style.zIndex = '';
+      });
+    });
+  };
+
+  const nudgeTopEm = (el, deltaEm) => {
+    if (!el?.style?.top || !deltaEm) return;
+    const m = String(el.style.top).match(/^(-?[\d.]+)em$/);
+    if (!m) return;
+    if (!el.hasAttribute(ATTR_ORIG_TOP)) el.setAttribute(ATTR_ORIG_TOP, el.style.top);
+    el.style.top = `${parseFloat(m[1]) + deltaEm}em`;
+  };
+
+  const expandVlistHeight = (vlist, extraEm) => {
+    if (!vlist?.style?.height || extraEm <= 0) return;
+    const m = String(vlist.style.height).match(/^([\d.]+)em$/);
+    if (!m) return;
+    if (!vlist.hasAttribute(ATTR_ORIG_VH)) vlist.setAttribute(ATTR_ORIG_VH, vlist.style.height);
+    vlist.style.height = `${parseFloat(m[1]) + extraEm}em`;
+  };
+
+  const setPartTranslateY = (el, px) => {
+    if (!el) return;
+    if (!el.hasAttribute(ATTR_ORIG_TF)) el.setAttribute(ATTR_ORIG_TF, el.style.transform || '');
+    el.style.transform = px ? `translateY(${px}px)` : (el.getAttribute(ATTR_ORIG_TF) || '');
+  };
+
+  const liftFracLineAboveNotes = (layout) => {
+    if (!layout?.linePart || !layout.fracLine) return;
+    layout.linePart.style.position = 'relative';
+    layout.linePart.style.zIndex = '5';
+    layout.fracLine.style.position = 'relative';
+    layout.fracLine.style.zIndex = '6';
+  };
+
+  const getInnerZone = (outer, inner) => {
+    const layout = parseVlistT2(outer);
+    if (!layout) return null;
+    if (layout.numPart?.contains(inner)) return 'numerator';
+    if (layout.denPart?.contains(inner)) return 'denominator';
+    return null;
+  };
+
+  const collectRowEquals = (mfrac) => {
+    const row = mfrac.closest('.katex-html') || mfrac.closest('.katex');
+    if (!row) return [];
+    return [...row.querySelectorAll('.mrel')].filter(isEqualsRel);
+  };
+
+  const tagNestedMfracs = () => {
+    root.querySelectorAll('.katex .mfrac').forEach((mfrac) => {
+      const vlistT = mfrac.querySelector(':scope > .vlist-t');
+      if (!vlistT?.querySelector('.mfrac')) return;
+      mfrac.classList.add('mfrac-has-nested');
+      const layout = parseVlistT2(mfrac);
+      if (layout && (partHasNote(layout.numPart) || partHasNote(layout.denPart))) {
+        mfrac.classList.add('mfrac-has-note');
+      }
+    });
+    root.querySelectorAll('.katex .mfrac-has-nested .mfrac').forEach((inner) => {
+      const layout = parseVlistT2(inner);
+      if (layout && (partHasNote(layout.numPart) || partHasNote(layout.denPart))) {
+        inner.classList.add('mfrac-has-note');
+      }
+    });
+  };
+
+  const layoutOneOuter = (outer) => {
+    if (!isTopLevelMfrac(outer)) return;
+    const outerLayout = parseVlistT2(outer);
+    if (!outerLayout) return;
+    liftFracLineAboveNotes(outerLayout);
+
+    const inners = [...outer.querySelectorAll('.mfrac')].filter((m) => m !== outer);
+    inners.forEach((inner) => {
+      const zone = getInnerZone(outer, inner);
+      if (!zone) return;
+      inner.classList.add(zone === 'numerator' ? 'mfrac-inner-in-num' : 'mfrac-inner-in-den');
+
+      const innerLayout = parseVlistT2(inner);
+      if (!innerLayout) return;
+      liftFracLineAboveNotes(innerLayout);
+      const hasNote = partHasNote(innerLayout.numPart) || partHasNote(innerLayout.denPart);
+      const spread = hasNote ? INNER_SPREAD_NOTE_EM : INNER_SPREAD_EM;
+      const vh = hasNote ? INNER_VH_NOTE_EM : INNER_VH_EM;
+
+      if (zone === 'numerator') {
+        nudgeTopEm(innerLayout.denPart, -spread);
+        nudgeTopEm(innerLayout.numPart, -spread * NUM_NUMPART_LIFT / INNER_SPREAD_EM);
+      } else {
+        nudgeTopEm(innerLayout.numPart, spread);
+      }
+      expandVlistHeight(innerLayout.vlist, vh);
+    });
+
+    inners.forEach((inner) => {
+      const zone = getInnerZone(outer, inner);
+      const innerLayout = parseVlistT2(inner);
+      if (!zone || !innerLayout || !outerLayout.fracLine) return;
+      const line = outerLayout.fracLine.getBoundingClientRect();
+      const hasNote = partHasNote(innerLayout.numPart) || partHasNote(innerLayout.denPart);
+      const target = hasNote ? GAP_NOTE_PX : GAP_PX;
+
+      if (zone === 'numerator' && innerLayout.denPart) {
+        const denR = innerLayout.denPart.getBoundingClientRect();
+        const gap = line.top - denR.bottom;
+        const shift = (gap < target ? -(target - gap) : 0) - NUM_EXTRA_UP_PX;
+        if (shift) setPartTranslateY(innerLayout.denPart, shift);
+      }
+      if (zone === 'denominator' && innerLayout.numPart) {
+        const numR = innerLayout.numPart.getBoundingClientRect();
+        const gap = numR.top - line.bottom;
+        if (gap < target) setPartTranslateY(innerLayout.numPart, target - gap);
+      }
+    });
+
+    expandVlistHeight(outerLayout.vlist, OUTER_VH_EM);
+
+    const equals = collectRowEquals(outer);
+    if (!equals.length || !outerLayout.fracLine) return;
+
+    const refY = equals.reduce((sum, el) => sum + centerY(el), 0) / equals.length;
+    const barY = centerY(outerLayout.fracLine);
+    const dy = refY - barY;
+    if (Math.abs(dy) < 0.25) return;
+
+    if (!outer.hasAttribute(ATTR_BAR_ALIGN)) {
+      outer.setAttribute(ATTR_BAR_ALIGN, outer.style.transform || '');
+    }
+    outer.style.transform = `translateY(${dy}px)`;
+    outer.style.verticalAlign = 'baseline';
+  };
+
+  const layoutAll = () => {
+    tagNestedMfracs();
+    root.querySelectorAll('.katex .mfrac-has-nested').forEach(layoutOneOuter);
+  };
+
+  const runPass = () => {
+    restoreAll();
+    layoutAll();
+  };
+
+  runPass();
+  requestAnimationFrame(runPass);
+}
+
+/** 標籤垂直中心對齊各選項首行說明文字（算式在次行不影響） */
+function measureChoiceAnchorRect(anchor) {
+  if (!anchor || !anchor.getBoundingClientRect) return null;
+  const katex = anchor.querySelector(':scope .katex');
+  if (!katex) return anchor.getBoundingClientRect();
+
+  const firstStep = anchor.closest('.choice-body')?.querySelector('.choice-step .plain-line-inner');
+  if (firstStep && firstStep !== anchor) return firstStep.getBoundingClientRect();
+
+  try {
+    const range = document.createRange();
+    range.setStart(anchor, 0);
+    const stopNode = katex.closest('.plain-katex-nowrap') || katex;
+    if (stopNode && anchor.contains(stopNode)) {
+      range.setEndBefore(stopNode);
+    } else {
+      range.setEndBefore(katex);
+    }
+    if (!range.collapsed) return range.getBoundingClientRect();
+  } catch { /* fallback */ }
+  return anchor.getBoundingClientRect();
+}
+
+function lineHasFraction(line) {
+  const inner = line.querySelector('.plain-line-inner') || line;
+  return !!inner.querySelector('.mfrac, .katex .mfrac');
+}
+
+function getPlainLineGapPx(container, prevLine, curLine) {
+  const base = (() => {
+    if (!container) return 12;
+    const plain = container.classList?.contains('ai-plain')
+      ? container
+      : container.closest('.ai-plain');
+    const el = plain || container;
+    const raw = getComputedStyle(el).getPropertyValue('--plain-line-gap').trim();
+    if (!raw) return 12;
+    if (raw.endsWith('px')) return parseFloat(raw) || 12;
+    if (raw.endsWith('em')) {
+      return (parseFloat(raw) || 0) * (parseFloat(getComputedStyle(el).fontSize) || 15);
+    }
+    return parseFloat(raw) || 12;
+  })();
+  const fracRaw = container?.closest?.('.ai-plain')
+    ? getComputedStyle(container.closest('.ai-plain')).getPropertyValue('--plain-line-gap-frac').trim()
+    : '';
+  const fracGap = fracRaw.endsWith('px') ? (parseFloat(fracRaw) || 16) : 16;
+  if (lineHasFraction(prevLine) || lineHasFraction(curLine)) return Math.max(base, fracGap);
+  return base;
+}
+
+function getLineVisualBounds(line) {
+  const inner = line.querySelector('.plain-line-inner') || line;
+  const rect = inner.getBoundingClientRect();
+  let top = rect.top;
+  let bottom = rect.bottom;
+  inner.querySelectorAll('.katex, .math-block').forEach((node) => {
+    const r = node.getBoundingClientRect();
+    if (r.height > 0) {
+      top = Math.min(top, r.top);
+      bottom = Math.max(bottom, r.bottom);
+    }
+  });
+  return { top, bottom };
+}
+
+function collectPlainLineSiblings(container) {
+  if (!container) return [];
+  if (container.classList?.contains('choice-body--steps')) {
+    return [...container.querySelectorAll(':scope > .choice-step')].filter((el) => el.offsetParent !== null);
+  }
+  return [...container.children].filter((el) => {
+    if (!el.classList?.contains('plain-line')) return false;
+    if (el.classList.contains('plain-line--empty')) return false;
+    return true;
+  });
+}
+
+/** 量測相鄰行視覺間距，補足至 --plain-line-gap（分式行高等不影響間格） */
+function normalizePlainLineGapsInContainer(container) {
+  const lines = collectPlainLineSiblings(container);
+  if (lines.length < 2) return;
+
+  lines.forEach((line) => {
+    line.style.marginTop = '';
+    line.classList.remove('plain-line--has-frac');
+  });
+
+  lines.forEach((line, i) => {
+    if (i > 0 && (lineHasFraction(lines[i - 1]) || lineHasFraction(line))) {
+      line.classList.add('plain-line--has-frac');
+    }
+  });
+
+  lines.forEach((line, i) => {
+    if (i === 0) return;
+    const targetGap = getPlainLineGapPx(container, lines[i - 1], line);
+    const prevBounds = getLineVisualBounds(lines[i - 1]);
+    const curBounds = getLineVisualBounds(line);
+    const actualGap = curBounds.top - prevBounds.bottom;
+    const extra = targetGap - actualGap;
+    if (extra > 0.25) {
+      const cssMargin = parseFloat(getComputedStyle(line).marginTop) || 0;
+      line.style.marginTop = `${cssMargin + extra}px`;
+    }
+  });
+}
+
+function normalizePlainLineGaps(root) {
+  if (!root) return;
+  const plains = root.classList?.contains('ai-plain')
+    ? [root]
+    : [...root.querySelectorAll('.ai-plain')];
+  plains.forEach((plain) => {
+    normalizePlainLineGapsInContainer(plain);
+    plain.querySelectorAll('.choice-body--steps, .structure-item-text').forEach(normalizePlainLineGapsInContainer);
+  });
+}
+
+function syncChoiceLabelBaselines(root) {
+  if (!root) return;
+  root.querySelectorAll('.choice-option').forEach((opt) => {
+    const label = opt.querySelector('.choice-label');
+    const body = opt.querySelector('.choice-body');
+    if (!label || !body) return;
+    label.style.marginTop = '';
+
+    const anchor = body.querySelector('.choice-step .plain-line-inner')
+      || body.querySelector('.plain-line-inner')
+      || body;
+    const labelRect = label.getBoundingClientRect();
+    const anchorRect = measureChoiceAnchorRect(anchor);
+    if (!labelRect.height || !anchorRect?.height) return;
+
+    const labelMid = labelRect.top + labelRect.height / 2;
+    const anchorMid = anchorRect.top + anchorRect.height / 2;
+    const dy = anchorMid - labelMid;
+    if (Math.abs(dy) >= 0.5) {
+      label.style.marginTop = `${dy}px`;
+    }
+  });
+}
+
+const BOARD_KEEP_TEXT = /^(起始|變化|結果|移至左|移至右|完全反應|完全移至|完全向左|再向右|後來體積|原來體積|初|平|平衡)$/;
+
+function collectBoardPlainScopes(root) {
+  const scope = new Set();
+  if (!root) return [];
+  const tryAdd = (el) => {
+    if (el?.classList?.contains('ai-plain') && el.closest('.board, .board-reply, .followup-reply')) {
+      scope.add(el);
+    }
+  };
+  tryAdd(root);
+  root.querySelectorAll?.('.ai-plain').forEach(tryAdd);
+  return [...scope];
+}
+
+/** KaTeX 前：\mathrm{Cl}、\text{M} → 數學斜體字母；\text{起始} 等中文標籤保留 */
+function normalizeChemLatexInPlain(root) {
+  const scopes = collectBoardPlainScopes(root);
+  scopes.forEach((plain) => {
+    const textNodes = [];
+    const walker = document.createTreeWalker(plain, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) textNodes.push(node);
+    textNodes.forEach((textNode) => {
+      const parent = textNode.parentElement;
+      if (!parent || parent.closest('.choice-label, .katex')) return;
+      let s = textNode.textContent || '';
+      if (!/\\(?:mathrm|text)\{/.test(s)) return;
+      s = s.replace(/\\mathrm\{([^{}]+)\}/g, '$1');
+      s = s.replace(/\\text\{([^{}]+)\}/g, (m, inner) => {
+        const t = String(inner || '').trim();
+        if (BOARD_KEEP_TEXT.test(t) || /[\u4e00-\u9fff]/.test(t)) return m;
+        if (/^[A-Za-z]+$/.test(t)) return t;
+        return m;
+      });
+      textNode.textContent = s;
+    });
+  });
+}
+
+/** KaTeX 後：純文字僅包英文字母（數字、標點不包，避免字級與排版跑掉） */
+function applyBoardLetterTypography(root) {
+  if (!root || typeof document === 'undefined') return;
+  const skipSel = '.katex, .math-block, .math-note-popover, .board-latin, .choice-label, script, style';
+  collectBoardPlainScopes(root).forEach((plain) => {
+    const textNodes = [];
+    const walker = document.createTreeWalker(plain, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) textNodes.push(node);
+    textNodes.forEach((textNode) => {
+      const parent = textNode.parentElement;
+      if (!parent || parent.closest(skipSel)) return;
+      const text = textNode.textContent || '';
+      if (!/[A-Za-z]/.test(text)) return;
+      const re = /[A-Za-z]+/g;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let changed = false;
+      let match;
+      while ((match = re.exec(text))) {
+        if (match.index > last) {
+          frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+        }
+        const span = document.createElement('span');
+        span.className = 'board-latin';
+        span.textContent = match[0];
+        frag.appendChild(span);
+        last = match.index + match[0].length;
+        changed = true;
+      }
+      if (!changed) return;
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      parent.replaceChild(frag, textNode);
+    });
+  });
+}
+
+/** 中文與英數片段之間補齊一致空白，避免忽遠忽近 */
+function normalizeCjkLatinSpacing(root) {
+  if (!root || typeof document === 'undefined') return;
+  const scopes = collectBoardPlainScopes(root);
+  const addBoundarySpace = (s) => String(s || '')
+    .replace(/([\u4e00-\u9fff])([A-Za-z0-9]+(?:[./^_-][A-Za-z0-9]+)*)/g, '$1 $2')
+    .replace(/([A-Za-z0-9]+(?:[./^_-][A-Za-z0-9]+)*)([\u4e00-\u9fff])/g, '$1 $2')
+    .replace(/([A-Za-z]+)\s*(\d+)/g, '$1$2')
+    .replace(/\s{2,}/g, ' ');
+  scopes.forEach((plain) => {
+    const textNodes = [];
+    const walker = document.createTreeWalker(plain, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) textNodes.push(node);
+    textNodes.forEach((textNode) => {
+      const parent = textNode.parentElement;
+      if (!parent) return;
+      if (parent.closest('.katex, .math-block, .choice-label, .solve-section-title')) return;
+      const src = textNode.textContent || '';
+      if (!/[\u4e00-\u9fff]/.test(src) || !/[A-Za-z0-9]/.test(src)) return;
+      const fixed = addBoundarySpace(src);
+      if (fixed !== src) textNode.textContent = fixed;
+    });
+  });
+}
+
 function postProcessPlainBoard(root) {
   if (!root) return;
   if (typeof wrapKatexNowrap === 'function') wrapKatexNowrap(root);
@@ -953,12 +1527,23 @@ function postProcessPlainBoard(root) {
   recoverLeakedLatexInDom(root);
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
+  markAndSpaceNestedFractions(root);
+  syncChoiceLabelBaselines(root);
+  normalizePlainLineGaps(root);
   setupHorizontalLineScroll(root);
+  requestAnimationFrame(() => {
+    normalizePlainLineGaps(root);
+    setupHorizontalLineScroll(root);
+    requestAnimationFrame(() => normalizePlainLineGaps(root));
+  });
   if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);
+  normalizeCjkLatinSpacing(root);
+  applyBoardLetterTypography(root);
 }
 
 function doKaTeX(element) {
   if (!element || typeof renderMathInElement !== 'function') return;
+  normalizeChemLatexInPlain(element);
   const { trust, macros } = getKatexOpts();
   const katexOpts = {
     throwOnError: false,
