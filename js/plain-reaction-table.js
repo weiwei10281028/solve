@@ -753,7 +753,10 @@ function stripStrayDollarsInPlain(root) {
       if (t !== orig) node.textContent = t;
     });
     const flat = (inner.textContent || '').replace(/\s/g, '');
-    if (flat === '$' || flat === '$$') inner.textContent = '';
+    if (flat === '$' || flat === '$$') {
+      inner.textContent = '';
+      inner.closest('.plain-line')?.classList.add('plain-line--empty');
+    }
   });
 }
 
@@ -1035,19 +1038,9 @@ function tryRebuildAgClKspArrayBlock(block, contextBefore) {
   return tryRebuildBareKspTable(block, contextBefore);
 }
 
-/** 觀念題：移除誤套之 Ksp／反應表 */
+/** @deprecated 不再刪除反應表（曾誤刪「各選項分析」題之平衡表） */
 function stripMisplacedKspTables(text, questionCtx) {
-  const body = String(text || '').split('@@ANSWER@@')[0];
-  const conceptualReply = /各選項分析如下/.test(body)
-    && !/K_\{sp\}\s*=|Ksp\s*=\s*[\d.]|溶解度積\s*=\s*[\d.]/.test(body);
-  const ctx = String(questionCtx || '') + '\n' + body.slice(0, 600);
-  const conceptual = (typeof isConceptualJudgmentContext === 'function' && isConceptualJudgmentContext(ctx))
-    || conceptualReply;
-  if (!conceptual) return String(text || '');
-  let s = String(text || '');
-  s = s.replace(/反應式如下：\s*\n?\s*\$\$[\s\S]*?\\begin\{array\}[\s\S]*?\\end\{array\}[\s\S]*?\$\$/g, '');
-  s = s.replace(/\$\$[\s\S]*?\\begin\{array\}[\s\S]*?(?:完全向左|AgCl|K_\{sp\})[\s\S]*?\\end\{array\}[\s\S]*?\$\$/g, '');
-  return s;
+  return String(text || '');
 }
 
 /** 全文掃描：修補並正規化 Ksp 沉澱四列表 */

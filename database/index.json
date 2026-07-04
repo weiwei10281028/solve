@@ -1,32 +1,9 @@
 {
   "files": [
-    "fssh-113(1)-g1-r1.md",
-    "fssh-113(1)-g1-t1.md",
-    "kghs-113(1)-g1-r1.md",
-    "kghs-113(2)-g2-t1.md",
-    "kghs-114(1)-g2-t3-r1.md",
-    "kghs-114(2)-g2-r1.md",
-    "kghs-114(2)-g2-t3-r1.md",
-    "khsh-113(1)-g1-t1.md",
-    "style-teacher-batch.md",
-    "chapters/01-物質與分離.md",
-    "chapters/02-原子結構與週期表.md",
-    "chapters/03-化學鍵與分子.md",
-    "chapters/04-化學式與反應式.md",
-    "chapters/05-化學計量與產率.md",
-    "chapters/06-熱化學.md",
-    "chapters/07-氣體.md",
-    "chapters/08-溶液與濃度.md",
-    "chapters/09-蒸氣壓與拉午耳.md",
-    "chapters/10-溶液依數性.md",
-    "chapters/11-沉澱與溶解度積.md",
-    "chapters/12-反應速率.md",
-    "chapters/13-化學平衡.md",
-    "chapters/14-酸鹼平衡.md",
-    "chapters/15-氧化還原與電化學.md",
-    "chapters/16-元素化學.md",
-    "chapters/17-有機化學.md",
-    "chapters/18-聚合物與生活科技.md"
+    "formats/format-cases.md",
+    "formats/format-choice-line.md",
+    "formats/format-eq-block.md",
+    "formats/format-rxn-grid.md"
   ],
-  "updated": "2026-07-02T17:09:51"
+  "updated": "2026-07-04T00:54:45"
 }

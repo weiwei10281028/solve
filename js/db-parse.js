@@ -232,7 +232,35 @@ function validateDatabaseMd(md, filename = '') {
   if (/\]\s*##\s*題幹/.test(headChunk)) {
     issues.push('pitfalls 或陣列結尾與 ## 題幹 黏在同一行（應換行並以 --- 結束 YAML）');
   }
-  const parsed = entryFromDatabaseMd(repairDatabaseMdRaw(raw), filename);
+
+  const repaired = repairDatabaseMdRaw(raw);
+  const { meta: yamlMeta, body } = splitFrontmatter(repaired);
+  const pitfallKind = String(yamlMeta.kind || '').trim();
+
+  if (pitfallKind === 'format') {
+    if (!yamlMeta.id?.trim()) issues.push('版型缺少 id');
+    if (!yamlMeta.label?.trim()) issues.push('版型缺少 label');
+    if (!yamlMeta.layout_id?.trim()) issues.push('版型缺少 layout_id');
+    if (!body.trim() || !/##\s+\S/.test(body)) issues.push('版型正文須含 ## 小節內容');
+    const allIssues = [...issues, ...warnings];
+    return { ok: !issues.length, issues: allIssues, errors: issues, warnings, parsed: null };
+  }
+
+  if (pitfallKind === 'type' || pitfallKind === 'trap') {
+    if (!yamlMeta.id?.trim()) issues.push('題眼卡缺少 id');
+    if (!yamlMeta.label?.trim()) issues.push('題眼卡缺少 label');
+    const hasTrigger = (Array.isArray(yamlMeta.trigger_all) && yamlMeta.trigger_all.length)
+      || (Array.isArray(yamlMeta.trigger_any) && yamlMeta.trigger_any.length);
+    if (!hasTrigger) issues.push('題眼卡須有 trigger_all 或 trigger_any');
+    if (!body.trim() || !/##\s+\S/.test(body)) issues.push('題眼卡正文須含 ## 小節內容');
+    if (pitfallKind === 'trap' && !(yamlMeta.error_signals || []).length) {
+      warnings.push('難題題眼建議設 error_signals（答案不符時偵測用）');
+    }
+    const allIssues = [...issues, ...warnings];
+    return { ok: !issues.length, issues: allIssues, errors: issues, warnings, parsed: null };
+  }
+
+  const parsed = entryFromDatabaseMd(repaired, filename);
   const isSolutionOnly = !!parsed.meta?.solution_only || parsed.type === 'solution_only';
   if (!parsed.meta?.topic?.trim()) warnings.push('topic 為空（章節風格配對會變弱）');
   if (isSolutionOnly && parsed.meta?.style_reference !== true) {
@@ -275,11 +303,26 @@ function splitSections(body = '') {
 /** 將單一 .md 轉成程式用的 entry */
 function entryFromDatabaseMd(raw, filename = '') {
   const { meta: yamlMeta, body } = splitFrontmatter(raw);
-  const { questionText, solutionText } = splitSections(body);
+  const pitfallKind = String(yamlMeta.kind || '').trim();
+  const formatBody = pitfallKind === 'format' ? body.trim() : '';
+  const pitfallBody = (pitfallKind === 'type' || pitfallKind === 'trap') ? body.trim() : '';
+  const { questionText, solutionText } = formatBody || pitfallBody
+    ? { questionText: '', solutionText: formatBody || pitfallBody }
+    : splitSections(body);
   const id = yamlMeta.id || filename.replace(/\.md$/i, '');
-  const type = yamlMeta.type || (yamlMeta.catalog_only ? 'exam' : 'single');
+  const type = yamlMeta.type || (yamlMeta.catalog_only ? 'exam' : (pitfallKind || 'single'));
   const solutionOnly = !!yamlMeta.solution_only || type === 'solution_only';
   const meta = {
+    kind: pitfallKind || yamlMeta.kind || '',
+    label: yamlMeta.label || '',
+    layout_id: yamlMeta.layout_id || '',
+    inject: yamlMeta.inject || '',
+    priority: yamlMeta.priority != null ? yamlMeta.priority : 10,
+    trigger_all: yamlMeta.trigger_all || [],
+    trigger_any: yamlMeta.trigger_any || [],
+    suppress_if_any: yamlMeta.suppress_if_any || [],
+    inject_stage: yamlMeta.inject_stage || '',
+    error_signals: yamlMeta.error_signals || [],
     method_id: yamlMeta.method_id || 'general-chem',
     fingerprint: yamlMeta.fingerprint || [],
     core_fingerprints: yamlMeta.core_fingerprints || yamlMeta.fingerprint || [],
@@ -293,7 +336,8 @@ function entryFromDatabaseMd(raw, filename = '') {
     catalog_only: !!yamlMeta.catalog_only || type === 'exam',
     solution_only: solutionOnly
   };
-  const needsAuto = !meta.catalog_only
+  const needsAuto = !pitfallKind;
+    && !meta.catalog_only
     && (!meta.fingerprint.length || !meta.match_keywords.length || (!solutionOnly && !meta.q_numbers.length));
   if (needsAuto && typeof buildEntryMeta === 'function' && (questionText || solutionText)) {
     const auto = buildEntryMeta({
@@ -319,7 +363,7 @@ function entryFromDatabaseMd(raw, filename = '') {
     file: filename,
     type,
     subject: yamlMeta.subject || '化學',
-    topic: yamlMeta.topic || '',
+    topic: yamlMeta.topic || yamlMeta.label || '',
     qLabel: yamlMeta.q_label || yamlMeta.qLabel || '',
     match_alias: yamlMeta.match_alias || '',
     chars: questionText.length + solutionText.length,

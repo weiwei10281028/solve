@@ -3,27 +3,27 @@
  */
 
 // 1. AI 系統提示詞（步驟一：精簡主架構，無 Tier／資料庫克隆）
-const SYSTEM_CHEM = `你是台灣高中化學解題老師。使用繁體中文，面向高中生，講解精簡但要有重點。
+const SYSTEM_CHEM = `你是台灣高中化學解題老師。使用繁體中文，面向高中生。
 
 【核心原則】
 1. 先判斷題型，再決定寫法；不要把所有題目套同一模板。
-2. 只用高中課綱可接受的方法與語言；避免大學層級推導（如化學勢、配分函數、Gibbs 自由能微分式等）。
+2. 只用高中課綱可接受的方法與語言，避免大學層級推導。
 3. 僅依題目、圖片與使用者補充作答；資訊不足要明說，不猜題。
 4. 數字、反應式、結論必須依本題重算，不可套用他題答案。
 5. 計算題含等號的 $…$ 推導行：關鍵數字與因子須用 \\htmlData{note=白話短註}{…} 標在式內（規則見 User 的 [NOTE 附錄]）。
+6. 化學式、離子、算式一律完整包在 $…$ 或 $$…$$ 內；禁止裸寫 ^{}、\\text{}、\\dfrac；禁止單獨一行 $。
 
 【作答流程】
-1. 先用 1-2 句說明本題核心概念與解題方向。
-2. 再解題：
-   - 觀念判斷題：逐項說明判斷理由（每項可簡短）。
-   - 計算題：不可只報答案，至少要有「關鍵式 → 代入 → 換算/推導 → 結論」；步驟數以解題需要為準，不設硬性行數上限，但避免無意義冗長展開。
-   - 比較/倍數題（如題目給初速率為 a）：必須先定義原狀態（如 $r_0$），再明確寫出 $\\dfrac{r'}{r_0}$ 或等價比值式，最後才化為 $r'=\\lambda a$；禁止中間跳步導致式子與結果不一致。
-   - 巢狀分式（大分式分子或分母內還有分式）：內層須逐項展開、上下對稱；外層與內層分式**一律** $\\dfrac{}{}$（禁用 $\\frac{}{}$）；$\\cdot$ 前後留空；結論寫 $=\\dfrac{9}{16}\\text{，}\\quad\\text{故 }r'=\\dfrac{9}{16}a$（「故」前用**全形逗號** $\\text{，}$，禁止半形半角逗號）。
-3. 最後另起一行輸出 @@ANSWER@@，寫最終答案（選項或數值含單位）。
+- **(A)～(E) 敘述判斷／多選**：先 1～3 句點本題重點或實驗意涵，再寫「各選項分析如下：」，**(A)～(E) 逐項寫明理由或完整計算**，不可只報對錯結論。
+- **選項僅數字 1～5 且只問哪個對**：只詳解答案項，其餘省略。
+- 計算題：關鍵式 → 代入 → 推導 → 結論；比較/倍數題須先定義原狀態再寫比值式。
+- **須追蹤反應物種量**（濃度、莫耳數、平衡、解離、限量消耗等）：**先寫配平反應式**（$\\rightleftharpoons$ 或 $\\rightarrow$）；須對齊各物種起始／變化／結果 →「反應式如下：」+ array（rxn-grid）。純觀念、不涉及物種量者不必寫反應表。
+- 巢狀分式：內外層一律 $\\dfrac{}{}$；$\\cdot$ 前後留空；結論用 $\\text{，}\\quad\\text{故 }$（全形逗號）。
+- 最後另起一行輸出 @@ANSWER@@（選項或數值含單位）。
 
 【多題格式】
 - 僅在使用者明確指定多題時（如「第4、5題」），才用「第 4 題」「第 5 題」分段。
-- 單題解題：禁止出現「第1題、第2題…」當步驟標題；直接寫算式，必要時用「步驟1」或直接條列。
+- 單題解題：禁止用「第1題、第2題…」當步驟標題；直接寫算式或反應表，不必編號步驟。
 
 【風格】
 - 直接切入，不寒暄。
@@ -265,13 +265,6 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
 
     parts.push(buildScopeLockUserBlock(intent, opts));
 
-    var typeCtx = scopeSrc || questionBody || '';
-    if (typeof window.isConceptualJudgmentContext === 'function' && window.isConceptualJudgmentContext(typeCtx)) {
-        parts.push('【題型｜觀念判斷】先用 1-2 句整理核心觀念，再逐項判斷；不要硬套計算表。');
-    } else if (typeof window.needsKspPrecipitationTable === 'function' && window.needsKspPrecipitationTable(typeCtx)) {
-        parts.push('【題型｜Ksp 沉澱平衡】必要時使用表格整理起始、變化與平衡量。');
-    }
-
     if (textOnly) {
         if (!questionBody) questionBody = String(scopeInput || '').trim();
         parts.push('【題目】\n' + questionBody);
@@ -281,11 +274,11 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
             parts.push('【最高指令】僅解答題幹完整之題；缺選項或缺數據者不要猜、不要解。');
         }
         if (opts.detailed) {
-            parts.push('【詳細模式】維持精簡，但多補 1-2 步關鍵推理。');
+            parts.push('【詳細模式】多補關鍵推理步驟。');
         } else {
-            parts.push('【書寫】先說概念，再解題，最後給明確答案。');
+            parts.push('【書寫】多選題須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
         }
-        parts.push('【選擇題】觀念題逐項判斷；計算題先列式計算再對選項。');
+        parts.push('【選擇題】敘述多選須 (A)～(E) 全寫；純數字選項只詳解答案項。');
     } else if (hasImage) {
         if (scope.mode === 'partial') {
             parts.push('【最高指令】僅解答第 ' + scope.numbers.join('、') + ' 題。嚴禁解答、提及或推論其他題號。');
@@ -299,17 +292,17 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
         var sup = buildSupplementBlock(opts);
         if (sup) parts.push(sup);
         if (opts.detailed) {
-            parts.push('【詳細模式】維持精簡，但多補 1-2 步關鍵推理。');
+            parts.push('【詳細模式】多補關鍵推理步驟。');
         } else {
-            parts.push('【書寫】先說概念，再解題，最後給明確答案。');
+            parts.push('【書寫】多選題須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
         }
     } else {
-        parts.push('【書寫】先說概念，再解題，最後給明確答案。');
+        parts.push('【書寫】多選題須「各選項分析如下」逐項 (A)～(E)。');
     }
 
     var text = parts.join('\n\n');
     if (ref) {
-        text += '\n\n【參考答案】' + ref + '（用於校對；若與題目條件衝突，請先指出衝突點再給依題推導結果）';
+        text += '\n\n【參考答案】' + ref + '（老師已核對；推導須能支持此答案，@@ANSWER@@ 須與之一致；勿寫「與參考答案衝突」）';
     }
     return text;
 };
@@ -320,9 +313,9 @@ window.buildRefAnswerSystemAddon = function(refAnswer) {
     if (!ref) return '';
     return '\n\n【參考答案｜收斂目標】\n'
         + '使用者已提供參考答案：' + ref + '\n'
-        + '1. 優先依題目資料完整推導，再與參考答案核對。\n'
-        + '2. 若與參考答案一致，@@ANSWER@@ 直接給最終答案。\n'
-        + '3. 若不一致，先簡短指出衝突原因，再給依題目推導的答案。';
+        + '1. 依題目條件完整推導，推導結論須能支持參考答案。\n'
+        + '2. @@ANSWER@@ 與「故答案為」須與參考答案一致。\n'
+        + '3. 若初算與參考答案不同，重新檢查題意與假設後修正推導並對齊參考答案；禁止寫「與參考答案衝突」「原答案錯誤」。';
 };
 
 function normalizeChoiceLetters(str) {
@@ -393,11 +386,17 @@ window.checkObviousRefAnswerConflict = function(questionText, refAnswer) {
     return { conflict: false };
 };
 
-window.buildRefAnswerFixUserText = function(refAnswer, aiAnswer) {
+window.buildRefAnswerFixUserText = function(refAnswer, aiAnswer, questionCtx, aiReply) {
     var aiShown = (aiAnswer && aiAnswer.raw) ? aiAnswer.raw : '（未能解析）';
+    var q = String(questionCtx || '') + '\n' + String(aiReply || '').slice(0, 1200);
+    var weakHint = '';
+    if (/(?:弱酸|二質子|H_2A|解離度|pH|pK_1|pK_2)/.test(q)) {
+        weakHint = ' 弱酸題：α 高但 pH 低時 [H⁺] 以 pH 恒定代入，須寫兩步解離反應式（array 表），勿把 α×C 當 [H⁺]。';
+    }
     return '【答案修正】參考答案為「' + refAnswer + '」，你輸出的 @@ANSWER@@ 為「' + aiShown + '」。'
-        + '請全文重寫：推導須能支持參考答案；@@ANSWER@@ 與「故答案為」須與參考答案一致。'
-        + '禁止寫「原答案錯誤」「更正如下」等 meta 說明；直接給改正後完整詳解並保留 @@ANSWER@@。';
+        + weakHint
+        + ' 請全文重寫：推導須能支持參考答案；@@ANSWER@@ 與「故答案為」須與參考答案一致。'
+        + '禁止寫「原答案錯誤」「與參考答案衝突」等 meta 說明；直接給改正後完整詳解並保留 @@ANSWER@@。';
 };
 
 window.buildScopeSystemAddon = function(scopeInput, opts) {
@@ -535,16 +534,51 @@ function solutionNeedsStructure(body, refText) {
     return /路易斯|共振結構|結構式|分子形狀|分子\/離子形狀|八隅體|孤對電子|平面分子|畫出.*結構|鍵線|混成軌域|混成.*sp|VSEPR|角形|三角錐|四面體|直線形|具有共振|中心原子.*孤對/.test(body);
 }
 
+/** 選項是否為純數字／序號（問「哪一個數字」類） */
+window.isNumericOptionPickContext = function(text) {
+    var s = String(text || '');
+    if (/何者正確|何者錯誤|哪些敘述|下列敘述|敘述.*(?:正確|錯誤)|判斷.*(?:正確|錯誤)/.test(s)) {
+        return false;
+    }
+    if (/(?:下列|何者|哪一個).{0,20}(?:數字|數值|莫耳數|濃度|質量|體積|壓力|pH|溫度)/.test(s)
+        || /選出.{0,12}(?:數|值|答案)/.test(s)) {
+        var numOpts = (s.match(/(?:\(|（)[A-E](?:\)|）)\s*[\d.]+/g) || []).length;
+        if (numOpts >= 2) return true;
+    }
+    if (/(?:\(|（)[A-E](?:\)|）)\s*1[\s、,，]|(?:\(|（)[A-E](?:\)|）)\s*2[\s、,，]/.test(s)
+        && /(?:\(|（)[A-E](?:\)|）)\s*[345]/.test(s)) {
+        return true;
+    }
+    return false;
+};
+
+/** 是否須 (A)～(E) 逐項完整評析 */
+window.needsFullChoiceOptionAnalysis = function(text) {
+    var s = String(text || '');
+    if (window.isNumericOptionPickContext(s)) return false;
+    if (typeof window.isConceptualJudgmentContext === 'function' && window.isConceptualJudgmentContext(s)) {
+        return true;
+    }
+    return /何者正確|何者錯誤|哪些.{0,8}正確|下列敘述|多選|可選出|選出.*(?:二|三|多|個)|除.{1,30}外.*皆/.test(s);
+};
+
 /** 選擇題是否缺 (A)～(E) 評析 */
-function checkChoiceCoverage(text) {
+function checkChoiceCoverage(text, questionCtx) {
     var issues = [];
     var body = String(text || '').split('@@ANSWER@@')[0];
-    if (!/\([A-E]\)/.test(body)) return issues;
+    var qctx = String(questionCtx || '') + '\n' + body.slice(0, 1200);
+    var optCount = (body.match(/(?:^|\n)\s*\([A-E]\)/gm) || []).length;
+    if (typeof window.needsFullChoiceOptionAnalysis === 'function'
+        && !window.needsFullChoiceOptionAnalysis(qctx)
+        && !/各選項分析/.test(body) && optCount < 3) {
+        return issues;
+    }
+    if (!/\([A-E]\)/.test(body) && !/各選項分析/.test(body)) return issues;
 
     var found = {};
     'ABCDE'.split('').forEach(function(ch) {
-        if (new RegExp('^\\*\\s+\\(' + ch + '\\)', 'm').test(body)
-            || new RegExp('^\\(' + ch + '\\)', 'm').test(body)) {
+        if (new RegExp('(?:^|\\n)\\s*\\*?\\s*\\(' + ch + '\\)', 'm').test(body)
+            || new RegExp('(?:^|\\n)\\s*\\(' + ch + '\\)', 'm').test(body)) {
             found[ch] = true;
         }
     });
@@ -553,7 +587,10 @@ function checkChoiceCoverage(text) {
 
     var miss = 'ABCDE'.split('').filter(function(ch) { return !found[ch]; });
     if (miss.length >= 1) {
-        issues.push('選擇題須逐項評析 (A)～(E)，缺少：(' + miss.join(')(') + ')。');
+        issues.push('多選敘述題須逐項評析 (A)～(E)，缺少：(' + miss.join(')(') + ')；請用「各選項分析如下：」後每項獨立一行以 (A) 開頭。');
+    }
+    if (!/各選項分析/.test(body) && foundCount >= 3) {
+        issues.push('多選敘述題須先寫「各選項分析如下：」再逐項 (A)～(E)。');
     }
     return issues;
 }
@@ -630,12 +667,14 @@ function isAbstractReactionFormula(body) {
         || /\\frac\{\\s*[a-zA-Z]\s*\}\{\\s*[a-zA-Z]\s*\}.*Y_2|\\frac\{\\s*2\s*\}\{\\s*a\s*\}/.test(body);
 }
 
-/** 觀念判斷題（敘述正誤、概念比較）；與計算／Ksp 題互斥 */
+/** 觀念判斷題（純敘述正誤，不含須追蹤物種量之計算） */
 window.isConceptualJudgmentContext = function(text) {
     var s = String(text || '');
     if (/K_\{sp\}\s*=|Ksp\s*=\s*[\d.]|溶解度積\s*=\s*[\d.]/.test(s)) return false;
     if (/(?:求|試問|計算).{0,16}(?:莫耳|濃度|質量|體積|壓力|多少|若干)/.test(s) && /\d/.test(s)) return false;
     if (/混合.{0,24}(?:溶液|硝酸銀|鹽酸|Ag\+|Cl\-)/.test(s) && /\d/.test(s)) return false;
+    if (/\\(?:rightleftharpoons|rightarrow)|平衡常數|解離度|限量|反應計量|莫耳數比/.test(s) && /\d/.test(s)) return false;
+    if (/\[[^\]]+\]/.test(s) && /K\s*=|平衡/.test(s)) return false;
     return /何者正確|何者錯誤|哪些敘述|下列敘述|何者為非|何者不適|何者不恰|敘述.*(?:正確|錯誤)|判斷.*(?:正確|錯誤)|除.{1,30}外|選出.*正確/.test(s)
         || (/(?:沸騰|汽化|蒸氣壓|昇華|凝結|表面張力|依數性|氧化力|能量守恆|電子組態|光譜)/.test(s)
             && !/K_\{sp\}|溶解度積|限量試劑|莫耳數比|體積比|混合.{0,12}(?:溶液|稀釋)/.test(s));
@@ -661,6 +700,8 @@ function isMoleRatioOrEmpiricalStyle(text) {
 /** 本題脈絡是否須要求反應變化表 */
 function questionContextNeedsReactionTable(body, refText, questionCtx) {
     var combined = String(questionCtx || '') + '\n' + String(body || '') + '\n' + String(refText || '');
+    if (/\\(?:rightleftharpoons|rightarrow)|平衡常數|解離度|限量|反應計量|反應變化表|反應式如下/.test(combined)) return true;
+    if (/\[[^\]]+\]/.test(combined) && /K\s*=|平衡/.test(combined)) return true;
     if (typeof window.isConceptualJudgmentContext === 'function' && window.isConceptualJudgmentContext(combined)) {
         return false;
     }
@@ -721,7 +762,15 @@ function checkReactionTableNumericConsistency(text) {
     return issues;
 }
 
-/** 反應式如下：缺 array 或缺 \\text{起始} 等列標（不依賴 Ksp 關鍵字） */
+/** 計算 array 內列數（以 \\\\ 分隔） */
+function countArrayRows(arrayBlock) {
+    var inner = String(arrayBlock || '');
+    var m = inner.match(/\\begin\{array\}[\s\S]*?\{([\s\S]*)\}\\end\{array\}/);
+    if (!m) return 0;
+    return m[1].split('\\\\').filter(function (s) { return s.replace(/\\hline/g, '').trim().length; }).length;
+}
+
+/** 反應式如下：缺 array 或資料列不足（通用 rxn-grid） */
 function checkReactionTableRowLabels(text, refText, questionCtx) {
     var issues = [];
     var q = String(questionCtx || '') + '\n' + String(text || '').slice(0, 500);
@@ -737,17 +786,16 @@ function checkReactionTableRowLabels(text, refText, questionCtx) {
         if (/\\rightleftharpoons/.test(arrays[i])) { rxnArray = arrays[i]; break; }
     }
     if (!rxnArray) {
-        issues.push('反應式如下：須緊接單一 $$\\begin{array}…\\end{array}$$（無標籤數字列）；禁止拆成兩行裸數字。');
+        issues.push('反應式如下：須緊接單一 $$\\begin{array}…\\end{array}$$；禁止拆成多行裸數字。');
         return issues;
     }
-    if (!/\\text\{(?:起始|初)\}/.test(rxnArray)) {
-        issues.push('反應變化表須有 \\text{起始} 列標（無標籤數字列）；禁止只有 0.020、0、0.080 與 -x、+x 兩行。');
+    var rowCount = countArrayRows(rxnArray);
+    var dataRows = Math.max(0, rowCount - 1);
+    if (dataRows < 3) {
+        issues.push('反應變化表須 3～4 行對齊資料列（起始／變化／結果等）；第一欄可用 \\text{起始} 標籤或省略，但欄數須與反應式列相同。');
     }
-    var combined = body + '\n' + String(refText || '');
-    if (/Ksp|K_\{sp\}|溶解度積|AgCl|氯化銀|硝酸銀/.test(combined)
-        && /混合|稀釋|500\s*mL|鹽酸/.test(combined)
-        && !/\\text\{完全向左\}|\\text\{移至左\}/.test(rxnArray)) {
-        issues.push('AgCl 混合沉澱題變化表須四列：\\text{起始}→\\text{完全向左}→\\text{再向右}→\\text{平衡}。');
+    if (!/\\hline/.test(rxnArray) && dataRows >= 2) {
+        issues.push('反應變化表最末資料列前須加 \\hline（分離結果／平衡列）。');
     }
     return issues;
 }
@@ -772,29 +820,25 @@ function checkKspReactionTableShape(text, refText) {
     return checkReactionTableRowLabels(text, refText);
 }
 
-/** 觀念題誤套 Ksp／反應表 */
+/** 觀念題誤套 Ksp 專用表（已停用，直接通過） */
 function checkMisplacedReactionTableOnConcept(text, questionCtx) {
-    var issues = [];
-    var q = String(questionCtx || '') + '\n' + String(text || '').slice(0, 800);
-    if (typeof window.isConceptualJudgmentContext !== 'function' || !window.isConceptualJudgmentContext(q)) {
-        return issues;
-    }
-    var body = String(text || '').split('@@ANSWER@@')[0];
-    if (/\\begin\{array\}|\\text\{完全向左\}|\\text\{再向右\}|反應式如下：/.test(body)
-        && /(?:AgCl|K_\{sp\}|Ksp|完全向左|溶解平衡|沉澱平衡)/.test(body)) {
-        issues.push('觀念判斷題誤套計量／Ksp 反應表：須刪除反應變化表與「反應式如下」之 array，改「各選項分析如下：」逐項 (A)～(E)。');
-    }
-    return issues;
+    return [];
 }
 
 /** 反應變化表是否缺必要列（至少起始、變化相關、結果） */
 function checkReactionTableRequired(text, refText, questionCtx) {
     var issues = [];
     var qctx = String(questionCtx || '');
-    if (typeof window.isConceptualJudgmentContext === 'function' && window.isConceptualJudgmentContext(qctx + '\n' + text)) {
+    var combined = qctx + '\n' + String(text || '');
+    var body = String(text || '').split('@@ANSWER@@')[0];
+    if (!/\\(?:rightleftharpoons|rightarrow)/.test(body)) {
+        if (/\[[^\]]+\].*\[[^\]]+\]/.test(body) && /K\s*=|平衡常數|\\dfrac\{[^}]*\[[^\]]+\]/.test(body)) {
+            issues.push('須先寫配平反應式（$…\\rightleftharpoons…$ 或「反應式如下：」+ array）；禁止只有濃度算式沒有反應式。');
+        }
+    }
+    if (typeof window.isConceptualJudgmentContext === 'function' && window.isConceptualJudgmentContext(combined)) {
         return issues;
     }
-    var body = String(text || '').split('@@ANSWER@@')[0];
     if (!body.trim()) return issues;
 
     var hasArray = /\\begin\{array\}/.test(body);
@@ -806,12 +850,19 @@ function checkReactionTableRequired(text, refText, questionCtx) {
     var hasStartRow = /\\text\{起始\}|\\text\{初\}|\\text\{I\}|起始\s*&/.test(body);
     var hasChangeRow = /\\text\{變化\}|\\text\{變\}|\\text\{C\}|\\text\{移至左\}|\\text\{移至右\}|\\text\{完全反應\}|\\text\{完全向左\}|\\text\{再向右\}|變化\s*&/.test(body);
     var hasResultRow = /\\text\{結果\}|\\text\{E\}|\\text\{平\}|\\text\{平衡\}|結果\s*&/.test(body);
+    var arrayBlocks = body.match(/\\begin\{array\}[\s\S]*?\\end\{array\}/g) || [];
+    var rxnBlock = '';
+    for (var ai = 0; ai < arrayBlocks.length; ai++) {
+        if (/\\(?:rightleftharpoons|rightarrow)/.test(arrayBlocks[ai])) { rxnBlock = arrayBlocks[ai]; break; }
+    }
+    var dataRowCount = rxnBlock ? Math.max(0, countArrayRows(rxnBlock) - 1) : 0;
+    var gridOk = dataRowCount >= 3 && /\\hline/.test(rxnBlock);
 
-    if (hasArray && hasReaction && !hasStartRow && hasChangeRow) {
-        issues.push('反應變化表缺「起始」列：須有 \\text{起始}，中間可有多列 \\text{變化} 或 \\text{移至左} 等步驟，末列 \\text{結果}。');
+    if (hasArray && hasReaction && !gridOk && !hasStartRow && hasChangeRow) {
+        issues.push('反應變化表缺「起始」列或資料列不足：須 3～4 行對齊資料，或標 \\text{起始}／\\text{變化}／\\text{結果}。');
     }
 
-    if (hasArray && hasReaction && hasChangeRow && !hasResultRow) {
+    if (hasArray && hasReaction && hasChangeRow && !hasResultRow && !gridOk) {
         issues.push('反應變化表缺「結果」列：須寫齊 \\text{結果}；多步驟時 \\hline 放在最末資料列之前。');
     }
 
@@ -821,8 +872,8 @@ function checkReactionTableRequired(text, refText, questionCtx) {
 
     if (!needsTable && !(hasArray && hasReaction) && !optionJudgment) return issues;
 
-    if (!hasArray || !hasStartRow || !hasChangeRow || !hasResultRow) {
-        issues.push('須在「反應式如下：」後緊接完整 array（反應式＋\\text{起始}＋至少一列變化或步驟＋\\text{結果}）；須先完全反應再加平衡時，中間多加一列步驟即可。');
+    if (!hasArray || (!gridOk && (!hasStartRow || !hasChangeRow || !hasResultRow))) {
+        issues.push('須在「反應式如下：」後緊接完整 array（反應式＋3～4 行對齊資料；可用 \\text{起始}／\\text{變化}／\\text{結果} 或省略標籤）；最末資料列前加 \\hline。');
     }
     return issues;
 }
@@ -907,6 +958,12 @@ window.checkSolutionBoardStyle = function(text, refText, questionCtx) {
     if (/\\dfrac\{[^}]*\\dfrac/.test(body) && /\\frac\{/.test(body.split('@@ANSWER@@')[0])) {
         issues.push('巢狀分式內層須全用 \\dfrac，禁止混用 \\frac。');
     }
+    issues = issues.concat(checkReactionTableRequired(body, refText, questionCtx));
+    issues = issues.concat(checkReactionTableRowLabels(body, refText, questionCtx));
+    issues = issues.concat(checkReactionTableNumericConsistency(body));
+    issues = issues.concat(checkMisplacedReactionTableOnConcept(body, questionCtx));
+    issues = issues.concat(checkBareChemicalFormulas(body));
+    issues = issues.concat(checkChoiceCoverage(body, questionCtx));
     return issues;
 };
 
@@ -935,6 +992,26 @@ window.buildBoardStyleFixUserText = function(issues) {
     }
     if (/巢狀分式內層須全用/.test(list)) {
         return '【修正｜分式】巢狀分式外層與內層一律改 \\dfrac；$\\cdot$ 前後留空。其餘推導不變，保留 @@ANSWER@@。';
+    }
+    if (/多選敘述題須逐項評析|各選項分析如下/.test(list)) {
+        return '【修正｜選項排版】' + list
+            + '\n請依題複雜度開場，再寫「各選項分析如下：」。'
+            + '每項獨立一行，行首 (A)～(E)；最後「故答案為 …」並保留 @@ANSWER@@。';
+    }
+    if (/須先寫配平反應式/.test(list)) {
+        return '【修正｜反應式】' + list
+            + '\n開場或推導前須寫配平反應式（行內 $A+B\\rightleftharpoons C$ 或「反應式如下：」+ array）。'
+            + '其餘推導與 @@ANSWER@@ 不變。';
+    }
+    if (/反應變化表|反應式如下|須在「反應式如下」|3～4 行對齊|推導須追蹤反應物種量/.test(list)) {
+        var gridHint = (typeof window.BoardFormats !== 'undefined' && window.BoardFormats.getRxnGridFormatSpec)
+            ? window.BoardFormats.getRxnGridFormatSpec()
+            : '';
+        return '【修正｜反應表｜rxn-grid】' + list
+            + '\n請補「反應式如下：」後接單一 $$\\begin{array}…\\end{array}$$：'
+            + '第 1 列配平反應式；第 2～4 列對齊起始／變化／結果（欄數與反應式相同）；最末資料列前 \\hline。'
+            + (gridHint ? '\n\n' + gridHint : '')
+            + '\n數值依題重算，保留 @@ANSWER@@。';
     }
     return '【修正】' + list + ' 請用更自然、精簡的高中化學講解重寫；保留正確推導並在最後加入 @@ANSWER@@。';
 };

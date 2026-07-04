@@ -322,7 +322,43 @@ async function ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, r
     return reply;
   }
   if (window.answersMatch(reply, refAnswer)) return reply;
-  console.warn('[參考答案] 與推導不一致，保留依題推導結果');
+
+  const fixCount = Number(genOpts._refAnswerFixed) || 0;
+  const maxFix = 1;
+  if (fixCount >= maxFix) {
+    console.warn('[參考答案] 已重試仍不一致');
+    return reply;
+  }
+
+  console.warn('[參考答案] 與推導不一致，依參考答案重寫');
+  const aiAnswer = typeof window.extractAnswerFromReply === 'function'
+    ? window.extractAnswerFromReply(reply)
+    : { raw: '' };
+  const questionCtx = String(genOpts.questionCtx || '');
+  let fixUserText = typeof window.buildRefAnswerFixUserText === 'function'
+    ? window.buildRefAnswerFixUserText(refAnswer, aiAnswer, questionCtx, reply)
+    : '';
+  const fixMessages = [
+    ...apiMessages,
+    { role: 'assistant', content: reply },
+    { role: 'user', content: fixUserText }
+  ];
+  try {
+    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
+      ...genOpts,
+      maxContinue: 0,
+      temperature: 0.3,
+      _refAnswerFixed: fixCount + 1
+    });
+    if (fixed) {
+      if (!window.answersMatch(fixed, refAnswer)) {
+        console.warn('[參考答案] 重寫後 @@ANSWER@@ 仍不一致');
+      }
+      return fixed;
+    }
+  } catch (err) {
+    console.warn('[參考答案] 重寫失敗', err);
+  }
   return reply;
 }
 
@@ -506,6 +542,13 @@ async function startSolve() {
         } catch (err) {
           console.warn('自動配對辨識失敗', err);
         }
+      } else if (typeof extractImageMatchHints === 'function' && isDatabaseEnabled()) {
+        try {
+          const urls = imgDataURLs.map(item => item.dataUrl);
+          autoHints = await extractImageMatchHints(cfg, urls, '');
+        } catch (err) {
+          console.warn('題眼關鍵字辨識失敗', err);
+        }
       }
       matchInput = [textQuestion, autoHints].filter(Boolean).join(' ').trim();
       lastMatchInput = matchInput;
@@ -553,7 +596,10 @@ async function startSolve() {
         match: dbMatch
       })
       : '';
-    const fullUserText = userText + dbUserBlock + noteUserBlock;
+    const boardFormatBlock = typeof window.BoardFormats !== 'undefined' && window.BoardFormats.buildBoardFormatUserBlock
+      ? window.BoardFormats.buildBoardFormatUserBlock()
+      : '';
+    const fullUserText = userText + dbUserBlock + boardFormatBlock + noteUserBlock;
     const systemText = await getSystemPromptForSolve(matchInput, solveOpts);
 
     if (textOnly) {
@@ -599,8 +645,10 @@ async function startSolve() {
       const qctx = typeof getLastMatchInput === 'function' ? getLastMatchInput() : '';
       reply = repairKspAgClReactionTables(reply, qctx);
     }
+    const qctxSolve = scopeInput || matchInput || textQuestion || autoHints;
     reply = await ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
       refAnswerSkipped: solveOpts.refAnswerSkipped,
+      questionCtx: qctxSolve,
       temperature: 0.25,
       maxOutputTokens: 8192,
       timeoutMs: 90000

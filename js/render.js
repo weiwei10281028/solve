@@ -96,7 +96,19 @@ function repairUnclosedInlineMath(text) {
     let s = line;
     s = s.replace(/(?<!\$)\$\$(?!\$)/g, '');
     const singles = s.match(/(?<!\\)\$/g);
-    if (singles && singles.length % 2 === 1) s += '$';
+    if (!singles || singles.length % 2 === 0) return s;
+    const idx = s.lastIndexOf('$');
+    const tail = s.slice(idx + 1);
+    if (/[\u4e00-\u9fff]/.test(tail)) {
+      const m = tail.match(/^([^\u4e00-\u9fff]*(?:\\[a-zA-Z]+(?:\{[^{}]*\})*(?:\{[^{}]*\})?|[\^_{}\[\]0-9A-Za-z.+\-=\\]+)*)/);
+      if (m && m[1] && /[\^_{}\\]|\\[a-zA-Z]/.test(m[1])) {
+        s = `${s.slice(0, idx)}$${m[1]}$${tail.slice(m[1].length)}`;
+      } else {
+        s = s.slice(0, idx) + tail;
+      }
+    } else {
+      s += '$';
+    }
     return s;
   }).join('\n');
 }
@@ -119,23 +131,31 @@ function chemDigitsToSubscripts(formula) {
 function wrapBareChemicalFormulas(text) {
   let s = normalizeUnicodeChemSubscripts(text);
   const CHEM_RE = /(?<![$\w\\/])([A-Z][a-z]?(?:(?:_\{?\d+\}?)|\d+)+(?:[A-Z][a-z]?(?:(?:_\{?\d+\}?)|\d+)*)*)(?![A-Za-z])/g;
+  const ionRe = /(?<![A-Za-z$\\])(\[[A-Za-z]+\^[\{]?[0-9+\-]+[\}]?\](?:_\{?[A-Za-z0-9\u4e00-\u9fff]+\}?|_[\u4e00-\u9fff])?|[A-Z][a-z]?\^\{?[0-9+\-]+\}?)(?![A-Za-z])/g;
   return s.split('\n').map((line) => {
     if (/^\s*\$\$/.test(line.trim())) return line;
-    return line.replace(CHEM_RE, (m, formula, off) => {
+    let out = line.replace(CHEM_RE, (m, formula, off) => {
       if (isInsideDollarMath(line, off)) return m;
       if (/^(Kp|Kc|ICE|Pa|atm|mol|K)$/i.test(formula)) return m;
       const inner = /_\{?\d/.test(formula) ? formula : chemDigitsToSubscripts(formula);
       return `$\\text{${inner}}$`;
     });
+    out = out.replace(ionRe, (m, ion, off) => {
+      if (isInsideDollarMath(out, off)) return m;
+      return `$${m}$`;
+    });
+    return out;
   }).join('\n');
 }
 
 /** 裸寫 \\text{…}、\\mathrm{…}（含上下標）包進 $…$ */
 function repairBareTextMacros(text) {
-  return String(text || '').replace(
+  const eqSpanRe = /\\(?:text|mathrm)\{[^}]+\}(?:\s*[hH_][0-9]+|\s*_\{?[A-Za-z0-9]+\}?)?\s*[=≈]\s*\\(?:text|mathrm)\{[^}]+\}(?:\s*[hH_][0-9]+|\s*_\{?[A-Za-z0-9]+\}?)?/g;
+  let s = String(text || '').replace(eqSpanRe, (m, off) => (isInsideDollarMath(text, off) ? m : `$${m}$`));
+  return s.replace(
     /(?<!\$)\\(?:text|mathrm)\{([^{}]+)\}((?:_\{?[^{}$]+\}?|\^\{?[^{}$]+\}?)*)/g,
     (m, inner, tail, off) => {
-      if (isInsideDollarMath(text, off)) return m;
+      if (isInsideDollarMath(s, off)) return m;
       const macro = m.includes('\\mathrm') ? 'mathrm' : 'text';
       return `$\\${macro}{${inner}}${tail || ''}$`;
     }
@@ -156,6 +176,14 @@ function wrapBareLatexSnippets(text) {
       return `$${expr.trim()}$`;
     });
     s = s.replace(/(?<!\$)(\d(?:\\text\{[spdf]\}\^?\{?\d+\}?)+)(?!\$)/gi, (m, expr, off) => {
+      if (isInsideDollarMath(s, off)) return m;
+      return `$${expr}$`;
+    });
+    s = s.replace(/(?<!\$)(\\(?:dfrac|frac)\{[^{}]+\}\{[^{}]+\}(?:\s*\\times\s*\\(?:dfrac|frac)\{[^{}]+\}\{[^{}]+\})+)(?!\$)/g, (m, expr, off) => {
+      if (isInsideDollarMath(s, off)) return m;
+      return `$${expr}$`;
+    });
+    s = s.replace(/(?<!\$)(\[[A-Za-z]+\^[\{]?[0-9+\-]+[\}]?\]_\{?[A-Za-z0-9]+\}?\s*=\s*[\d.]+\s*\\times\s*\\(?:dfrac|frac)\{[^{}]+\}\{[^{}]+\}\s*=\s*[\d.]+)(?!\$)/g, (m, expr, off) => {
       if (isInsideDollarMath(s, off)) return m;
       return `$${expr}$`;
     });
@@ -259,6 +287,10 @@ function wrapSingleOrphanLatexLines(text) {
     const t = line.trim();
     if (!t || /\$/.test(t)) return line;
     if (/^\\(?:text|mathrm|dfrac|frac|Rightarrow)\{/.test(t) || /^\\Rightarrow\s*$/.test(t)) {
+      return `$${t}$`;
+    }
+    if (/^(?:\\[a-zA-Z]+|[\[\]A-Za-z0-9+\-()=\\^_.,\s]+)$/.test(t)
+        && (/\\(?:dfrac|frac|times|rightleftharpoons|text|mathrm)/.test(t) || /[\^_{}\[\]]/.test(t))) {
       return `$${t}$`;
     }
     return line;
@@ -429,6 +461,11 @@ function repairOrphanDollarLines(text) {
         }
         if (/^\$[^$]+\$$/.test(inner) || /^\$\$[\s\S]+\$\$$/.test(inner)) {
           merged.push(lines[i + 1]);
+          i += 1;
+          continue;
+        }
+        if (inner && /\\[a-zA-Z]|[\^_{}\[\]=+\-]/.test(inner) && close !== '$' && close !== '$$') {
+          merged.push(t === '$$' ? `$$${inner}$$` : `$${inner}$`);
           i += 1;
           continue;
         }
@@ -872,6 +909,8 @@ function lineHasLeakedLatex(el) {
       const t = node.textContent || '';
       if (/\\(?:text|mathrm)\{/.test(t)) return true;
       if (/(?<!\$)\d\\text\{[spdf]\}/i.test(t)) return true;
+      if (/\\(?:dfrac|frac)\{/.test(t)) return true;
+      if (/[A-Za-z]\^\{?[0-9+\-]+\}?/.test(t)) return true;
       return false;
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -997,7 +1036,7 @@ function hideKatexErrors(root) {
   });
 }
 
-const LEAKED_LATEX_SNIPPET_RE = /\\(?:text|mathrm)\{[^{}]+\}(?:_\{?[^{}$]+\}?|\^\{?[^{}$]+\}?)*|\d(?:\\text\{[spdf]\}\^?\{?\d+\}?)+/gi;
+const LEAKED_LATEX_SNIPPET_RE = /\\(?:text|mathrm)\{[^{}]+\}(?:_\{?[^{}$]+\}?|\^\{?[^{}$]+\}?)*(?:\s*[hH_0-9]+\s*[=≈]\s*\\(?:text|mathrm)\{[^{}]+\}(?:\s*[hH_0-9]+)?)?|\\(?:dfrac|frac)\{[^{}]+\}\{[^{}]+\}(?:\s*\\times\s*\\(?:dfrac|frac)\{[^{}]+\}\{[^{}]+\})*|\[[A-Za-z]+\^[\{]?[0-9+\-]+[\}]?\](?:_\{?[A-Za-z0-9\u4e00-\u9fff]+\}?|_[\u4e00-\u9fff])?|[A-Z][a-z]?\^\{?[0-9+\-]+\}?|\d(?:\\text\{[spdf]\}\^?\{?\d+\}?)+/gi;
 
 function recoverLeakedLatexInDom(root) {
   if (!root) return;
