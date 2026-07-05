@@ -10,11 +10,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <link rel="stylesheet" href="css/app.css?v=20250701i">
+  <link rel="stylesheet" href="css/app.css?v=20250705a">
   <link rel="stylesheet" href="css/board.css?v=20250702f">
-  <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250703d">
+  <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250704a">
   <link rel="stylesheet" href="css/plain-choice-options.css?v=20250630a">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250702c">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250704a">
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
   <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
   <link rel="stylesheet" href="css/structure-layout.css?v=20250628a">
@@ -57,6 +57,7 @@
 
     <div class="preview-wrap" id="prevWrap">
       <button type="button" class="preview-remove-btn" id="previewRemove0" onclick="removeImage(0)" title="移除此圖" aria-label="移除第 1 張圖片" hidden>×</button>
+      <button type="button" class="preview-download-btn" id="previewDownload0" onclick="downloadImage(0)" title="下載原圖" aria-label="下載第 1 張圖片" hidden>↓</button>
       <button type="button" class="preview-btn" id="previewBtn" onclick="openLightbox(0)" title="點擊放大">
         <img class="preview-img" id="prevImg" src="" alt="題目預覽">
         <span class="preview-zoom-hint">點擊放大</span>
@@ -66,6 +67,7 @@
 
     <div class="preview-wrap" id="prevWrap2">
       <button type="button" class="preview-remove-btn" id="previewRemove1" onclick="removeImage(1)" title="移除此圖" aria-label="移除第 2 張圖片" hidden>×</button>
+      <button type="button" class="preview-download-btn" id="previewDownload1" onclick="downloadImage(1)" title="下載原圖" aria-label="下載第 2 張圖片" hidden>↓</button>
       <button type="button" class="preview-btn" id="previewBtn2" onclick="openLightbox(1)" title="點擊放大">
         <img class="preview-img" id="prevImg2" src="" alt="題目預覽（圖 2）">
         <span class="preview-zoom-hint">點擊放大</span>
@@ -81,8 +83,24 @@
 
     <div class="field-group">
       <label class="field-label" for="answerInput">參考答案（選填）</label>
-      <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、2.42、0.33 mol…" autocomplete="off">
-      <p class="field-hint">填入正確選項或數值後，詳解將以此為準撰寫並檢核</p>
+      <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off">
+      <p class="field-hint">建議填寫。單題寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>（第3題選A、第5題選C與D），詳解將依此檢核</p>
+    </div>
+
+    <div class="solve-options">
+      <div class="option-toggle-row">
+      <label class="option-toggle" for="stoichiometryToggle">
+        <input type="checkbox" id="stoichiometryToggle">
+        <span class="option-toggle-ui" aria-hidden="true"></span>
+        <span class="option-toggle-label">化學反應方程式表達</span>
+      </label>
+      <label class="option-toggle" for="calcCompactToggle">
+        <input type="checkbox" id="calcCompactToggle">
+        <span class="option-toggle-ui" aria-hidden="true"></span>
+        <span class="option-toggle-label">計算精簡</span>
+      </label>
+      </div>
+      <p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p>
     </div>
 
     <div class="action-row">
@@ -163,34 +181,36 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <div class="img-lightbox" id="imgLightbox" onclick="closeLightbox(event)" hidden>
+  <button type="button" class="lightbox-download-btn" onclick="downloadLightboxImage(event)" title="下載原圖">下載原圖</button>
   <img class="lightbox-img" id="lightboxImg" src="" alt="題目放大">
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <script src="js/database-bundle.js"></script>
-<script src="js/db-parse.js?v=20250703b"></script>
+<script src="js/db-parse.js?v=20250705a"></script>
 <script src="js/board-formats.js?v=20250703d"></script>
 <script src="js/db-meta.js?v=20250702r"></script>
-<script src="js/db-rules.js?v=20250702i"></script>
-<script src="js/database.js?v=20250702v"></script>
-<script src="js/prompts.js?v=20250704f"></script>
-<script src="js/plain-reaction-table.js?v=20250704f"></script>
+<script src="js/db-rules.js?v=20250704d"></script>
+<script src="js/database.js?v=20250705b"></script>
+<script src="js/prompt-compose.js?v=20250705d"></script>
+<script src="js/prompts.js?v=20250705h"></script>
+<script src="js/plain-reaction-table.js?v=20250705c"></script>
 <script src="js/plain-choice-options.js?v=20250630a"></script>
-<script src="js/math-note/math-note.js?v=20250626b"></script>
-<script src="js/math-note/note-rules.js?v=20250702h"></script>
+<script src="js/math-note/math-note.js?v=20250705b"></script>
+<script src="js/math-note/note-rules.js?v=20250705a"></script>
 <script src="js/math-note/note-presets.js?v=20250627c"></script>
 <script src="js/math-note/note-block.js?v=20250627c"></script>
-<script src="js/math-note/note-check.js?v=20250702a"></script>
-<script src="js/math-note/note-ensure.js?v=20250702e"></script>
-<script src="js/structures-bundle.js?v=20250628j"></script>
-<script src="js/mol-resolver.js?v=20250628j"></script>
-<script src="js/molfile-draw.js?v=20250628j"></script>
+<script src="js/math-note/note-check.js?v=20250705a"></script>
+<script src="js/math-note/note-ensure.js?v=20250705b"></script>
+<script src="js/structures-bundle.js?v=20250704a"></script>
+<script src="js/mol-resolver.js?v=20250704b"></script>
+<script src="js/molfile-draw.js?v=20250704a"></script>
 <script src="js/structure-layout.js?v=20250628a"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
 <script src="js/smiles-draw.js?v=20250628h"></script>
-<script src="js/render.js?v=20250704a"></script>
+<script src="js/render.js?v=20250705p4b"></script>
 <script src="js/api.js?v=20250627j"></script>
-<script src="js/app.js?v=20250703d"></script>
+<script src="js/app.js?v=20250705b"></script>
 </body>
 </html>
