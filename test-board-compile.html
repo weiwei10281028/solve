@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="utf-8"><title>BoardDoc Phase 3</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/plain-choice-options.css">
+<link rel="stylesheet" href="css/math-note/math-note.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="js/plain-reaction-table.js"></script>
+<script src="js/plain-choice-options.js"></script>
+<script src="js/math-note/math-note.js"></script>
+<script src="js/render.js"></script>
+</head><body style="padding:1rem;background:#FAF7F2">
+<div id="box"></div>
+<script>
+const sample = `@@BOARD@@
+{
+  "version": 1,
+  "blocks": [
+    { "type": "section", "title": "詳解" },
+    {
+      "type": "paragraph",
+      "parts": [{ "kind": "text", "text": "各選項分析如下：" }]
+    },
+    {
+      "type": "choice-group",
+      "items": [
+        {
+          "letter": "A",
+          "parts": [
+            { "kind": "text", "text": "依題意，" },
+            { "kind": "math", "latex": "K>1" },
+            { "kind": "text", "text": "，敘述正確。" }
+          ]
+        },
+        {
+          "letter": "B",
+          "parts": [{ "kind": "text", "text": "與事實不符，敘述錯誤。" }]
+        }
+      ]
+    },
+    {
+      "type": "math",
+      "display": true,
+      "latex": "c = \\\\dfrac{m}{M \\\\cdot V}"
+    }
+  ],
+  "answer": {
+    "parts": [{ "kind": "math", "latex": "2.0\\\\times10^{-4}" }],
+    "unit": "M"
+  }
+}
+@@END@@
+@@ANSWER@@ 2.0×10⁻⁴ M`;
+
+const parsed = parseBoard(sample);
+const v = validateBoardDoc(parsed.doc);
+const html = v.ok ? renderBoard(parsed.doc) : ('FAIL: ' + v.errors.join('; '));
+document.getElementById('box').innerHTML = html;
+if (v.ok) doKaTeX(document.getElementById('box'));
+console.log('choice-group compile:', compileBoardBody(parsed.doc).includes('(A)'));
+</script></body></html>

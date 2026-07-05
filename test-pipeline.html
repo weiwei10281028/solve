@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title id="t">x</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="js/plain-reaction-table.js"></script>
+<script src="js/plain-choice-options.js"></script>
+<script src="js/math-note/math-note.js"></script>
+<script src="js/render.js"></script>
+</head><body><div id="box"></div>
+<script>
+const broken = '$$K_c = \\dfrac{[Cu^{2+}]}{[Cu^+]^2} = \\dfrac{0.2-x}{(2x)^2 = 2 \\times 10^7$$';
+const sample = '由平衡常數 $K_c$ 的定義，代入平衡濃度：\n' + broken + '\n因 $K_c$ 極大\n@@ANSWER@@ $1.0 \\times 10^{-4}$ M';
+document.getElementById('box').innerHTML = render(sample);
+doKaTeX(document.getElementById('box'));
+function walk(n) {
+  if (n.nodeType === 3) return n.textContent || '';
+  if (n.nodeType === 1 && n.classList && n.classList.contains('katex')) return '';
+  let s = '';
+  for (const c of n.childNodes) s += walk(c);
+  return s;
+}
+const plain = walk(document.getElementById('box'));
+document.getElementById('t').textContent = 'raw$$=' + plain.includes('$$') + ',rawDfrac=' + /\\dfrac\{/.test(plain) + ',disp=' + !!document.querySelector('.katex-display');
+</script></body></html>
