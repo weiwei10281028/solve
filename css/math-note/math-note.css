@@ -1,0 +1,179 @@
+/**
+ * css/math-note/math-note.css — 數學 NOTE 互動樣式
+ */
+
+.math-note,
+.katex .math-note,
+.katex [data-note],
+.katex [note] {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: box-shadow .15s, background-color .15s;
+  pointer-events: auto;
+  overflow: visible;
+}
+
+/* 單一數值／符號 NOTE：對稱 padding 畫框（比 ::before 可靠、可調大小） */
+.katex :is(.math-note, [data-note], [note]):not(.math-note--whole):not(.math-note--frac-part):not([data-note-scope="whole"]) {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+  line-height: 1;
+  padding: 0.096em 0.12em;
+  margin: 0 0.02em;
+  background: rgba(184, 112, 42, 0.08);
+  border-radius: 4px;
+  border: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.katex .mfrac.math-note {
+  cursor: pointer;
+}
+
+.katex .math-note--sci {
+  white-space: nowrap;
+  display: inline-block;
+  position: relative;
+  padding: 0.096em 0.12em;
+  margin: 0 0.02em;
+  letter-spacing: 0;
+  vertical-align: baseline;
+  line-height: 1;
+  pointer-events: auto;
+  background: rgba(184, 112, 42, 0.08);
+  border-radius: 4px;
+  border: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.katex .math-note--sci * {
+  pointer-events: none;
+}
+
+.katex .math-note--sci .mord,
+.katex .math-note--sci .mbin,
+.katex .math-note--sci .msupsub {
+  margin: 0;
+  padding: 0;
+}
+
+.katex .math-note--frac-part,
+.katex .mfrac .math-note,
+.katex .mfrac [data-note],
+.katex .mfrac [note] {
+  display: inline-block;
+  position: relative;
+  white-space: nowrap;
+  pointer-events: auto;
+  vertical-align: middle;
+  padding: 0 0.1em !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  z-index: 1;
+  border: none;
+  background: rgba(184, 112, 42, 0.08);
+  border-radius: 3px;
+}
+
+/* 巢狀分式內 NOTE：縮小上下 padding，避免反白把內容推向中線 */
+.katex .mfrac-has-nested .math-note--frac-part,
+.katex .mfrac-has-nested .mfrac .math-note:not(.math-note--whole),
+.katex .mfrac-has-nested .mfrac [data-note]:not(.math-note--whole):not([data-note-scope="whole"]) {
+  padding: 0 0.04em !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  vertical-align: baseline;
+  z-index: 1;
+}
+
+/* 外層分子內巢狀分式之分母 NOTE：勿用 middle，避免分母數字脫離內層分式線 */
+.katex .mfrac-inner-in-num .math-note--frac-part,
+.katex .mfrac-inner-in-num [data-note]:not(.math-note--whole):not([data-note-scope="whole"]) {
+  vertical-align: baseline;
+}
+
+/* 分式中線永遠在 NOTE 反白之上 */
+.katex .mfrac .frac-line {
+  position: relative;
+  z-index: 5;
+}
+
+.katex .math-note--whole:has(.mfrac),
+.katex [data-note].math-note--whole:has(.mfrac) {
+  padding: 0.072em 0.12em !important;
+  line-height: 1 !important;
+  vertical-align: baseline;
+}
+
+.katex [data-note].math-note--whole,
+.katex .math-note--whole,
+.katex [data-note][data-note-scope="whole"] {
+  display: inline-block !important;
+  position: relative;
+  background: rgba(184, 112, 42, 0.14) !important;
+  border: none !important;
+  border-radius: 5px;
+  padding: 0.096em 0.168em !important;
+  margin: 0 0.04em !important;
+  vertical-align: baseline;
+  line-height: 1;
+  white-space: nowrap;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.katex [data-note].math-note--whole *,
+.katex .math-note--whole * {
+  pointer-events: none;
+}
+
+.katex .mfrac > [data-note]:has(.mfrac):not(.math-note--whole):not([data-note-scope="whole"]),
+.katex [data-note]:has(> .mfrac):not(.math-note--whole):not([data-note-scope="whole"]) {
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+.board-line-inner.can-pan .math-note,
+.board-line-inner.can-pan [data-note] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.katex :is(.math-note, [data-note], [note]).active:not(.math-note--whole):not(.math-note--frac-part),
+.katex .math-note--sci.active,
+.math-note.active {
+  background: #F5E6C8;
+  color: inherit;
+  box-shadow: 0 0 0 1.5px var(--copper, #A67C52);
+}
+
+.math-note--whole.active,
+.katex .math-note--whole.active,
+.katex [data-note].math-note--whole.active {
+  background: #F5E6C8 !important;
+  color: #6B4E2A;
+  box-shadow: 0 0 0 1.5px var(--copper, #A67C52);
+}
+
+.math-note-popover {
+  position: fixed;
+  display: none;
+  z-index: 9999;
+  max-width: min(280px, calc(100vw - 32px));
+  background: var(--ink, rgba(42, 37, 32, 0.95));
+  color: #F5F1EB;
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  box-shadow: 0 8px 24px rgba(42, 37, 32, .2);
+  pointer-events: none;
+}
+
+.math-note-popover.show {
+  display: block;
+}

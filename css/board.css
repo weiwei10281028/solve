@@ -1,0 +1,383 @@
+/* ── board.css：詳解板書區排版 ── */
+
+@font-face {
+  font-family: 'BoardKaTeXMath';
+  src: url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2') format('woff2');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+.board,
+.board-reply {
+  font-family: 'Noto Sans TC', sans-serif;
+}
+
+/* 純文字英文字母：與正文同字重，避免過細斜體 */
+.board-latin {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-style: normal;
+  font-weight: inherit;
+  font-size: 1em;
+  line-height: inherit;
+  vertical-align: baseline;
+  display: inline;
+  padding: 0;
+  margin-inline: 0.04em;
+  letter-spacing: 0;
+  font-synthesis: none;
+}
+
+/* 選項標籤 (A)～(E)：維持原字型 */
+.ai-plain .choice-label {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* KaTeX：變數用數學斜體；數字/符號維持同深度 */
+.board .ai-plain .katex :is(.mathnormal, .mord.mathnormal, .mord.mathrm, .mathrm),
+.board-reply .ai-plain .katex :is(.mathnormal, .mord.mathnormal, .mord.mathrm, .mathrm) {
+  font-family: BoardKaTeXMath, KaTeX_Math, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.board .ai-plain .katex .mord.text,
+.board-reply .ai-plain .katex .mord.text {
+  font-family: 'Noto Sans TC', KaTeX_Main, sans-serif;
+  font-style: normal;
+}
+
+.board {
+  --board-bg: #FDF9F0;
+  background: var(--board-bg);
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #2A2520;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.board-scroll {
+  padding: 16px 14px;
+  max-height: none;
+  overflow-y: visible;
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* 正文：左對齊、固定行間格 */
+.board-scroll .ai-plain,
+.ai-plain {
+  --plain-line-gap: 12px;
+  --plain-line-gap-frac: 16px;
+  line-height: 1.75;
+  color: #2A2520;
+  text-align: left;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+/* 題號／核心觀念區塊 */
+.solve-section {
+  margin: 0.65em 0 0.45em;
+}
+
+.solve-section:first-child {
+  margin-top: 0;
+}
+
+.solve-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #3D5C48;
+  padding: 9px 12px;
+  background: #EEF4EF;
+  border-radius: 8px;
+  border-left: 3px solid #3D5C48;
+  line-height: 1.5;
+}
+
+.ai-plain .plain-line {
+  display: flow-root;
+  margin-top: var(--plain-line-gap);
+  margin-bottom: 0;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.ai-plain > .plain-line:first-child {
+  margin-top: 0;
+}
+
+.ai-plain .plain-line--step {
+  margin-top: var(--plain-line-gap);
+  margin-bottom: 0;
+}
+
+.ai-plain .plain-line--step:first-child {
+  margin-top: 0;
+}
+
+.ai-plain .plain-line--empty {
+  margin-top: 0;
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.ai-plain .plain-line--step .plain-line-inner {
+  padding: 6px 0 6px 12px;
+  border-left: 2px solid #DDD4C8;
+}
+
+.ai-plain .plain-line-inner {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: visible;
+  max-height: none;
+}
+
+/* 含算式：行高隨內容撐開；橫向溢出由 xwrap 方塊承接 */
+.ai-plain .plain-line-inner:has(.katex, .math-block, .math-unit-tail, .plain-katex-nowrap) {
+  overflow-wrap: normal;
+  word-break: normal;
+  overflow: visible;
+  max-width: 100%;
+  max-height: none;
+  padding-bottom: 0;
+  line-height: inherit;
+}
+
+.ai-plain .plain-line-inner:has(.katex, .math-block) .katex {
+  line-height: inherit;
+  vertical-align: middle;
+}
+
+.ai-plain .plain-line--has-frac {
+  margin-top: var(--plain-line-gap-frac);
+}
+
+.ai-plain > .plain-line:first-child.plain-line--has-frac {
+  margin-top: 0;
+}
+
+.ai-plain .plain-line-inner.plain-line-inner--xscroll {
+  padding-bottom: 0;
+}
+
+.ai-plain .plain-line-xwrap {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ai-plain .plain-line-xwrap:not(.plain-line-xwrap--scroll) {
+  overflow: visible;
+}
+
+.ai-plain .plain-line-xwrap--scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 10px;
+  margin-bottom: 2px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce #e8eaed;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+  isolation: isolate;
+}
+
+/* 量測用：單行不換行後比對實際寬度（與 --scroll 同邏輯） */
+.ai-plain .plain-line-xcontent--measure {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: top;
+  width: max-content;
+  max-width: none;
+}
+
+.ai-plain .plain-line-xcontent {
+  display: block;
+  min-width: min-content;
+  overflow: visible;
+}
+
+.ai-plain .plain-line-xwrap--scroll .plain-line-xcontent {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
+  background: #e8eaed;
+  border-radius: 4px;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
+  background: #c5c9ce;
+  border-radius: 4px;
+}
+
+.ai-plain .plain-line-inner:has(.katex-display) {
+  padding: 0.2em 0 0.35em;
+}
+
+.ai-plain .katex-display {
+  margin: 0.15em 0 0.35em;
+  text-align: left;
+}
+
+.ai-plain .katex-display > .katex {
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* cases 大括號：靠左對齊，避免整塊被 KaTeX 預設置中 */
+.board-scroll .katex-display,
+.board-scroll .katex-display > .katex {
+  text-align: left;
+}
+
+.board-scroll .katex-display > .katex {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.ai-plain .plain-line-xcontent .katex-display,
+.ai-plain .plain-line-xcontent .katex-display > .katex {
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* 舊版 hscroll 類別保留相容，但不再設 overflow */
+.ai-plain .plain-line-inner.plain-line--hscroll,
+.ai-plain .choice-body.plain-line--hscroll {
+  overflow: visible;
+  white-space: normal;
+  max-height: none;
+}
+
+/* KaTeX：與中文同字級；行內式垂直置中對齊正文 */
+.board-scroll .katex,
+.ai-plain .katex,
+.board-reply .katex {
+  font-size: 1em;
+  line-height: inherit;
+  vertical-align: middle;
+  overflow: visible;
+  color: inherit;
+}
+
+/* 行內算式與中文保留呼吸空間，避免貼字 */
+.ai-plain .plain-line-inner > .katex,
+.ai-plain .plain-line-inner > .plain-katex-nowrap,
+.ai-plain .plain-line-inner > .math-unit-tail,
+.ai-plain .choice-step .plain-line-inner > .katex,
+.ai-plain .choice-step .plain-line-inner > .plain-katex-nowrap,
+.ai-plain .choice-step .plain-line-inner > .math-unit-tail {
+  margin-inline: 0.12em;
+}
+
+.board-scroll .katex .katex-html,
+.ai-plain .katex .katex-html,
+.board-reply .katex .katex-html {
+  overflow: visible;
+}
+
+.board-scroll .katex .msupsub,
+.ai-plain .katex .msupsub,
+.board-reply .katex .msupsub {
+  overflow: visible;
+  text-align: left;
+}
+
+.board-scroll .katex .msupsub > .vlist-t,
+.ai-plain .katex .msupsub > .vlist-t,
+.board-reply .katex .msupsub > .vlist-t {
+  font-size: 1.08em;
+}
+
+.board-scroll .katex .msupsub .vlist-t,
+.ai-plain .katex .msupsub .vlist-t,
+.board-reply .katex .msupsub .vlist-t {
+  overflow: visible;
+}
+
+/* 等號：與中文同字型同字重，避免 KaTeX 細體發淡 */
+.board-scroll .katex .mrel,
+.ai-plain .katex .mrel,
+.board-reply .katex .mrel {
+  font-family: KaTeX_Main, 'Segoe UI Symbol', serif;
+  font-size: 1em;
+  font-style: normal;
+  font-weight: 400;
+  font-synthesis: none;
+  color: inherit;
+  opacity: 1;
+}
+
+/* 加減乘除等運算符：略加字重，與正文協調 */
+.board-scroll .katex :is(.mbin),
+.ai-plain .katex :is(.mbin),
+.board-reply .katex :is(.mbin) {
+  font-size: 1em;
+  font-family: KaTeX_Main, serif;
+  font-style: normal;
+  font-weight: 400;
+  font-synthesis: none;
+  color: inherit;
+  opacity: 1;
+}
+
+/* 行內數字與英文：統一深淺，不再特別加粗 */
+.ai-plain .katex .mord:not(.mathnormal),
+.board-scroll .katex .mord:not(.mathnormal),
+.board-reply .katex .mord:not(.mathnormal) {
+  font-family: KaTeX_Main, serif;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.katex .mfrac {
+  vertical-align: baseline;
+  overflow: visible;
+}
+
+/* 巢狀分式：中線對齊等號由 render.js transform 處理 */
+.katex .mfrac-has-nested {
+  vertical-align: baseline;
+}
+
+.ai-plain .choice-body .katex,
+.ai-plain .choice-step .katex {
+  overflow: visible;
+}
+
+.katex .vlist-t,
+.katex .vlist-b {
+  overflow: visible;
+}

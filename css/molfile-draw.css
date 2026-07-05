@@ -1,0 +1,48 @@
+/* molfile-draw.css — 預存 Molfile 結構圖（獨立模組） */
+
+.molfile-draw-block {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  margin: 0.5em 0 0.65em;
+  padding: 6px 8px;
+  text-align: center;
+  background: #FAF7F2;
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.molfile-draw-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 72px;
+}
+
+.molfile-draw-slot svg {
+  display: block;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+}
+
+.molfile-draw-label {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6B635A;
+  line-height: 1.45;
+}
+
+.molfile-draw-fallback {
+  font-size: 13px;
+  color: #8A6D3B;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.molfile-draw-fallback code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: #2A2520;
+}
