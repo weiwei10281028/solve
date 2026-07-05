@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>預存結構預覽（Molfile）</title>
+  <link rel="stylesheet" href="css/app.css?v=20250626t">
+  <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
+</head>
+<body class="app-page">
+<main class="page-main">
+  <section class="panel" aria-label="Molfile 結構預覽">
+    <div class="panel-head">
+      <h1 class="panel-title">預存結構預覽</h1>
+      <p class="panel-desc">從 structures/ 載入 Molfile 並繪製 2D 結構（獨立模組，不影響解題板書）</p>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="structId">結構 id（見 structures/index.json）</label>
+      <input type="text" class="question-input" id="structId" value="aspirin" autocomplete="off">
+    </div>
+
+    <div class="action-row">
+      <button class="btn-primary" type="button" id="drawBtn">繪製</button>
+      <button class="btn-ghost" type="button" id="clearBtn">清除</button>
+    </div>
+
+    <div id="molfilePreviewArea" style="margin-top:16px"></div>
+
+    <p class="field-hint" style="margin-top:12px">
+      建議用「啟動網頁.bat」開啟 http://localhost:8080/molfile-preview.html；直接雙擊 html 也可（已內建阿斯匹靈備援）。
+    </p>
+  </section>
+</main>
+
+<script src="js/structures-bundle.js?v=20250627a"></script>
+<script src="js/molfile-draw.js?v=20250627c"></script>
+<script>
+  const area = document.getElementById('molfilePreviewArea');
+  const input = document.getElementById('structId');
+
+  document.getElementById('drawBtn').addEventListener('click', async () => {
+    area.innerHTML = '<p class="field-hint">載入中…</p>';
+    try {
+      area.innerHTML = '';
+      const result = await MolfileDraw.show(input.value.trim(), area);
+      if (!result.ok) console.warn('MolfileDraw', result.error);
+    } catch (err) {
+      area.innerHTML = `<p class="molfile-draw-fallback">錯誤：${err.message || err}</p>`;
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    area.innerHTML = '';
+    input.value = '';
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('drawBtn').click();
+  });
+
+  MolfileDraw.show('aspirin', area);
+</script>
+</body>
+</html>
