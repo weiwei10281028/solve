@@ -274,7 +274,8 @@ function classifyPlainLine(line) {
   if (!t) return 'empty';
   if (/^【[^【】]+】$/.test(t)) return 'section';
   if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) {
-    return (typeof window !== 'undefined' && window.__solveMultiQuestion) ? 'section' : 'skip';
+    return (typeof window !== 'undefined' && typeof window.isSolveQuestionHeadingAllowed === 'function'
+      && window.isSolveQuestionHeadingAllowed(t)) ? 'section' : 'skip';
   }
   if (/^題目核心|^解題關鍵|^核心觀念/.test(t)) return 'skip';
   if (/^\(\d+\)/.test(t)) return 'step';

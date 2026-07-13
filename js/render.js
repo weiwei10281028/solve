@@ -2,8 +2,8 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20250705p4b';
-window.__RENDER_PIPELINE_DEFAULT = 'board-first';
+window.__RENDER_BUILD = '20260713k';
+window.__RENDER_PIPELINE_DEFAULT = 'legacy';
 
 const BOARD_LAYOUT_ENABLED = false;
 const ANSWER_MARKER = '@@ANSWER@@';
@@ -23,7 +23,9 @@ function isInsideDollarMath(str, index) {
 
 function addCasesRowSpacing(block, env) {
   let b = String(block || '');
-  if (env === 'array' && /\\rightleftharpoons|\\rightarrow/.test(b)) return b;
+  const reactionCount = (b.match(/\\rightleftharpoons|\\rightarrow/g) || []).length;
+  if (env === 'array' && reactionCount > 1) return b.replace(/\\\\(?!\[)/g, '\\\\[0.65em]');
+  if (env === 'array' && reactionCount) return b;
   if (env !== 'cases' && env !== 'array') return b;
   return b.replace(/\\\\(?!\[)/g, '\\\\[1.1em]');
 }
@@ -182,8 +184,60 @@ function repairUnclosedInlineMath(text) {
   }).join('\n');
 }
 
+/**
+ * 最後一道本地保護：無法通過 KaTeX 的片段改以可讀純文字呈現。
+ * 不猜測化學或數學意義，避免錯誤 LaTeX 讓整段版面崩壞；品質檢查仍會
+ * 將結構化輸出中的錯誤交回模型做一次精準修正。
+ */
+function quarantineInvalidLatexSegmentsLegacy(text) {
+  if (typeof katex === 'undefined' || typeof katex.renderToString !== 'function') return String(text || '');
+  const { trust, macros } = getKatexOpts();
+  return String(text || '').replace(/\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$/g, (whole, displayMath, inlineMath) => {
+    const latex = String(displayMath == null ? inlineMath : displayMath).trim();
+    if (!latex) return whole;
+    try {
+      katex.renderToString(latex, {
+        displayMode: displayMath != null,
+        throwOnError: true,
+        strict: 'ignore',
+        trust,
+        macros
+      });
+      return whole;
+    } catch (err) {
+      console.warn('[LaTeX] 已隔離無法渲染的片段', err.message || err);
+      return `〔公式格式待修：${latex}〕`;
+    }
+  });
+}
+
 /** 裸寫化學式（SO3、H2O）與 Unicode 下標統一包進 $…$ */
 const UNICODE_SUB_MAP = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+
+/** 覆寫舊版隔離器：先修復並實際驗證每段公式，最後才做可讀降級。 */
+function quarantineInvalidLatexSegments(text) {
+  if (typeof katex === 'undefined' || typeof katex.renderToString !== 'function') return String(text || '');
+  const { trust, macros } = getKatexOpts();
+  const validate = (latex, displayMode) => {
+    katex.renderToString(latex, {
+      displayMode: !!displayMode,
+      throwOnError: true,
+      strict: 'ignore',
+      trust,
+      macros
+    });
+    return true;
+  };
+  if (typeof LatexSanitize !== 'undefined' && LatexSanitize.sanitizeText) {
+    return LatexSanitize.sanitizeText(text, { validate });
+  }
+  return String(text || '').replace(/\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$/g, (whole, displayMath, inlineMath) => {
+    const latex = String(displayMath == null ? inlineMath : displayMath).trim();
+    if (!latex) return whole;
+    try { validate(latex, displayMath != null); return whole; }
+    catch (_) { return `〔${latex.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '')}〕`; }
+  });
+}
 
 function chemDigitsToSubscripts(formula) {
   return String(formula || '').replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2');
@@ -292,6 +346,7 @@ function wrapBareLatexSnippets(text) {
   return String(text || '').split('\n').map((line) => {
     if (/^\s*\$\$/.test(line)) return line;
     let s = line;
+    s = s.replace(/\$([A-Za-z](?:_\{?[A-Za-z0-9]+\}?)?)\$\s*(\\propto\s*\\(?:d)?frac\{[^{}]*\}\{[^{}]*\})/g, (m, left, right) => `$${left}${right}$`);
     s = s.replace(/\$([^$\n]+)\$\s*([A-Za-z]?[^$\n]*\\(?:sqrt|dfrac|frac)\{[^{}]*\}[^$\n]*)\$/g, (m, a, b) => `$${a.trim()}${b.trim()}$`);
     s = s.replace(/\$([^$\n]+)\$\s*([A-Za-z]?[^$\n]*\\(?:sqrt|dfrac|frac)\{[^{}]*\}[^$\n]*)(?=\s+[\u4e00-\u9fff]|$)/g, (m, a, b, off) => {
       if (isInsideDollarMath(s, off)) return m;
@@ -300,6 +355,10 @@ function wrapBareLatexSnippets(text) {
     s = s.replace(/(?<!\$)\\(?:d)?frac\{([^{}]*)\}\{([^{}]*)\}(?!\$)/g, (m, n, d, off) => {
       if (isInsideDollarMath(s, off)) return m;
       return `$\\dfrac{${n}}{${d}}$`;
+    });
+    s = s.replace(/(?<!\$)([A-Za-z](?:_\{?[A-Za-z0-9]+\}?)?\s*\\propto\s*\\(?:d)?frac\{[^{}]*\}\{[^{}]*\})(?!\$)/g, (m, expr, off) => {
+      if (isInsideDollarMath(s, off)) return m;
+      return `$${expr}$`;
     });
     s = s.replace(/(?<!\$)(\\Delta\s+[A-Za-z_]+(?:_\{?[A-Za-z0-9]+\}?)?\s*[=≈＝]\s*[^，。；\n$]{1,80})(?!\$)/g, (m, expr, off) => {
       if (isInsideDollarMath(s, off) || /\$/.test(expr)) return m;
@@ -528,6 +587,24 @@ function repairInlineLatexInProse(text) {
 }
 
 const QUESTION_HEADING_LINE_RE = /^(?:#{1,3}\s*)?(?:【\s*)?第\s*[\d一二三四五六七八九十]+\s*題(?:\s*】)?\s*(?:[（(][^)）]*[)）])?\s*$/;
+const QUESTION_HEADING_NUMBER_RE = /第\s*([\d一二三四五六七八九十]+)\s*題/;
+
+function questionHeadingNumber(line) {
+  const m = String(line || '').match(QUESTION_HEADING_NUMBER_RE);
+  if (!m) return NaN;
+  if (/^\d+$/.test(m[1])) return Number(m[1]);
+  const zh = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  return zh[m[1]] || NaN;
+}
+
+/** 只有使用者明確要求的多題，才可保留「第 N 題」作為綠色分題標題。 */
+function isSolveQuestionHeadingAllowed(line) {
+  if (!window.__solveMultiQuestion) return false;
+  if (window.__solveAllowAnyQuestionHeading) return true;
+  const n = questionHeadingNumber(line);
+  return Array.isArray(window.__solveQuestionNumbers) && window.__solveQuestionNumbers.includes(n);
+}
+window.isSolveQuestionHeadingAllowed = isSolveQuestionHeadingAllowed;
 
 /** 移除題庫配對用 HTML 註解，不顯示在板書上 */
 function stripMatchComments(text) {
@@ -549,10 +626,9 @@ function neutralizeQuestionHeadings(text) {
 
 /** 單題解題時移除 AI 誤當步驟標題的「第 N 題」獨立行 */
 function stripStandaloneQuestionHeadingLines(text) {
-  if (window.__solveMultiQuestion) return String(text || '');
   return String(text || '').split('\n').filter((line) => {
     const t = line.trim();
-    return !QUESTION_HEADING_LINE_RE.test(t);
+    return !QUESTION_HEADING_LINE_RE.test(t) || isSolveQuestionHeadingAllowed(t);
   }).join('\n');
 }
 
@@ -624,27 +700,62 @@ function repairOrphanDollarLines(text) {
   }).join('\n');
 }
 
-/** 計算式 $…$ 內移除 mol/g/g·mol⁻¹ 等（意義改由 NOTE 承載；保留 °C、M 等） */
-function stripCalcUnitsInInlineMath(text) {
-  const unitChunk = String.raw`\\,?\s*\\(?:text|mathrm)\{(?:mol|g|莫耳|克)(?:\s*\/\s*\\(?:text|mathrm)\{(?:mol|莫耳|g|克)\})?\}`;
-  const unitRatio = String.raw`\\(?:text|mathrm)\{g\/mol\}|\\(?:text|mathrm)\{mol\/g\}|\\(?:text|mathrm)\{g\\,mol\^\{-1\}\}`;
+/** 判斷單位是否屬於等號鏈最後結果；中間代入仍應移除單位。 */
+function isTerminalCalcResultUnit(source, offset, length) {
+  const before = String(source || '').slice(0, offset);
+  const after = String(source || '').slice(offset + length);
+  const boundary = Math.max(before.lastIndexOf('；'), before.lastIndexOf(';'), before.lastIndexOf('\\text{，}'));
+  const clauseBefore = before.slice(boundary + 1);
+  const nextBoundary = after.search(/(?:[；;]|\\text\{，\})/);
+  const clauseAfter = nextBoundary >= 0 ? after.slice(0, nextBoundary) : after;
+  if (!/[=＝≈]/.test(clauseBefore)) return false;
+  return !/(?:[=＝≈+*/]|\\(?:times|cdot|d?frac|sqrt))/.test(clauseAfter);
+}
+
+/** 移除模型直接塞進計算過程的原始單位；保留等號鏈最後結果的單位。 */
+function stripRawCalcUnitsInInlineMath(text) {
+  // 避免誤傷 \log、Hg、Mg 等含 g 的指令、元素或變數名稱。
+  const unit = String.raw`(?<![A-Za-z\\])(?:\\(?:text|mathrm)\{\s*)?(?:g|mol)(?:\s*\})?(?=$|[^A-Za-z])`;
+  const separator = String.raw`(?:\s*(?:\/|\\(?:cdot|times)|\s+)\s*)`;
+  const suffix = String.raw`(?:\s*\^\{?-?1\}?)?`;
+  const unitExpression = String.raw`(?:\\,|\\;|\\!|\\\s*|~|\s)*(?:${unit})(?:${separator}${unit}${suffix})?`;
   return String(text || '').split('\n').map((line) => {
     if (!/\$/.test(line) || /^\s*\$\$/.test(line.trim())) return line;
     return line.replace(/\$(?!\$)([\s\S]+?)\$/g, (full, inner) => {
       if (/\\begin\{array\}|\\begin\{cases\}/.test(inner)) return full;
-      let s = inner;
-      s = s.replace(new RegExp(`(${unitChunk})(?=\\s*$|[；;])`, 'gi'), '');
-      s = s.replace(new RegExp(`([\\d.])${unitChunk}`, 'gi'), '$1');
-      s = s.replace(new RegExp(`\\}${unitChunk}`, 'gi'), '}');
-      s = s.replace(new RegExp(unitRatio, 'gi'), '');
-      s = s.replace(/\{\s*([^}]*?)\s*\\(?:text|mathrm)\{g\/mol\}\s*\}/gi, '{$1}');
-      s = s.replace(/\s{2,}/g, ' ');
+      let s = inner.replace(new RegExp(unitExpression, 'gi'), (matched, offset, source) => (
+        isTerminalCalcResultUnit(source, offset, matched.length) ? matched : ''
+      ));
+      s = s.replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').trim();
       return `$${s}$`;
     });
   }).join('\n');
 }
 
 /** 全形等號改半形；裸寫比例／等號式包進 $…$（走 KaTeX 字體，與電荷同路徑） */
+/** 移除中間計算單位；NOTE 包數字／因子，末結果與 NOTE 標籤保留單位。 */
+function stripAllCalcUnitsAndEmptyNotes(text) {
+  const unit = String.raw`(?:mL|mol|kg|mg|g|L|M|min|s|h|atm|kPa|Pa|K|%)`;
+  const prefix = String.raw`(?:\\,|\\;|\\!|\\\s*|~|\s)*`;
+  const wrapped = String.raw`(?:\\(?:text|mathrm)\{\s*${unit}\s*\}|${unit})`;
+  const numericUnit = new RegExp(String.raw`(?<=[\d\}])${prefix}${wrapped}(?=$|[^A-Za-z])`, 'gi');
+  const unitOnlyNote = new RegExp(String.raw`\\htmlData\{[^{}]*\}\{\s*${wrapped}\s*\}`, 'gi');
+  return String(text || '').replace(/\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$/g, (whole, displayMath, inlineMath) => {
+    const delimiter = displayMath != null ? '$$' : '$';
+    const inner = String(displayMath == null ? inlineMath : displayMath);
+    if (/\\begin\{array\}|\\begin\{cases\}/.test(inner)) return whole;
+    let s = inner.replace(new RegExp(String.raw`([\d}])(?:\\,|,|\s)+(?=${wrapped}(?=$|[^A-Za-z]))`, 'gi'), '$1\\,');
+    s = s.replace(numericUnit, (matched, offset, source) => (
+      isTerminalCalcResultUnit(source, offset, matched.length) ? matched : ''
+    ));
+    s = s.replace(/(?<=[\d\}])(?:\\,|\\;|\\!|\\\s*|~|\s)*\^\{\\circ\}(?:\\(?:text|mathrm)\{C\}|C)/gi, '');
+    s = s.replace(unitOnlyNote, '');
+    s = s.replace(/\\htmlData\{[^{}]*\}\{\s*\}/g, '');
+    s = s.replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').trim();
+    return `${delimiter}${s}${delimiter}`;
+  });
+}
+
 function normalizeMathOperatorsInPlain(text) {
   const hasHan = (s) => /[\u4e00-\u9fff]/.test(s);
   return String(text || '').split('\n').map((line) => {
@@ -738,6 +849,7 @@ function preprocessBoardCompiledText(raw) {
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessEarly(text);
   text = repairBareTextMacros(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
+  text = quarantineInvalidLatexSegments(text);
   return text;
 }
 
@@ -778,10 +890,12 @@ function preprocessLegacyPlainText(raw) {
   text = isolateDisplayMathOnOwnLine(text);
   text = repairUnclosedInlineMath(text);
   text = repairBareTextMacros(text);
-  text = stripCalcUnitsInInlineMath(text);
+  text = stripRawCalcUnitsInInlineMath(text);
+  text = stripAllCalcUnitsAndEmptyNotes(text);
   text = fixLatexBlocks(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
   text = repairOrphanDollarLines(text);
+  text = quarantineInvalidLatexSegments(text);
   return text;
 }
 
@@ -1081,18 +1195,15 @@ function countQuestionSections(text) {
 
 function updateSolveHeadingMode(input) {
   const raw = String(input || '').trim();
-  let scope = { mode: 'all', numbers: [] };
+  let scope = { mode: 'default', numbers: [] };
   if (typeof parseRequestedSolveScope === 'function') {
     scope = parseRequestedSolveScope(raw);
   }
-  const wantsNumbers = scope.mode === 'partial'
-    || /第\s*[\d一二三四五六七八九十]+\s*題/.test(raw)
-    || (typeof countQuestionSections === 'function' && countQuestionSections(raw) >= 2);
-  window.__solveHeadingMode = wantsNumbers ? 'numbered' : 'neutral';
-  window.__solveMultiQuestion = wantsNumbers && (
-    scope.mode === 'partial'
-    || (typeof countQuestionSections === 'function' && countQuestionSections(raw) >= 2)
-  );
+  const numbers = scope.mode === 'partial' ? scope.numbers.slice() : [];
+  window.__solveQuestionNumbers = numbers;
+  window.__solveAllowAnyQuestionHeading = scope.mode === 'all';
+  window.__solveMultiQuestion = scope.mode === 'all' || numbers.length > 1;
+  window.__solveHeadingMode = window.__solveMultiQuestion ? 'numbered' : 'neutral';
 }
 
 function assemblePlainHtml(preprocessed, answerText, opts) {
@@ -1164,6 +1275,26 @@ function normalizeBoardBlock(block) {
   const kind = String(b.kind || '');
   const type = String(b.type || '');
   if (!type && kind && BOARD_COMPILE_TYPES.has(kind)) b.type = kind;
+  if (b.type === 'paragraph' && !Array.isArray(b.parts) && typeof b.text === 'string') {
+    b.parts = [{ kind: 'text', text: b.text }];
+  }
+  if (b.type === 'choice-group') {
+    const sourceItems = Array.isArray(b.items) ? b.items : (Array.isArray(b.choices) ? b.choices : []);
+    b.items = sourceItems.map((item, index) => {
+      const out = Object.assign({}, item);
+      const rawLetter = String(out.letter || out.label || '').toUpperCase();
+      out.letter = (rawLetter.match(/[A-E]/) || [String.fromCharCode(65 + index)])[0];
+      if (Array.isArray(out.parts)) {
+        out.parts = out.parts.map((part) => typeof part === 'string'
+          ? { kind: 'text', text: part }
+          : part);
+      } else {
+        const text = typeof out.text === 'string' ? out.text : out.reason;
+        out.parts = typeof text === 'string' ? [{ kind: 'text', text }] : [];
+      }
+      return out;
+    });
+  }
   return b;
 }
 
@@ -1173,6 +1304,49 @@ function normalizeBoardDoc(doc) {
   if (out.version == null) out.version = BOARD_DOC_VERSION;
   if (Array.isArray(out.blocks)) out.blocks = out.blocks.map(normalizeBoardBlock);
   return out;
+}
+
+/* 舊版模型曾在 JSON 字串內直接放 LaTeX 的單一反斜線（如 \dfrac、\times）。
+   JSON 會將 \t 當成 tab，或因未知跳脫字元而解析失敗；先只修正字串內的反斜線。 */
+function escapeLatexBackslashesInJson(jsonText) {
+  const text = String(jsonText || '');
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (!inString) {
+      out += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (ch === '"') {
+      out += ch;
+      inString = false;
+      continue;
+    }
+    if (ch !== '\\') {
+      out += ch;
+      continue;
+    }
+    const next = text[i + 1] || '';
+    const unicodeEscape = next === 'u' && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6));
+    if (next === '\\' || next === '"' || next === '/' || unicodeEscape) {
+      out += ch + next;
+      i++;
+    } else {
+      out += '\\\\';
+    }
+  }
+  return out;
+}
+
+function parseBoardJson(jsonText) {
+  const escaped = escapeLatexBackslashesInJson(jsonText);
+  try {
+    return JSON.parse(escaped);
+  } catch (_) {
+    try { return JSON.parse(jsonText); } catch (_) { return null; }
+  }
 }
 
 function parseBoard(raw) {
@@ -1196,18 +1370,13 @@ function parseBoard(raw) {
       const head = text.slice(0, start).trim();
       remainder = head ? `${head}\n${tail}` : tail;
     }
-    try {
-      return { doc: normalizeBoardDoc(JSON.parse(jsonStr)), remainder };
-    } catch (_) {
-      return null;
-    }
+    const doc = parseBoardJson(jsonStr);
+    return doc ? { doc: normalizeBoardDoc(doc), remainder } : null;
   }
 
   if (text.startsWith('{') && text.endsWith('}')) {
-    try {
-      const doc = JSON.parse(text);
-      if (doc && Array.isArray(doc.blocks)) return { doc: normalizeBoardDoc(doc), remainder: '' };
-    } catch (_) { /* fall through */ }
+    const doc = parseBoardJson(text);
+    if (doc && Array.isArray(doc.blocks)) return { doc: normalizeBoardDoc(doc), remainder: '' };
   }
   return null;
 }

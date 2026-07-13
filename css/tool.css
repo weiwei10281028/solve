@@ -1,0 +1,31 @@
+/* 知識庫與品質工具共用版面 */
+.tool-main { max-width: 1080px; }
+.tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tool-panel { background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; min-width: 0; }
+.tool-panel--wide { grid-column: 1 / -1; }
+.tool-title { font-family: var(--font-serif); font-size: 20px; margin-bottom: 4px; }
+.tool-desc { color: var(--ink-muted); font-size: 13px; margin-bottom: 16px; }
+.tool-label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+.tool-input, .tool-select, .tool-textarea { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface-raised); font: inherit; padding: 10px; }
+.tool-textarea { min-height: 280px; resize: vertical; line-height: 1.65; }
+.tool-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.tool-actions .btn-primary, .tool-actions .btn-ghost { min-height: 38px; }
+.tool-status { min-height: 24px; margin-top: 12px; font-size: 13px; color: var(--ink-muted); }
+.tool-status--bad { color: var(--danger); }
+.tool-status--ok { color: var(--ok); }
+.tool-preview { min-height: 280px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); }
+.tool-preview .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+.tool-list { display: grid; gap: 8px; }
+.tool-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--surface-raised); }
+.tool-row-main { min-width: 0; }
+.tool-row-title { font-weight: 600; overflow-wrap: anywhere; }
+.tool-row-meta { color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+.tool-empty { color: var(--ink-muted); padding: 12px 0; }
+.tool-badge { border-radius: 999px; padding: 3px 8px; font-size: 12px; color: var(--accent); background: var(--accent-soft); white-space: nowrap; }
+.tool-table-wrap { overflow-x: auto; }
+.tool-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tool-table th, .tool-table td { padding: 8px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.tool-table th { background: var(--bg-accent); }
+.tool-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.tool-check input { width: auto; }
+@media (max-width: 760px) { .tool-grid { grid-template-columns: 1fr; } .tool-panel--wide { grid-column: auto; } .tool-main { padding: 14px max(12px, env(safe-area-inset-left)) 28px max(12px, env(safe-area-inset-right)); } }

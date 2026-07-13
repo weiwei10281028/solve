@@ -21,11 +21,12 @@ function parseZhNumber(token) {
 
 var IMAGE_MULTI_QUESTION_USER_BLOCK = [
     '【多題範圍｜圖片】',
-    '1. **已指定題號**（本則 User 訊息含「第N題」等）→ 僅解指定題；指定幾題解幾題。',
-    '2. **未指定題號**（補充欄空白且無題號指定）→ 自圖**由上往下**找**第一題**題幹與 (A)～(E) 皆完整者，**只解該一題**。',
-    '   例：頂端第10題殘段（無題號或缺選項），第11、12題完整 → **只解第11題**。',
-    '3. **不完整不解**：題幹或選項缺漏、附圖數據看不清 → 不得猜；除非【使用者補充】已補齊缺漏，則與圖併讀。',
-    '4. 無完整題且無法補齊 → @@ANSWER@@「題目資訊不足」。'
+    '1. **使用者已指定題號**（如「第6題」「第6、7題」）→ 僅解指定題；指定幾題解幾題。若再指定選項（如「第6題(C)」或「只解選項 C」），只寫該選項，其他選項與題號都不可寫。',
+    '2. **未指定題號** → 自圖由上往下找**第一題題幹與必要選項／數據皆完整**者，**只解該一題**；不可因圖片中還有其他題就全解。',
+    '   例：頂端第10題殘段（無題號或缺選項），第11、12題完整 → 只解第11題。',
+    '3. **題組例外**：只有圖片明確寫出「第6～7題為題組」「下列第6、7題為題組」等連結範圍時，才將該題組的兩題一起解；不可只因題號相鄰就併解。題組兩題以「【第 6 題】」「【第 7 題】」分段，不可用「第1題／第2題」當計算步驟。',
+    '4. 不完整不解：題幹或選項缺漏、附圖數據看不清 → 不得猜；除非【使用者補充】已補齊缺漏，則與圖併讀。',
+    '5. 無完整題且無法補齊 → @@ANSWER@@「題目資訊不足」。'
 ].join('\n');
 
 function parseRequestedSolveScope(inputText) {
@@ -33,7 +34,10 @@ function parseRequestedSolveScope(inputText) {
     raw = raw
         .replace(/姊弟|姐弟|解弟|接第/g, '第')
         .replace(/提/g, '題');
-    if (!raw || /^(全部|所有|整題|全題|整卷|全部小題)$/.test(raw)) {
+    if (!raw) {
+        return { mode: 'default', numbers: [] };
+    }
+    if (/^(全部|所有|整題|全題|整卷|全部小題)$/.test(raw)) {
         return { mode: 'all', numbers: [] };
     }
     if (/(?:兩|三|四|五|六|七|八|九|十|\d+)\s*題\s*(?:都解|全解|一起解)|(?:都解|全解|一起解)\s*(?:整卷|全部|所有)|整卷\s*(?:都解|全解)/.test(raw)
@@ -90,7 +94,7 @@ function parseRequestedSolveScope(inputText) {
         }
     }
     var numbers = Array.from(picked).sort(function(a, b) { return a - b; });
-    return numbers.length ? { mode: 'partial', numbers: numbers } : { mode: 'all', numbers: [] };
+    return numbers.length ? { mode: 'partial', numbers: numbers } : { mode: 'default', numbers: [] };
 }
 
 function formatSubPartLabel(n) {
@@ -236,9 +240,16 @@ function buildQuestionStyleBlocks(opts, questionText) {
     var q = String(questionText || '').trim();
     var hasChoice = typeof window.hasChoiceOptionsInContext === 'function' && window.hasChoiceOptionsInContext(q);
     var lines = [];
+    var selectedOptions = opts.scopeIntent && opts.scopeIntent.optionMode === 'partial'
+        ? opts.scopeIntent.options
+        : [];
     if (hasChoice) {
-        lines.push('【書寫｜選擇題】須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
-        lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 @@ANSWER@@ 一致；純數字選項只詳解答案項。');
+        if (selectedOptions.length) {
+            lines.push('【書寫｜指定選項】只分析 (' + selectedOptions.join(')(') + ')；不可列出、提及或判斷其他選項。');
+        } else {
+            lines.push('【書寫｜選擇題】須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
+            lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 @@ANSWER@@ 一致；純數字選項只詳解答案項。');
+        }
     } else {
         lines.push('【書寫】本題非選擇題：依題目問法作答（問答直答、計算列式、子題 (一)(二) 或 1.2.3. 分段）；**禁止虛構 (A)～(E)**。');
     }
@@ -254,6 +265,7 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
     var scopeSrc = String(scopeInput || opts.supplement || opts.questionBody || '').trim();
     var scope = parseRequestedSolveScope(scopeSrc);
     var intent = parseSolveIntent(scopeSrc);
+    var promptOpts = Object.assign({}, opts, { scopeIntent: intent });
     var ref = String(refAnswer || '').trim();
     var textOnly = !!opts.textOnly;
     var hasImage = !!opts.hasImage;
@@ -273,7 +285,7 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
         if (opts.detailed) {
             parts.push('【詳細模式】多補關鍵推理步驟。');
         }
-        parts = parts.concat(buildQuestionStyleBlocks(opts, questionBody));
+        parts = parts.concat(buildQuestionStyleBlocks(promptOpts, questionBody));
     } else if (hasImage) {
         if (scope.mode === 'partial') {
             parts.push('【最高指令】僅解答第 ' + scope.numbers.join('、') + ' 題。嚴禁解答、提及或推論其他題號。');
@@ -289,11 +301,15 @@ window.buildSolveUserText = function(scopeInput, refAnswer, opts) {
         if (opts.detailed) {
             parts.push('【詳細模式】多補關鍵推理步驟。');
         }
-        parts = parts.concat(buildQuestionStyleBlocks(opts, questionBody || scopeSrc));
+        parts = parts.concat(buildQuestionStyleBlocks(promptOpts, questionBody || scopeSrc));
     } else {
-        parts = parts.concat(buildQuestionStyleBlocks(opts, scopeSrc));
+        parts = parts.concat(buildQuestionStyleBlocks(promptOpts, scopeSrc));
     }
 
+    var solveSpecBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildUserBlock
+        ? window.SolveSpec.buildUserBlock(opts.solveSpec)
+        : '';
+    if (solveSpecBlock) parts.push(solveSpecBlock);
     var text = parts.join('\n\n');
     if (ref) {
         text += '\n\n' + buildReferenceAnswerUserBlock(ref);
@@ -328,7 +344,7 @@ function buildReferenceAnswerUserBlock(ref) {
     var r = String(ref || '').trim();
     if (!r) return '';
     var multi = parseMultiQuestionRefAnswer(r);
-    var lines = ['【參考答案】' + r + '（老師已核對；推導須能支持此答案，@@ANSWER@@ 須與之一致；禁止寫「依參考答案選…」）'];
+    var lines = ['【已核對參考答案】' + r + '（先回到題目逐項找出支持答案的條件與推導，再寫詳解；不可先判某選項錯誤、最後只改成正確。@@ANSWER@@ 須與之一致；禁止寫「依參考答案選…」）'];
     if (multi.length >= 2) {
         lines.push('【參考答案對照】' + multi.map(function (e) {
             return '第' + e.num + '題→' + e.choices;
@@ -354,11 +370,11 @@ window.buildRefAnswerSystemAddon = function(refAnswer) {
             : '');
     return '\n\n【參考答案｜收斂目標】\n'
         + '使用者已提供參考答案：' + ref + '\n'
-        + '1. 依題目條件完整推導，推導結論須能支持參考答案。\n'
+        + '1. 先把參考答案當作反向驗證目標，回到題目逐項找出支持它的條件、定義或計算，不可只修改結論標籤。\n'
         + '2. @@ANSWER@@ 與「故答案為」須與參考答案一致。\n'
-        + '3. **選擇題**才須各選項分析；問答／計算題直接推導即可。\n'
+        + '3. **選擇題**才須各選項分析；對每一個答案選項，理由必須明確支持「敘述正確」；問答／計算題直接推導即可。\n'
         + '4. 選擇題：標「敘述正確」者必須恰為參考答案選項；標「敘述錯誤」者不可列入答案。\n'
-        + '5. 若初算與參考答案不同，重新檢查後改寫推導以對齊；禁止 meta 句。'
+        + '5. 若初算不同，重新從題目條件檢查推理；禁止保留否定該選項的理由後又把它標為正確，也禁止 meta 句。'
         + multiNote;
 };
 
@@ -540,7 +556,7 @@ window.getSystemPromptForSolve = async function(questionInput, opts) {
     var detailAddon = opts.detailed ? SYSTEM_CHEM_DETAILED_ADDON : '';
     var followAddon = opts.followUp ? SYSTEM_CHEM_FOLLOWUP_ADDON : '';
     var refAnswer = String(opts.refAnswer || '').trim();
-    var refAddon = (refAnswer && !opts.refAnswerSkipped && typeof window.buildRefAnswerSystemAddon === 'function')
+    var refAddon = (refAnswer && opts.refAnswerGuided && !opts.refAnswerSkipped && typeof window.buildRefAnswerSystemAddon === 'function')
         ? window.buildRefAnswerSystemAddon(refAnswer)
         : '';
     var stochAddon = opts.forceStoichiometry && typeof window.buildStoichiometrySystemAddon === 'function'

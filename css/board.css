@@ -77,7 +77,8 @@
 .board-scroll .ai-plain,
 .ai-plain {
   --plain-line-gap: 12px;
-  --plain-line-gap-frac: 16px;
+  --plain-line-gap-frac: 20px;
+  --plain-inline-math-gap: 0.38em;
   line-height: 1.75;
   color: #2A2520;
   text-align: left;
@@ -171,6 +172,11 @@
   margin-top: var(--plain-line-gap-frac);
 }
 
+/* 分式的分子、分母會超出一般文字行盒；提高行高並保留垂直緩衝。 */
+.ai-plain .plain-line--has-frac .plain-line-inner {
+  line-height: 2.05;
+}
+
 .ai-plain > .plain-line:first-child.plain-line--has-frac {
   margin-top: 0;
 }
@@ -193,6 +199,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+  padding-top: 0.32em;
   padding-bottom: 10px;
   margin-bottom: 2px;
   box-sizing: border-box;
@@ -203,6 +210,11 @@
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
   isolation: isolate;
+}
+
+/* 橫向捲動列會裁切垂直溢出；含分式時額外預留上下空間。 */
+.ai-plain .plain-line--has-frac .plain-line-xwrap--scroll {
+  padding-bottom: calc(10px + 0.28em);
 }
 
 /* 量測用：單行不換行後比對實際寬度（與 --scroll 同邏輯） */
@@ -296,10 +308,14 @@
 .ai-plain .plain-line-inner > .katex,
 .ai-plain .plain-line-inner > .plain-katex-nowrap,
 .ai-plain .plain-line-inner > .math-unit-tail,
+.ai-plain .plain-line-xcontent > .katex,
+.ai-plain .plain-line-xcontent > .plain-katex-nowrap,
+.ai-plain .plain-line-xcontent > .math-unit-tail,
 .ai-plain .choice-step .plain-line-inner > .katex,
 .ai-plain .choice-step .plain-line-inner > .plain-katex-nowrap,
 .ai-plain .choice-step .plain-line-inner > .math-unit-tail {
-  margin-inline: 0.12em;
+  /* 所有行內數值／算式的左右保留空間，避免緊貼中文。 */
+  margin-inline: var(--plain-inline-math-gap);
 }
 
 .board-scroll .katex .katex-html,

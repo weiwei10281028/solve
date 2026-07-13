@@ -11,6 +11,8 @@
   const SEMANTIC_NOTE_RE = /比例|分率|剩餘|因子|影響|轉化|排泄|衰變|清除|分壓|莫耳分率|速率影響|對.*影響|後剩|體內|半衰|濃度對|溫度對/;
 
   let popoverEl = null;
+  let activeNoteTarget = null;
+  let repositionFrame = 0;
 
   function getPopover() {
     if (!popoverEl) {
@@ -23,9 +25,63 @@
 
   function hidePopover() {
     if (popoverEl) popoverEl.classList.remove('show');
+    activeNoteTarget = null;
     document.querySelectorAll('.active[data-note], .math-note.active').forEach((el) => {
       el.classList.remove('active');
     });
+  }
+
+  /** NOTE 文字保留中文，僅將 CO_2、Fe^{3+}、K_c 等片段以 KaTeX 呈現。 */
+  function renderNoteContent(pop, note) {
+    const text = String(note || '');
+    const tokenRe = /(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[A-Za-z]+(?:(?:_\{[^{}]+\}|_[A-Za-z0-9]+)|(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-]+))+)/g;
+    pop.replaceChildren();
+    let cursor = 0;
+    let match;
+    while ((match = tokenRe.exec(text))) {
+      if (match.index > cursor) pop.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      const math = document.createElement('span');
+      math.className = 'math-note-popover-math';
+      try {
+        if (typeof katex === 'undefined') throw new Error('KaTeX unavailable');
+        katex.render(match[0], math, {
+          throwOnError: false,
+          strict: 'ignore',
+          trust: KATEX_TRUST,
+          macros: KATEX_MACROS
+        });
+        pop.appendChild(math);
+      } catch (_) {
+        pop.appendChild(document.createTextNode(match[0]));
+      }
+      cursor = tokenRe.lastIndex;
+    }
+    if (cursor < text.length) pop.appendChild(document.createTextNode(text.slice(cursor)));
+  }
+
+  function positionActivePopover() {
+    repositionFrame = 0;
+    const pop = popoverEl;
+    const target = activeNoteTarget;
+    if (!pop?.classList.contains('show') || !target?.isConnected) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+      hidePopover();
+      return;
+    }
+    const gap = 10;
+    const width = pop.offsetWidth || 1;
+    const half = width / 2;
+    const left = Math.max(half + 12, Math.min(window.innerWidth - half - 12, rect.left + rect.width / 2));
+    const showAbove = rect.top - pop.offsetHeight - gap >= 8;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${showAbove ? rect.top - gap : Math.min(window.innerHeight - 8, rect.bottom + gap)}px`;
+    pop.style.transform = showAbove ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
+  }
+
+  function schedulePopoverPosition() {
+    if (!activeNoteTarget || repositionFrame) return;
+    repositionFrame = requestAnimationFrame(positionActivePopover);
   }
 
   function parseHtmlDataNote(raw) {
@@ -436,14 +492,16 @@
       if (!isActive) {
         target.classList.add('active');
         const pop = getPopover();
-        pop.textContent = note;
+        renderNoteContent(pop, note);
         pop.classList.add('show');
-        const rect = target.getBoundingClientRect();
-        pop.style.left = `${rect.left + rect.width / 2}px`;
-        pop.style.top = `${rect.top - 10}px`;
-        pop.style.transform = 'translate(-50%, -100%)';
+        activeNoteTarget = target;
+        positionActivePopover();
       }
     });
+    window.addEventListener('scroll', schedulePopoverPosition, true);
+    window.addEventListener('resize', schedulePopoverPosition);
+    window.visualViewport?.addEventListener('scroll', schedulePopoverPosition);
+    window.visualViewport?.addEventListener('resize', schedulePopoverPosition);
   }
 
   window.MathNote = {

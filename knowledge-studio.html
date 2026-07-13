@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知識庫整理台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css?v=20260713i"><link rel="stylesheet" href="css/tool.css?v=20260713a">
+</head>
+<body class="app-page">
+  <header class="site-header"><div class="brand"><span class="brand-mark" aria-hidden="true"></span><div class="brand-text"><span class="brand-name">知識庫整理台</span><span class="brand-sub">教師詳解 → 可校正資料</span></div></div><nav class="header-nav"><a class="nav-btn" href="index.html">解題</a><a class="nav-btn" href="solution-format.html">排版</a></nav></header>
+  <main class="page-main tool-main"><div class="tool-grid">
+    <section class="tool-panel">
+      <h1 class="tool-title">匯入與整理</h1><p class="tool-desc">Markdown 只在本機解析；「本機建議」不呼叫 API。資料確認後存入瀏覽器草稿，最後匯出 JSON 發佈。</p>
+      <label class="tool-label" for="mdFiles">匯入 Markdown</label><input class="tool-input" id="mdFiles" type="file" accept=".md,text/markdown" multiple>
+      <label class="tool-label" for="itemId">ID</label><input class="tool-input" id="itemId" placeholder="例：113-dce-chem-01">
+      <label class="tool-label" for="sourceName">來源</label><input class="tool-input" id="sourceName" placeholder="例：113分科化學詳解，第 1 題">
+      <label class="tool-label" for="chapter">章節</label><input class="tool-input" id="chapter" placeholder="例：原子結構">
+      <label class="tool-label" for="questionType">題型</label><input class="tool-input" id="questionType" placeholder="例：多選題／反應計量">
+      <label class="tool-label" for="questionText">題目</label><textarea class="tool-textarea" id="questionText" style="min-height:150px" placeholder="保留題目原文或可辨識轉錄結果"></textarea>
+      <label class="tool-label" for="teacherAnswer">教師答案</label><input class="tool-input" id="teacherAnswer" placeholder="例：ACE、3.42 mol">
+      <label class="tool-label" for="solutionText">教師詳解</label><textarea class="tool-textarea" id="solutionText" placeholder="保留教師詳解原文"></textarea>
+      <div class="tool-actions"><button class="btn-ghost" type="button" id="suggestBtn">本機建議分類</button><button class="btn-primary" type="button" id="saveBtn">確認收錄</button><button class="btn-ghost" type="button" id="newBtn">清空表單</button></div><p class="tool-status" id="itemStatus" aria-live="polite"></p>
+    </section>
+    <section class="tool-panel">
+      <h2 class="tool-title">人工校正欄位</h2><p class="tool-desc">以逗號、頓號或換行分隔多個值。這些欄位才是後續分析器可用的依據。</p>
+      <label class="tool-label" for="concepts">考點</label><textarea class="tool-textarea" id="concepts" style="min-height:72px" placeholder="例：限量試劑、莫耳比"></textarea>
+      <label class="tool-label" for="conditions">已知條件</label><textarea class="tool-textarea" id="conditions" style="min-height:72px"></textarea>
+      <label class="tool-label" for="target">求解目標</label><input class="tool-input" id="target" placeholder="例：產物質量">
+      <label class="tool-label" for="methodIds">方法 ID</label><input class="tool-input" id="methodIds" placeholder="例：reaction-stoichiometry">
+      <label class="tool-label" for="mistakes">常見錯誤</label><textarea class="tool-textarea" id="mistakes" style="min-height:72px"></textarea>
+      <label class="tool-label" for="styleTags">教師風格</label><textarea class="tool-textarea" id="styleTags" style="min-height:72px" placeholder="例：先寫反應式、逐步列式、答案附單位"></textarea>
+      <label class="tool-label" for="reviewStatus">狀態</label><select class="tool-select" id="reviewStatus"><option value="draft">待確認</option><option value="reviewed">已校正</option><option value="published">已發佈</option></select>
+      <label class="tool-label" for="confidence">分類信心（0–1）</label><input class="tool-input" id="confidence" type="number" min="0" max="1" step="0.05" value="0">
+      <div class="tool-actions"><button class="btn-ghost" type="button" id="exportBtn">匯出完整知識庫</button><label class="btn-ghost" for="packageFile">匯入 JSON</label><input id="packageFile" type="file" accept="application/json" hidden></div>
+      <p class="tool-status">正式資料需由匯出檔放入專案版本控制；瀏覽器不會直接改寫專案檔案。</p>
+    </section>
+    <section class="tool-panel tool-panel--wide"><h2 class="tool-title">已收錄項目</h2><p class="tool-desc" id="countText"></p><div class="tool-list" id="itemList"></div></section>
+  </div></main>
+  <script src="js/knowledge-store.js?v=20260713a"></script><script src="js/knowledge-tools.js?v=20260713a"></script>
+  <script>
+  (function () {
+    const ids = ['itemId','sourceName','chapter','questionType','questionText','teacherAnswer','solutionText','concepts','conditions','target','methodIds','mistakes','styleTags','reviewStatus','confidence'];
+    const el = id => document.getElementById(id); const status = el('itemStatus');
+    const get = () => ({ id: el('itemId').value, source_name: el('sourceName').value, chapter: el('chapter').value, question_type: el('questionType').value, question_text: el('questionText').value, teacher_answer: el('teacherAnswer').value, solution_text: el('solutionText').value, concepts: el('concepts').value, known_conditions: el('conditions').value, target: el('target').value, method_ids: el('methodIds').value, common_mistakes: el('mistakes').value, style_tags: el('styleTags').value, review_status: el('reviewStatus').value, confidence: el('confidence').value });
+    const put = item => { el('itemId').value=item.id||''; el('sourceName').value=item.source_name||''; el('chapter').value=item.chapter||''; el('questionType').value=item.question_type||''; el('questionText').value=item.question_text||''; el('teacherAnswer').value=item.teacher_answer||''; el('solutionText').value=item.solution_text||''; el('concepts').value=(item.concepts||[]).join('、'); el('conditions').value=(item.known_conditions||[]).join('、'); el('target').value=item.target||''; el('methodIds').value=(item.method_ids||[]).join('、'); el('mistakes').value=(item.common_mistakes||[]).join('、'); el('styleTags').value=(item.style_tags||[]).join('、'); el('reviewStatus').value=item.review_status||'draft'; el('confidence').value=item.confidence||0; };
+    const clear = () => { ids.forEach(id => { const node=el(id); node.value = id==='reviewStatus'?'draft':id==='confidence'?'0':''; }); status.textContent=''; };
+    function list() { const data=KnowledgeStore.read(); el('countText').textContent=`共 ${data.items.length} 筆；草稿 ${data.items.filter(x=>x.review_status==='draft').length} 筆。`; const root=el('itemList'); root.replaceChildren(); if(!data.items.length){ root.innerHTML='<p class="tool-empty">尚未收錄資料。</p>'; return; } data.items.slice().reverse().forEach(item=>{ const row=document.createElement('div'); row.className='tool-row'; const main=document.createElement('div'); main.className='tool-row-main'; const title=document.createElement('div'); title.className='tool-row-title'; title.textContent=item.id; const meta=document.createElement('div'); meta.className='tool-row-meta'; meta.textContent=[item.chapter,item.question_type,item.concepts.join('、')].filter(Boolean).join('｜')||'尚未分類'; main.append(title,meta); const actions=document.createElement('div'); const tag=document.createElement('span'); tag.className='tool-badge'; tag.textContent=item.review_status; const load=document.createElement('button'); load.className='btn-ghost'; load.type='button'; load.textContent='編輯'; load.onclick=()=>{ put(item); window.scrollTo({top:0,behavior:'smooth'}); }; actions.append(tag,load); row.append(main,actions); root.append(row); }); }
+    el('suggestBtn').onclick=()=>{ const suggestion=KnowledgeTools.localSuggest(get(),KnowledgeStore.read().methods); put(suggestion); status.textContent='已套用本機關鍵字建議，請人工確認。'; status.className='tool-status tool-status--ok'; };
+    el('saveBtn').onclick=()=>{ const check=KnowledgeStore.validateItem(get()); if(!check.ok){ status.textContent=check.errors.join('；'); status.className='tool-status tool-status--bad'; return; } const item=KnowledgeStore.addItem(check.item); put(item); status.textContent=`已收錄 ${item.id}`; status.className='tool-status tool-status--ok'; list(); };
+    el('newBtn').onclick=clear;
+    el('exportBtn').onclick=()=>KnowledgeStore.download('chem-knowledge-v1.json',KnowledgeStore.exportJson());
+    el('packageFile').onchange=async e=>{ const file=e.target.files[0]; if(!file)return; try{ if(!confirm('匯入會取代目前瀏覽器中的知識庫草稿，是否繼續？'))return; KnowledgeStore.importJson(await file.text()); list(); status.textContent='已匯入知識庫。'; status.className='tool-status tool-status--ok'; }catch(err){status.textContent=`匯入失敗：${err.message}`;status.className='tool-status tool-status--bad';} };
+    el('mdFiles').onchange=async e=>{ const files=[...e.target.files]; if(!files.length)return; const records=[]; for(const file of files) records.push(KnowledgeTools.parseMarkdown(await file.text(),file.name)); put(records[0]); records.slice(1).forEach(item=>KnowledgeStore.addItem(item)); status.textContent=files.length===1?'已載入，請補完欄位後確認收錄。':`已載入第一篇；其餘 ${files.length-1} 篇已存為待確認草稿。`; status.className='tool-status tool-status--ok'; list(); };
+    list();
+  })();
+  </script>
+</body></html>

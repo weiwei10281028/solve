@@ -48,6 +48,39 @@ function isCalcCompact() {
   return !!document.getElementById('calcCompactToggle')?.checked;
 }
 
+function getSolveSpec() {
+  return typeof window.SolveSpec !== 'undefined' && window.SolveSpec.fromInputs
+    ? window.SolveSpec.fromInputs(document)
+    : { version: 1, enabled: false, typeIds: [], types: [] };
+}
+
+function renderChapterOptions() {
+  const host = document.getElementById('chapterOptions');
+  if (!host || typeof window.SolveSpec === 'undefined') return;
+  host.innerHTML = Object.entries(window.SolveSpec.CHAPTERS).map(([id, chapter]) =>
+    `<label class="option-toggle" for="chapter-${id}"><input type="checkbox" id="chapter-${id}" data-chapter-id="${id}"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">${chapter[0]}</span></label>`
+  ).join('');
+}
+
+function updateSolveSpecStatus() {
+  const status = document.getElementById('solveSpecStatus');
+  if (!status) return;
+  const baseSpec = getSolveSpec();
+  const question = document.getElementById('textQuestionInput')?.value || '';
+  const spec = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.withApplicability
+    ? window.SolveSpec.withApplicability(baseSpec, question)
+    : baseSpec;
+  status.textContent = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.describe
+    ? window.SolveSpec.describe(spec)
+    : '未啟用題型規格，將依題目自動判斷。';
+  status.classList.toggle('is-active', !!spec.enabled);
+}
+
+function resetSolveSpec() {
+  document.querySelectorAll('input[data-solve-type], input[data-chapter-id]').forEach((input) => { input.checked = false; });
+  updateSolveSpecStatus();
+}
+
 function resetStoichiometryToggle() {
   const el = document.getElementById('stoichiometryToggle');
   if (el) el.checked = false;
@@ -79,6 +112,7 @@ function appendStoichiometryTag(qctx) {
 function initSolveOptionToggles() {
   resetStoichiometryToggle();
   resetCalcCompactToggle();
+  resetSolveSpec();
 }
 
 function initStoichiometryToggle() {
@@ -291,11 +325,14 @@ function clearAll() {
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('answerInput').value = '';
+  document.getElementById('answerGuidedToggle').checked = false;
   document.getElementById('chatInput').value = '';
   resetStoichiometryToggle();
   resetCalcCompactToggle();
+  resetSolveSpec();
   refreshPreviewUI();
   document.getElementById('resultCard').classList.remove('show');
+  clearSolveValidation();
   clearThreads();
   document.getElementById('chatInputWrap').classList.remove('show');
   setBadge('就緒');
@@ -337,64 +374,140 @@ function scrollBoard(el) {
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
 
-async function ensureBoardStyleReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
-  const checkBoard = typeof window.checkBoardDoc === 'function'
-    ? window.checkBoardDoc
-    : null;
-  const checkLegacy = typeof window.checkSolutionBoardStyle === 'function'
-    ? window.checkSolutionBoardStyle
-    : null;
-  const check = (/@@BOARD@@/.test(reply) && checkBoard) ? checkBoard : checkLegacy;
-  const buildFix = typeof window.buildBoardStyleFixUserText === 'function'
-    ? window.buildBoardStyleFixUserText
-    : null;
-  const fixCount = Number(genOpts._boardStyleFixed) || 0;
-  if (!check || !buildFix) return reply;
+/**
+ * 將所有需 AI 判斷的品質問題合併成一次修正，避免 NOTE、板書、答案彼此
+ * 接力重寫而增加 token、延遲與內容漂移。本地可安全修正的 LaTeX 不會進來。
+ */
+function getQualityCheckText(reply) {
+  const raw = String(reply || '');
+  if (/@@BOARD@@/.test(raw) && typeof boardDocToCheckText === 'function') {
+    return boardDocToCheckText(raw) || raw;
+  }
+  return raw;
+}
 
-  const refText = typeof getLastDatabaseRefSolution === 'function'
-    ? getLastDatabaseRefSolution()
-    : '';
+function clearSolveValidation() {
+  const el = document.getElementById('solveValidation');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+  el.classList.remove('is-warning');
+}
+
+function getCalcCompactValidation(reply) {
+  if (!isCalcCompact()) return null;
+  const mathLines = String(reply || '').split(/\n+/).filter((line) => /(?:=|＝)/.test(line) && /(?:\$|\d)/.test(line));
+  if (mathLines.length < 2) return { ok: null, note: '未偵測到可比對的多步計算' };
+  let longestRun = 0;
+  let run = 0;
+  mathLines.forEach((line) => {
+    if (/^[\s$\\\dA-Za-z_{}().+\-*/=＝^,，]+$/.test(line.trim())) run += 1;
+    else run = 0;
+    longestRun = Math.max(longestRun, run);
+  });
+  return longestRun > 3
+    ? { ok: false, note: '偵測到連續過多拆分算式，請複核是否符合精簡設定' }
+    : { ok: true, note: '本機檢查未發現過度拆分算式' };
+}
+
+function renderSolveValidation(reply, solveOpts, refAnswer) {
+  const el = document.getElementById('solveValidation');
+  if (!el) return;
+  const lines = [];
+  let warning = false;
+  const questionCtx = String(solveOpts?.scopeInput || solveOpts?.questionBody || '');
+  if (solveOpts?.forceStoichiometry && typeof window.checkStoichiometryTableRequired === 'function') {
+    const issues = window.checkStoichiometryTableRequired(reply, '', questionCtx);
+    const ok = !issues.length;
+    lines.push(ok ? '反應方程式：符合本機檢查' : '反應方程式：待補 ' + issues.slice(0, 2).join('；'));
+    warning = warning || !ok;
+  }
+  const calc = getCalcCompactValidation(reply);
+  if (calc) {
+    lines.push('計算精簡：' + calc.note);
+    warning = warning || calc.ok === false;
+  }
+  if (solveOpts?.solveSpec?.enabled && typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply) {
+    const issues = window.SolveSpec.checkReply(solveOpts.solveSpec, reply);
+    const ok = !issues.length;
+    lines.push(ok ? '題型規格：符合本機檢查' : '題型規格：待補 ' + issues.slice(0, 2).join('；'));
+    warning = warning || !ok;
+  }
+  if (refAnswer && !solveOpts?.refAnswerSkipped && typeof window.answersMatch === 'function') {
+    const ok = window.answersMatch(reply, refAnswer);
+    lines.push(ok ? '參考答案：一致' : '參考答案：不一致，請複核（未自動改寫）');
+    warning = warning || !ok;
+  }
+  if (!lines.length) return clearSolveValidation();
+  el.hidden = false;
+  el.textContent = '設定驗證｜' + lines.join('｜');
+  el.classList.toggle('is-warning', warning);
+}
+
+function collectQualityReport(reply, refAnswer, genOpts = {}) {
   const questionCtx = String(genOpts.questionCtx || '');
-  let issues = check(reply, refText, questionCtx);
-  if (!issues.length) return reply;
-  console.warn('[板書檢查] 初稿問題：', issues);
-
+  const raw = String(reply || '');
+  const check = window.checkSolutionBoardStyle;
+  let styleIssues = typeof check === 'function'
+    ? check(raw, typeof getLastDatabaseRefSolution === 'function' ? getLastDatabaseRefSolution() : '', questionCtx)
+    : [];
   const forceStoich = isForceStoichiometry()
     || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(questionCtx));
-  const maxFix = Number(genOpts._maxBoardStyleFix) || (forceStoich ? 2 : 1);
-  if (fixCount >= maxFix) return reply;
-
-  let current = reply;
-  let attempts = fixCount;
-  for (let attempt = fixCount; attempt < maxFix; attempt++) {
-    const fixMessages = [
-      ...apiMessages,
-      { role: 'assistant', content: current },
-      { role: 'user', content: buildFix(issues) }
-    ];
-    try {
-      const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-        ...genOpts,
-        maxContinue: 0,
-        temperature: 0.35,
-        _boardStyleFixed: attempt + 1
-      });
-      if (!fixed) break;
-      current = fixed;
-      attempts = attempt + 1;
-      issues = check(fixed, refText, questionCtx);
-      if (!issues.length) {
-        genOpts._boardStyleFixed = attempts;
-        return fixed;
-      }
-    } catch (err) {
-      console.warn('板書修正重試失敗', err);
-      break;
-    }
+  if (forceStoich && typeof window.checkStoichiometryTableRequired === 'function') {
+    styleIssues = styleIssues.concat(window.checkStoichiometryTableRequired(raw, '', questionCtx));
   }
-  genOpts._boardStyleFixed = attempts;
-  if (issues.length) toast('反應變化表或板書格式可能未完全符合');
-  return current;
+  styleIssues = [...new Set(styleIssues)].slice(0, 6);
+  const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check
+    ? NoteCheck.check(getQualityCheckText(raw))
+    : null;
+  const referenceMismatch = !!(refAnswer && !genOpts.refAnswerSkipped
+    && typeof window.answersMatch === 'function' && !window.answersMatch(raw, refAnswer));
+  const solveSpecIssues = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply
+    ? window.SolveSpec.checkReply(genOpts.solveSpec, raw).slice(0, 6)
+    : [];
+  return { styleIssues, noteReport, referenceMismatch, solveSpecIssues };
+}
+
+function buildQualityFixUserText(report, refAnswer) {
+  const lines = [
+    '【單次局部修正】只補列出的明確缺漏；不可重新推導、改答案、變更題目範圍或改寫其他段落。輸出可直接替換的完整版本，但未點名段落須保持原文。',
+    '一律輸出傳統 LaTeX 詳解；禁止 @@BOARD@@、@@END@@、JSON 與 BoardDoc 欄位。所有 `$` 必須成對，公式內容須為完整 LaTeX。',
+  ];
+  if (report.styleIssues.length) lines.push('【板書／LaTeX】' + report.styleIssues.join('；'));
+  if (report.noteReport && !report.noteReport.ok && !report.noteReport.skipped) {
+    lines.push('【NOTE】' + report.noteReport.issues.join('；')
+      + '。只補題目給定量、第一次中間量、換算因子與分式／乘積的不同語意因子；note 必須具體，勿改答案。');
+  }
+  if (report.solveSpecIssues?.length) {
+    lines.push('【已啟用題型規格】' + report.solveSpecIssues.join('；') + ' 請補齊指定步驟，其餘正確內容保持不變。');
+  }
+  return lines.join('\n');
+}
+
+async function ensureQualityReply(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
+  const report = collectQualityReport(reply, refAnswer, genOpts);
+  const needsNote = report.noteReport && !report.noteReport.ok && !report.noteReport.skipped;
+  const hasTargetedOmission = needsNote || report.solveSpecIssues?.length
+    || report.styleIssues.some((issue) => /缺少|缺漏|未寫|未顯示|未使用|須補/.test(String(issue)));
+  if (!hasTargetedOmission) return reply;
+  console.warn('[品質檢查] 單次修正：', report);
+  try {
+    const { text: fixed } = await callAPI(cfg, [
+      ...apiMessages,
+      { role: 'assistant', content: reply },
+      { role: 'user', content: buildQualityFixUserText(report, refAnswer) }
+    ], systemText, {
+      ...genOpts,
+      maxOutputTokens: Math.min(Number(genOpts.maxOutputTokens) || 4096, 4096),
+      maxContinue: 0,
+      temperature: 0.2,
+      _qualityFixed: 1
+    });
+    if (fixed) return fixed;
+  } catch (err) {
+    console.warn('[品質檢查] 單次修正失敗', err);
+  }
+  return reply;
 }
 
 /** 化學計量表強制：參考答案／H₂O 修正後再檢，缺表則 API 重寫 */
@@ -494,49 +607,11 @@ async function ensureLiquidWaterOptionReply(cfg, apiMessages, systemText, reply,
   return reply;
 }
 
-/** 第二層：參考答案與 @@ANSWER@@ 不一致時內部重寫（學生僅見最終版） */
+/** 參考答案僅作本機複核，不可用它自動重寫完整詳解。 */
 async function ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
-  if (!refAnswer || genOpts.refAnswerSkipped) return reply;
-  if (typeof window.answersMatch !== 'function' || typeof window.buildRefAnswerFixUserText !== 'function') {
-    return reply;
-  }
-  if (window.answersMatch(reply, refAnswer)) return reply;
-
-  const fixCount = Number(genOpts._refAnswerFixed) || 0;
-  const maxFix = 1;
-  if (fixCount >= maxFix) {
-    console.warn('[參考答案] 已重試仍不一致');
-    return reply;
-  }
-
-  console.warn('[參考答案] 與推導不一致，依參考答案重寫');
-  const aiAnswer = typeof window.extractAnswerFromReply === 'function'
-    ? window.extractAnswerFromReply(reply)
-    : { raw: '' };
-  const questionCtx = String(genOpts.questionCtx || '');
-  let fixUserText = typeof window.buildRefAnswerFixUserText === 'function'
-    ? window.buildRefAnswerFixUserText(refAnswer, aiAnswer, questionCtx, reply)
-    : '';
-  const fixMessages = [
-    ...apiMessages,
-    { role: 'assistant', content: reply },
-    { role: 'user', content: fixUserText }
-  ];
-  try {
-    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-      ...genOpts,
-      maxContinue: 0,
-      temperature: 0.3,
-      _refAnswerFixed: fixCount + 1
-    });
-    if (fixed) {
-      if (!window.answersMatch(fixed, refAnswer)) {
-        console.warn('[參考答案] 重寫後 @@ANSWER@@ 仍不一致');
-      }
-      return fixed;
-    }
-  } catch (err) {
-    console.warn('[參考答案] 重寫失敗', err);
+  if (refAnswer && !genOpts.refAnswerSkipped && typeof window.answersMatch === 'function'
+    && !window.answersMatch(reply, refAnswer)) {
+    console.warn('[參考答案] 與 AI 答案不一致，保留原詳解供人工複核');
   }
   return reply;
 }
@@ -587,6 +662,11 @@ function renderAiInto(container, text) {
       console.warn('[render] 快取可能過舊，請 Ctrl+F5');
     }
     let body = text || '';
+    if (typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
+      const formatted = SolutionFormat.format(body);
+      body = formatted.text;
+      if (!formatted.report.ok) console.warn('[詳解排版] 尚有待修項目', formatted.report.errors);
+    }
     if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
@@ -669,6 +749,7 @@ async function startSolve() {
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
+  const refAnswerGuided = document.getElementById('answerGuidedToggle').checked && !!refAnswer;
   const hasImage = imgDataURLs.length > 0;
   const molPreview = typeof MolfileDraw !== 'undefined' && MolfileDraw.parseRequest
     ? MolfileDraw.parseRequest(textQuestion)
@@ -711,6 +792,7 @@ async function startSolve() {
   document.getElementById('resultCard').classList.add('show');
   document.getElementById('chatInputWrap').classList.add('show');
   clearThreads();
+  clearSolveValidation();
   setBusy(true);
 
   let autoHints = '';
@@ -756,6 +838,9 @@ async function startSolve() {
     const scopeInput = typeof extractExplicitScopePhrase === 'function'
       ? extractExplicitScopePhrase(textQuestion)
       : '';
+    const solveSpec = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.withApplicability
+      ? window.SolveSpec.withApplicability(getSolveSpec(), matchInput || textQuestion)
+      : getSolveSpec();
     const refConflict = (refAnswer && typeof window.checkObviousRefAnswerConflict === 'function')
       ? window.checkObviousRefAnswerConflict(matchInput || textQuestion, refAnswer)
       : { conflict: false };
@@ -772,15 +857,22 @@ async function startSolve() {
       detailed: detailMode,
       scopeInput,
       refAnswer: refConflict.conflict ? '' : refAnswer,
+      refAnswerGuided: refAnswerGuided && !refConflict.conflict,
       refAnswerSkipped: !!refConflict.conflict,
       forceStoichiometry: isForceStoichiometry(),
-      forceCalcCompact: isCalcCompact()
+      forceCalcCompact: isCalcCompact(),
+      solveSpec
     };
-    updateSolveHeadingMode(scopeInput || matchInput);
+    // 只由使用者明確輸入的範圍控制分題標題；題庫／OCR 的題號不是多題指令。
+    updateSolveHeadingMode(scopeInput);
     if (typeof window.buildSolveUserText !== 'function') {
       throw new Error('prompts.js 未載入（buildSolveUserText 不存在）。請按 Ctrl+Shift+R 強制重新整理；若仍失敗，請用「啟動網頁.bat」開啟並確認主控台是否有 js 語法錯誤。');
     }
-    const userText = window.buildSolveUserText(scopeInput, solveOpts.refAnswer, solveOpts);
+    const userText = window.buildSolveUserText(
+      scopeInput,
+      solveOpts.refAnswerGuided ? solveOpts.refAnswer : '',
+      solveOpts
+    );
     const qctxRules = [matchInput, textQuestion, autoHints].filter(Boolean).join(' ');
     let teachingRules = { userBlock: '', systemAddon: '', ids: [] };
     if (typeof resolveTeachingRulesForSolve === 'function') {
@@ -833,47 +925,31 @@ async function startSolve() {
 
     let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
       temperature: 0.25,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 6144,
       timeoutMs: 120000,
-      maxContinue: 1
+      maxContinue: 0
     });
     const qctxSolve = appendStoichiometryTag(scopeInput || matchInput || textQuestion || autoHints);
     const postProcessOpts = {
       questionCtx: qctxSolve,
+      solveSpec: solveOpts.solveSpec,
       temperature: 0.25,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 4096,
       timeoutMs: 90000
     };
-    reply = await ensureBoardStyleReply(cfg, apiMessages, systemText, reply, postProcessOpts);
-    if (typeof NoteEnsure !== 'undefined' && NoteEnsure.ensureDensityReply) {
-      reply = await NoteEnsure.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
-        temperature: 0.2,
-        maxOutputTokens: 8192,
-        timeoutMs: 90000,
-        maxNoteFix: 1
-      });
-    }
     if (typeof repairKspAgClReactionTables === 'function') {
       const qctx = typeof getLastMatchInput === 'function' ? getLastMatchInput() : '';
       reply = repairKspAgClReactionTables(reply, qctx);
     }
-    reply = await ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
+    reply = await ensureQualityReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
       refAnswerSkipped: solveOpts.refAnswerSkipped,
       ...postProcessOpts
     });
-    reply = await ensureLiquidWaterOptionReply(cfg, apiMessages, systemText, reply, postProcessOpts);
-    if (isForceStoichiometry() || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(qctxSolve))) {
-      reply = await ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, postProcessOpts);
-      reply = await ensureBoardStyleReply(cfg, apiMessages, systemText, reply, {
-        ...postProcessOpts,
-        _boardStyleFixed: 0,
-        _maxBoardStyleFix: 1
-      });
-    }
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
+    renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check
-      ? NoteCheck.check(reply)
+      ? NoteCheck.check(getQualityCheckText(reply))
       : null;
     if (noteReport && !noteReport.skipped && !noteReport.ok) {
       console.warn('[NOTE 檢查]', noteReport);
@@ -948,11 +1024,14 @@ async function sendFollowUp() {
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   try {
     const supplementHint = document.getElementById('textQuestionInput')?.value.trim() || '';
-    const scopeInput = /第\s*[\d一二三四五六七八九十]+\s*題|[\(（][一二三四五六七八九十1-9][\)）]|題組全解|都解|全解|選項\s*[A-Ea-e]|只(?:解|講|評析)/.test(text)
+    const explicitScope = typeof extractExplicitScopePhrase === 'function'
+      ? extractExplicitScopePhrase(text)
+      : '';
+    const scopeInput = explicitScope
       ? [supplementHint, text].filter(Boolean).join(' ')
       : supplementHint;
     const combinedInput = [lastMatchInput, supplementHint, text].filter(Boolean).join(' ');
-    updateSolveHeadingMode(scopeInput || lastMatchInput);
+    updateSolveHeadingMode(scopeInput);
     const followOpts = {
       scopeInput,
       textOnly: !imgDataURLs.length,
@@ -1026,12 +1105,28 @@ async function sendFollowUp() {
 
 onProviderChange();
 document.getElementById('chatInput').addEventListener('keydown', chatKeydown);
-document.getElementById('textQuestionInput').addEventListener('input', updateSolveButtonState);
+document.getElementById('textQuestionInput').addEventListener('input', () => {
+  updateSolveButtonState();
+  updateSolveSpecStatus();
+});
 document.getElementById('textQuestionInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); startSolve(); }
 });
 document.getElementById('answerInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
+});
+renderChapterOptions();
+document.querySelectorAll('input[data-solve-type], input[data-chapter-id]').forEach((input) => {
+  input.addEventListener('change', (event) => {
+    if (event.target.dataset.chapterId && event.target.checked) {
+      const selected = document.querySelectorAll('input[data-chapter-id]:checked');
+      if (selected.length > 3) {
+        event.target.checked = false;
+        toast('章節類型最多可選 3 項。');
+      }
+    }
+    updateSolveSpecStatus();
+  });
 });
 updateSolveButtonState();
 initSolveOptionToggles();

@@ -1,0 +1,15 @@
+{
+  "id": "legacy-format-format-cases",
+  "kind": "format",
+  "title": "用途",
+  "type_tags": [
+    "format",
+    "legacy"
+  ],
+  "content": "---\nid: format-cases\nkind: format\nlabel: 聯立方程式\nlayout_id: cases\ninject: always\npriority: 80\n---\n\n## 用途\n\n多個方程式聯立求解（體積、莫耳、濃度關係等）。\n\n## 輸出規格\n\n1. 整段放在**一個** `$$…$$` 內\n2. 使用 `\\begin{cases}…\\end{cases}`；解與題意相鄰時可用 `\\quad\\Rightarrow\\quad` 連接第二個 cases\n3. 中文說明可寫在 cases 外、或每行方程前的文字於 `$` 外\n\n## 範例骨架\n\n$$\n\\begin{cases}\n\\text{條件一} \\\\\n\\text{條件二}\n\\end{cases}\n\\quad\\Rightarrow\\quad\n\\begin{cases}\nx=\\cdots \\\\\ny=\\cdots\n\\end{cases}\n$$",
+  "source": {
+    "legacy_path": "database/formats/format-cases.md",
+    "imported_at": "2026-07-13T15:06:55+00:00"
+  },
+  "verification": "pending"
+}

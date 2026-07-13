@@ -1,0 +1,15 @@
+{
+  "id": "legacy-format-format-eq-block",
+  "kind": "format",
+  "title": "用途",
+  "type_tags": [
+    "format",
+    "legacy"
+  ],
+  "content": "---\nid: format-eq-block\nkind: format\nlabel: 等號推導列\nlayout_id: eq-block\ninject: always\npriority: 90\n---\n\n## 用途\n\n一般計算推導、代入、約分、求未知數。與反應表可並用。\n\n## 輸出規格\n\n1. 關鍵式寫在 `$…$` 內；巢狀分式用 `\\dfrac`\n2. 多個等號式同一行時，以 `；`、`，`、`\\text{，}\\quad` 分隔（例：$…=…\\text{，}\\quad x=…$）\n3. 結論：`=\\dfrac{…}{…}\\text{，}\\quad\\text{故 }…`（全形逗號）\n4. 關鍵數字須 `\\htmlData{note=…}{…}`（見 NOTE 附錄）；**平方項須整段包住**，如 `\\htmlData{note=Cu⁺濃度平方}{(2x)^{2}}`，禁止 `\\htmlData{…}{2x}^2` 或分母寫 `2x^2`\n5. **表後 $K_c$ 代入行**：只用**一行** `$…$`（勿用 `$$…$$`）；**2 個** `\\htmlData`（分子、分母）即可，勿再寫 `[Cu^{2+}]` 通式後又嵌套分式\n6. 科學記號：`\\times 10^{-4}`（指數必須 `{}`）；乘號用 `\\times`，禁止 `\\setminus times`\n7. 式內不寫單位；答案句與 @@ANSWER@@ 須附單位\n\n## 禁止\n\n- 禁止裸數字開場\n- 禁止多個 `$…$` 無標點緊貼",
+  "source": {
+    "legacy_path": "database/formats/format-eq-block.md",
+    "imported_at": "2026-07-13T15:06:55+00:00"
+  },
+  "verification": "pending"
+}

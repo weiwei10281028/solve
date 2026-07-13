@@ -44,7 +44,10 @@
         j += 1;
       }
 
-      if (group.length >= 2) {
+      // 只有真正包含結構圖時才建立卡片；一般題目的 (a)～(d) 敘述
+      // 不可被誤包成另一層白色區塊。
+      const hasDrawBlock = group.slice(1).some(isDrawBlock);
+      if (group.length >= 2 && hasDrawBlock) {
         const card = document.createElement('div');
         card.className = 'structure-item-card';
 

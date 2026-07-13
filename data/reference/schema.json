@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI解題 reference record v1",
+  "type": "object",
+  "required": ["id", "kind", "type_tags", "content", "source", "verification"],
+  "properties": {
+    "id": { "type": "string" },
+    "kind": { "enum": ["method", "example", "format", "answer"] },
+    "type_tags": { "type": "array", "items": { "type": "string" } },
+    "content": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["legacy_path"],
+      "properties": { "legacy_path": { "type": "string" }, "imported_at": { "type": "string" } }
+    },
+    "verification": { "enum": ["pending", "verified", "rejected"] }
+  }
+}

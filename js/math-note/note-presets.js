@@ -91,7 +91,8 @@
     },
   ];
 
-  const MAX_PRESETS = 3;
+  // 初稿只帶最相關的兩種題型，避免 NOTE 提示壓過題目本身。
+  const MAX_PRESETS = 2;
 
   function collectTagSources(opts) {
     opts = opts || {};

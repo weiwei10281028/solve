@@ -32,6 +32,22 @@
   cursor: pointer;
 }
 
+/* 選項內的 NOTE 只作輕量提示；避免連續計算數字看起來像一排方塊。 */
+.ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+  background: transparent !important;
+  padding: 0 0.02em !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px dotted rgba(166, 124, 82, 0.72);
+  box-shadow: none !important;
+}
+
+.ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+  background: rgba(184, 112, 42, 0.12) !important;
+  border-bottom-color: var(--copper, #A67C52);
+  box-shadow: 0 0 0 1px rgba(166, 124, 82, 0.45) !important;
+}
+
 .katex .math-note--sci {
   white-space: nowrap;
   display: inline-block;
@@ -176,4 +192,14 @@
 
 .math-note-popover.show {
   display: block;
+}
+
+.math-note-popover-math {
+  display: inline-block;
+  margin: 0 .04em;
+  vertical-align: baseline;
+}
+
+.math-note-popover .katex {
+  font-size: 1em;
 }

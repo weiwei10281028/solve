@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
   <meta name="theme-color" content="#FAF7F2">
   <title>化學解題工具</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,11 +10,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <link rel="stylesheet" href="css/app.css?v=20250705a">
-  <link rel="stylesheet" href="css/board.css?v=20250702f">
+  <link rel="stylesheet" href="css/app.css?v=20260714b">
+  <link rel="stylesheet" href="css/board.css?v=20260713l">
   <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250704a">
   <link rel="stylesheet" href="css/plain-choice-options.css?v=20250630a">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20250704a">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260713c">
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
   <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
   <link rel="stylesheet" href="css/structure-layout.css?v=20250628a">
@@ -30,7 +30,8 @@
     </div>
   </div>
   <nav class="header-nav">
-    <a class="nav-btn" href="db-import.html">題庫匯入</a>
+    <a class="nav-btn" href="teacher-tools.html">教師工具</a>
+    <a class="nav-btn" href="solution-format.html">排版</a>
     <button class="nav-btn nav-btn--accent" type="button" onclick="openModal()">設定</button>
   </nav>
 </header>
@@ -82,9 +83,14 @@
     </div>
 
     <div class="field-group">
-      <label class="field-label" for="answerInput">參考答案（選填）</label>
+      <label class="field-label" for="answerInput">參考答案（建議填寫）</label>
       <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off">
-      <p class="field-hint">建議填寫。單題寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>（第3題選A、第5題選C與D），詳解將依此檢核</p>
+      <label class="option-toggle reference-answer-toggle" for="answerGuidedToggle">
+        <input type="checkbox" id="answerGuidedToggle">
+        <span class="option-toggle-ui" aria-hidden="true"></span>
+        <span class="option-toggle-label">已核對答案，依此反向推導</span>
+      </label>
+      <p class="field-hint">未勾選時，參考答案只在完成後比對；勾選後，AI 會先依題目找出支持指定答案的理由，再生成詳解。單題寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>（第3題選A、第5題選C與D）。</p>
     </div>
 
     <div class="solve-options">
@@ -103,6 +109,23 @@
       <p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p>
     </div>
 
+    <section class="solve-spec" aria-labelledby="chapterSpecTitle" aria-describedby="chapterSpecHint solveSpecStatus">
+      <h2 class="field-label" id="chapterSpecTitle">章節類型（可複選）</h2>
+      <div class="solve-spec-row" id="chapterOptions"></div>
+      <p class="field-hint" id="chapterSpecHint">可選 1～3 個章節；未選取時由系統自動判斷，不會強制套用。</p>
+    </section>
+
+    <section class="solve-spec" aria-labelledby="solveSpecTitle" aria-describedby="solveSpecHint solveSpecStatus">
+      <h2 class="field-label" id="solveSpecTitle">作答格式（可複選）</h2>
+      <div class="solve-spec-row">
+        <label class="option-toggle" for="solveTypeChoice"><input type="checkbox" id="solveTypeChoice" data-solve-type="choice"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">選擇題逐項分析</span></label>
+        <label class="option-toggle" for="solveTypeCalculation"><input type="checkbox" id="solveTypeCalculation" data-solve-type="calculation"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算題四步推導</span></label>
+        <label class="option-toggle" for="solveTypeConcept"><input type="checkbox" id="solveTypeConcept" data-solve-type="concept"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">概念／性質三步判斷</span></label>
+      </div>
+      <p class="field-hint" id="solveSpecHint">選擇格式只控制呈現步驟；未選取時維持原本依題目自動判斷的解題方式。</p>
+      <p class="solve-spec-status" id="solveSpecStatus" aria-live="polite">未啟用題型規格，將依題目自動判斷。</p>
+    </section>
+
     <div class="action-row">
       <button class="btn-primary" type="button" id="solveBtn" onclick="startSolve()" disabled>開始解題</button>
       <button class="btn-ghost" type="button" onclick="clearAll()">清除</button>
@@ -114,6 +137,7 @@
       <div>
         <h2 class="panel-title panel-title--sm">詳解</h2>
         <p class="panel-desc panel-desc--hint">點擊數字可以觀看說明</p>
+        <p class="solve-validation" id="solveValidation" aria-live="polite" hidden></p>
       </div>
       <span class="status-badge" id="badge">就緒</span>
     </div>
@@ -193,24 +217,27 @@
 <script src="js/db-meta.js?v=20250702r"></script>
 <script src="js/db-rules.js?v=20250704d"></script>
 <script src="js/database.js?v=20250705b"></script>
-<script src="js/prompt-compose.js?v=20250705d"></script>
-<script src="js/prompts.js?v=20250705h"></script>
+<script src="js/solve-spec.js?v=20260713b"></script>
+<script src="js/prompt-compose.js?v=20260713k"></script>
+  <script src="js/prompts.js?v=20260714a"></script>
 <script src="js/plain-reaction-table.js?v=20250705c"></script>
-<script src="js/plain-choice-options.js?v=20250630a"></script>
-<script src="js/math-note/math-note.js?v=20250705b"></script>
-<script src="js/math-note/note-rules.js?v=20250705a"></script>
-<script src="js/math-note/note-presets.js?v=20250627c"></script>
+<script src="js/plain-choice-options.js?v=20260713b"></script>
+<script src="js/math-note/math-note.js?v=20260713b"></script>
+<script src="js/math-note/note-rules.js?v=20260713a"></script>
+<script src="js/math-note/note-presets.js?v=20260713a"></script>
 <script src="js/math-note/note-block.js?v=20250627c"></script>
-<script src="js/math-note/note-check.js?v=20250705a"></script>
-<script src="js/math-note/note-ensure.js?v=20250705b"></script>
+<script src="js/math-note/note-check.js?v=20260713j"></script>
+<script src="js/math-note/note-ensure.js?v=20260713a"></script>
+<script src="js/latex-sanitize.js?v=20260713a"></script>
+<script src="js/solution-format.js?v=20260713a"></script>
 <script src="js/structures-bundle.js?v=20250704a"></script>
 <script src="js/mol-resolver.js?v=20250704b"></script>
 <script src="js/molfile-draw.js?v=20250704a"></script>
-<script src="js/structure-layout.js?v=20250628a"></script>
+<script src="js/structure-layout.js?v=20260713b"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
 <script src="js/smiles-draw.js?v=20250628h"></script>
-<script src="js/render.js?v=20250705p4b"></script>
+<script src="js/render.js?v=20260713k"></script>
 <script src="js/api.js?v=20250627j"></script>
-<script src="js/app.js?v=20250705b"></script>
+  <script src="js/app.js?v=20260714a"></script>
 </body>
 </html>
