@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080808">
+  <meta name="theme-color" content="#0a0a0e">
   <title>解題桌｜首頁設計模擬</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,6 +35,14 @@
     body[data-theme="onyx"] .bench-top{background:linear-gradient(90deg,#171716,#0d0d0c)}
     body[data-theme="onyx"] .textarea,body[data-theme="onyx"] .input{background:#0b0b0a}
     body[data-theme="onyx"] .upload-box,body[data-theme="onyx"] .answer-card,body[data-theme="onyx"] .advanced-block{background:#151514}
+    .dot.violet{border-color:#aa92c4;background:radial-gradient(circle at 72% 25%,#d6c2e9 0 11%,transparent 13%),linear-gradient(135deg,#0c0b11 0 54%,#8768a6 100%)}.dot.lunar{border-color:#9da1b4;background:radial-gradient(circle at 72% 27%,#eee9f4 0 12%,transparent 14%),linear-gradient(135deg,#0b0c10 0 48%,#6e7187 100%)}
+    body[data-theme="violet"]{color-scheme:dark;--bg:#0a0a0e;--paper:#15131b;--paper-2:#211d2a;--ink:#f7f3fb;--muted:#c4bccd;--line:#4b4357;--line-strong:#766583;--accent:#d0bce2;--accent-soft:#30263a;--action:#f4eef9;--on-action:#17121c;--danger:#f1a6af;--shadow:0 28px 90px rgba(0,0,0,.54),0 0 70px rgba(130,93,167,.11);--shadow-soft:0 15px 38px rgba(0,0,0,.30);--marble:radial-gradient(ellipse at 13% 7%,rgba(216,188,237,.15),transparent 30%),radial-gradient(ellipse at 88% 76%,rgba(132,101,176,.16),transparent 29%),radial-gradient(ellipse at 55% 110%,rgba(250,223,212,.07),transparent 31%),linear-gradient(145deg,#09090d 0%,#121018 49%,#0a0a0e 100%)}
+    body[data-theme="lunar"]{color-scheme:dark;--bg:#0a0b0e;--paper:#141519;--paper-2:#1e2027;--ink:#f5f5f3;--muted:#c2c4cb;--line:#444750;--line-strong:#737885;--accent:#d9dbe5;--accent-soft:#292c34;--action:#f1f2f4;--on-action:#17191d;--danger:#f0a9ad;--shadow:0 28px 90px rgba(0,0,0,.55),0 0 64px rgba(184,174,213,.09);--shadow-soft:0 15px 38px rgba(0,0,0,.31);--marble:radial-gradient(ellipse at 16% 5%,rgba(231,231,239,.13),transparent 29%),radial-gradient(ellipse at 85% 72%,rgba(151,142,181,.15),transparent 27%),radial-gradient(ellipse at 50% 115%,rgba(214,205,232,.07),transparent 32%),linear-gradient(145deg,#090a0d 0%,#11131a 49%,#090a0e 100%)}
+    body[data-theme="violet"] .workbench,body[data-theme="lunar"] .workbench{position:relative;border-color:var(--line-strong);background:linear-gradient(135deg,color-mix(in srgb,var(--paper) 92%,#fff 8%),var(--paper));box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.09)}
+    body[data-theme="violet"] .workbench:before,body[data-theme="lunar"] .workbench:before{content:"";position:absolute;z-index:1;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 80%,#fff),transparent);opacity:.72;pointer-events:none}
+    body[data-theme="violet"] .bench-top,body[data-theme="lunar"] .bench-top{background:linear-gradient(90deg,var(--paper-2),var(--paper))}body[data-theme="violet"] .palette-strip,body[data-theme="lunar"] .palette-strip{background:linear-gradient(100deg,color-mix(in srgb,var(--paper) 86%,transparent),color-mix(in srgb,var(--paper-2) 78%,transparent))}
+    body[data-theme="violet"] .textarea,body[data-theme="violet"] .input{background:#100e15}body[data-theme="lunar"] .textarea,body[data-theme="lunar"] .input{background:#101116}
+    body[data-theme="violet"] .upload-box,body[data-theme="violet"] .answer-card,body[data-theme="violet"] .advanced-block{background:#1a1720}body[data-theme="lunar"] .upload-box,body[data-theme="lunar"] .answer-card,body[data-theme="lunar"] .advanced-block{background:#181a20}
     .upload-box{display:grid;place-items:center;width:52px;height:52px;min-height:52px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:transparent}
     .upload-box:hover,.upload-box.drag{border-color:var(--ink);background:var(--accent-soft);transform:translateY(-1px)}
     .upload-symbol{position:relative;width:42px;height:42px;margin:0;border:1px solid var(--line);border-radius:11px;background:var(--paper-2);color:var(--ink);transition:background .18s,color .18s,border-color .18s,box-shadow .18s}
@@ -43,10 +51,11 @@
     .upload-box.has-file{border-color:#8c7657;background:transparent}.upload-box.has-file:before{display:none}
     .upload-box.has-file .upload-symbol{border-color:#5b5349;background:#1d1c1a;color:#fffdf8;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 14px rgba(0,0,0,.22)}.upload-box.has-file .upload-state{display:grid}
     .hero h1{white-space:nowrap}.hero h1 em{color:#9b6a32}.hero-phrase{white-space:nowrap}.mobile-break{display:none}
+    .field-head span,.answer-foot,.checkline,.privacy{font-size:13px}.answer-foot{line-height:1.7}.advanced-block p{font-size:12px;line-height:1.65}
     @media(max-width:620px){.hero h1{white-space:normal;font-size:clamp(28px,9vw,42px);letter-spacing:-.065em;line-height:1.16}.mobile-break{display:block}.upload-box{width:56px;height:56px;min-height:56px}.upload-symbol{width:46px;height:46px}}
   </style>
 </head>
-<body data-theme="onyx">
+<body data-theme="violet">
   <a class="skip" href="#main">跳到主要內容</a>
   <div class="shell">
     <header class="topbar">
@@ -63,11 +72,13 @@
         <div><h1 id="page-title"><span class="hero-phrase"><strong>把題目</strong>攤開<em>，</em></span><br class="mobile-break"><span class="hero-phrase">一步一步看懂它。</span></h1></div>
       </section>
       <section class="palette-strip" aria-label="配色預覽">
-        <div class="palette-copy"><b>配色試閱</b>　三組可切換的首頁氣質，淺色以大理石白為基底，深色以白黑對比為主。</div>
+        <div class="palette-copy"><b>配色試閱</b>　五組可切換的首頁氣質；深色樣本以黑珍珠、霧紫玻璃與月光鈦銀呈現。</div>
         <div class="themes" role="group" aria-label="選擇配色">
           <button class="theme" data-theme="ivory" aria-pressed="false"><i class="dot"></i>象牙大理石</button>
           <button class="theme" data-theme="sage" aria-pressed="false"><i class="dot sage"></i>靜謐苔紙</button>
-          <button class="theme" data-theme="onyx" aria-pressed="true"><i class="dot onyx"></i>黑珍珠</button>
+          <button class="theme" data-theme="onyx" aria-pressed="false"><i class="dot onyx"></i>黑珍珠</button>
+          <button class="theme" data-theme="violet" aria-pressed="true"><i class="dot violet"></i>霧紫玻璃</button>
+          <button class="theme" data-theme="lunar" aria-pressed="false"><i class="dot lunar"></i>月光鈦銀</button>
         </div>
       </section>
       <section class="workbench" aria-labelledby="bench-title">
@@ -116,7 +127,7 @@
     $('#formula').onclick=()=>{const n=$('#note');n.setRangeText(' n = m / M ',n.selectionStart,n.selectionEnd,'end');n.focus();say('已插入公式')};$('#clear').onclick=()=>{selectedFiles=[];file.value='';clearUrls();renderFiles();$('#note').value='';$('#answer').value='';$('#guided').checked=false;$('#result').classList.remove('show');say('已清空這份題目')};
     const previewResult=()=>{if(!selectedFiles.length&&!$('#note').value.trim()){say('先上傳圖片或補充題目，再預覽解題');$('#note').focus();return}$('#result').classList.add('show');$('#result').scrollIntoView({behavior:'smooth',block:'start'});say('已建立展示用解題草稿')};$('#solve').onclick=previewResult;$('#mobile-solve').onclick=previewResult;
     const panels={solution:'<small>01 / REFRAME</small><h3>先把題目的關係排好</h3><p>題目中的已知與所求會在這裡整理成一條可讀的推導路徑。學生可以先看到結構，再看到公式與每一步理由。</p><div class="formula">2H₂ + O₂ → 2H₂O</div><div class="mini-checks"><span class="mini-check"><b>UNIT</b>　單位一致</span><span class="mini-check"><b>RATIO</b>　係數已約分</span><span class="mini-check"><b>ANSWER</b>　結論可比對</span></div>',check:'<small>02 / CHECK</small><h3>把容易漏掉的地方留下來</h3><p>這裡會展示單位、係數、有效數字與參考答案的比對狀態。使用者可在同一個解題頁面快速回看。</p><div class="mini-checks"><span class="mini-check"><b>01</b>　題目條件已辨認</span><span class="mini-check"><b>02</b>　反應關係已確認</span><span class="mini-check"><b>03</b>　參考答案可比對</span></div>',original:'<small>03 / ORIGINAL</small><h3>原題與補充內容</h3><p>'+(()=>{const t=$('#note').value.trim();return t?t.replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])):'尚未輸入文字；正式版本會顯示題目圖片、辨識文字與補充說明。'})()+'</p>'};$$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.toggle('active',x===t));$('#solution').innerHTML=panels[t.dataset.tab]});$('#follow').onclick=()=>say('這是展示頁，正式版會在此接續追問');
-    $$('.theme').forEach(t=>t.onclick=()=>{document.body.dataset.theme=t.dataset.theme;$$('.theme').forEach(x=>x.setAttribute('aria-pressed',String(x===t)));document.querySelector('meta[name="theme-color"]').content={ivory:'#f4f1eb',sage:'#eef0e9',onyx:'#080808'}[t.dataset.theme];say('已切換至 '+t.textContent.trim())});$('#openPalette').onclick=()=>$('.palette-strip').scrollIntoView({behavior:'smooth',block:'center'});$('#settings').onclick=()=>$('#settings-dialog').showModal();$$('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
+    $$('.theme').forEach(t=>t.onclick=()=>{document.body.dataset.theme=t.dataset.theme;$$('.theme').forEach(x=>x.setAttribute('aria-pressed',String(x===t)));document.querySelector('meta[name="theme-color"]').content={ivory:'#f4f1eb',sage:'#eef0e9',onyx:'#080808',violet:'#0a0a0e',lunar:'#0a0b0e'}[t.dataset.theme];say('已切換至 '+t.textContent.trim())});$('#openPalette').onclick=()=>$('.palette-strip').scrollIntoView({behavior:'smooth',block:'center'});$('#settings').onclick=()=>$('#settings-dialog').showModal();$$('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
   </script>
 </body>
 </html>

@@ -18,8 +18,9 @@
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
   <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
   <link rel="stylesheet" href="css/structure-layout.css?v=20250628a">
+  <link rel="stylesheet" href="css/studio-theme.css?v=20260714a">
 </head>
-<body class="app-page">
+<body class="app-page" data-theme="ivory">
 
 <header class="site-header">
   <div class="brand">
@@ -30,11 +31,17 @@
     </div>
   </div>
   <nav class="header-nav">
+    <button class="nav-btn" type="button" id="themeToggle" aria-pressed="false">月光鈦銀</button>
     <button class="nav-btn nav-btn--accent" type="button" onclick="openModal()">設定</button>
   </nav>
 </header>
 
 <main class="page-main">
+  <section class="app-hero" aria-labelledby="appTitle">
+    <p class="app-kicker">CHEMISTRY STUDY SPACE</p>
+    <h1 id="appTitle">把題目交給<span>清晰的推導</span></h1>
+    <p>上傳題目或直接輸入內容，保留原本的解題設定與結果閱讀流程。</p>
+  </section>
   <section class="panel panel-input" aria-label="上傳題目">
     <div class="panel-head">
       <h1 class="panel-title">上傳題目</h1>
@@ -252,5 +259,22 @@
 <script src="js/render.js?v=20260713k"></script>
 <script src="js/api.js?v=20260714d"></script>
 <script src="js/app.js?v=20260714h"></script>
+<script src="js/studio-layout.js?v=20260714a"></script>
+<script>
+  (() => {
+    const toggle = document.getElementById('themeToggle');
+    if (!toggle) return;
+    const applyTheme = (theme) => {
+      const lunar = theme === 'lunar';
+      document.body.dataset.theme = lunar ? 'lunar' : 'ivory';
+      toggle.textContent = lunar ? '深色' : '淺色';
+      toggle.setAttribute('aria-pressed', String(lunar));
+      document.querySelector('meta[name="theme-color"]').content = lunar ? '#0a0b0e' : '#f4f1eb';
+      localStorage.setItem('solver-theme', lunar ? 'lunar' : 'ivory');
+    };
+    applyTheme(localStorage.getItem('solver-theme') || 'ivory');
+    toggle.addEventListener('click', () => applyTheme(document.body.dataset.theme === 'lunar' ? 'ivory' : 'lunar'));
+  })();
+</script>
 </body>
 </html>

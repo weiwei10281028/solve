@@ -1,0 +1,148 @@
+/* 正式首頁主題：象牙大理石 / 月光鈦銀。所有元件透過語意變數共用色彩。 */
+:root {
+  --font-ui: "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Noto Serif TC", Georgia, serif;
+}
+
+body[data-theme="ivory"] {
+  color-scheme: light;
+  --bg: #f4f1eb;
+  --bg-accent: #eee9e0;
+  --surface: #fcfbf7;
+  --surface-raised: #fffdf9;
+  --ink: #152019;
+  --ink-muted: #627066;
+  --ink-faint: #7f887f;
+  --border: #d9d5cb;
+  --border-light: #e8e3d9;
+  --accent: #315743;
+  --accent-hover: #203f30;
+  --accent-soft: #e1ebe2;
+  --copper: #9b6a32;
+  --copper-soft: #ecd9bc;
+  --danger: #a33d35;
+  --danger-soft: #fae9e6;
+  --warn: #89622f;
+  --warn-soft: #f7edda;
+  --ok: #315743;
+  --ok-soft: #e1ebe2;
+  --radius: 18px;
+  --radius-sm: 11px;
+  --shadow: 0 18px 50px rgba(51, 47, 38, .10), 0 2px 5px rgba(51, 47, 38, .04);
+  --marble: radial-gradient(ellipse at 16% 16%, rgba(255,255,255,.86) 0 4%, transparent 38%), radial-gradient(ellipse at 82% 6%, rgba(211,202,190,.38) 0 2%, transparent 34%), linear-gradient(112deg, transparent 20%, rgba(174,164,149,.12) 21%, transparent 22%, transparent 55%, rgba(255,255,255,.65) 56%, transparent 58%), linear-gradient(140deg, #edeae2, #f9f7f1 48%, #e9e4da);
+}
+
+body[data-theme="lunar"] {
+  color-scheme: dark;
+  --bg: #0a0b0e;
+  --bg-accent: #1a1c23;
+  --surface: #141519;
+  --surface-raised: #1d2028;
+  --ink: #f4f4f1;
+  --ink-muted: #c4c6cd;
+  --ink-faint: #9ca1ac;
+  --border: #444750;
+  --border-light: #2e313a;
+  --accent: #d9dbe5;
+  --accent-hover: #ffffff;
+  --accent-soft: #2b2e38;
+  --copper: #c6c8d4;
+  --copper-soft: #483a2b;
+  --danger: #f0a9ad;
+  --danger-soft: #3a252a;
+  --warn: #e4cd99;
+  --warn-soft: #352f22;
+  --ok: #d9dbe5;
+  --ok-soft: #292d36;
+  --radius: 18px;
+  --radius-sm: 11px;
+  --shadow: 0 26px 74px rgba(0, 0, 0, .48), inset 0 1px 0 rgba(255,255,255,.05);
+  --marble: radial-gradient(ellipse at 16% 5%, rgba(231,231,239,.12), transparent 30%), radial-gradient(ellipse at 84% 72%, rgba(151,142,181,.14), transparent 28%), linear-gradient(145deg, #090a0d, #11131a 49%, #090a0e);
+}
+
+body.app-page { font-family: var(--font-ui); background: var(--marble); background-attachment: fixed; color: var(--ink); }
+.site-header { height: calc(72px + var(--safe-t)); background: color-mix(in srgb, var(--surface) 87%, transparent); border-color: color-mix(in srgb, var(--border) 82%, transparent); backdrop-filter: blur(16px); }
+.site-header, .page-main { width: min(1140px, calc(100% - 40px)); margin-inline: auto; padding-left: 0; padding-right: 0; }
+.brand-mark { width: 36px; height: 36px; border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 10px; background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 52%, var(--copper))); box-shadow: 0 6px 16px color-mix(in srgb, var(--ink) 12%, transparent); }
+.brand-name { color: var(--ink); letter-spacing: .04em; }
+.brand-sub, .panel-desc, .field-hint, .field-label { color: var(--ink-muted); }
+.nav-btn { min-height: 40px; border-radius: 10px; color: var(--ink-muted); border-color: var(--border); background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nav-btn:hover { color: var(--ink); border-color: var(--ink-faint); background: var(--surface-raised); }
+.nav-btn--accent { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+body[data-theme="lunar"] .nav-btn--accent { color: #17191d; }
+
+.page-main { max-width: 1140px; padding-top: 42px; padding-bottom: calc(54px + var(--safe-b)); gap: 24px; }
+.app-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .42fr); align-items: end; gap: 28px; padding: 20px 4px 10px; }
+.app-kicker { grid-column: 1 / -1; margin: 0; color: var(--copper); font: 600 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .14em; }
+.app-hero h1 { margin: 0; font: 700 clamp(37px, 5.1vw, 61px)/1.14 var(--font-display); letter-spacing: -.055em; color: var(--ink); }
+.app-hero h1 span { color: var(--copper); }
+.app-hero > p:last-child { max-width: 290px; margin: 0 0 5px; padding-left: 16px; border-left: 1px solid var(--copper); color: var(--ink-muted); font-size: 14px; line-height: 1.75; }
+
+.panel:not(.panel-result), .panel.panel-result { background: color-mix(in srgb, var(--surface) 94%, transparent); border-color: var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel:not(.panel-result) { padding: clamp(20px, 3vw, 30px); }
+.panel.panel-result { padding: clamp(20px, 3vw, 30px); }
+.panel-head { padding-bottom: 16px; border-bottom: 1px solid var(--border-light); }
+.panel-title { font-family: var(--font-display); font-size: 24px; color: var(--ink); letter-spacing: -.025em; }
+.panel-title--sm { font-size: 21px; }
+.panel-desc--hint { color: var(--copper); }
+
+.upload-zone { border-color: var(--border); border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 62%, transparent), var(--bg-accent)); }
+.upload-zone:hover, .upload-zone.over { border-color: var(--copper); background: var(--copper-soft); }
+.upload-graphic { color: var(--copper); }.upload-title, .option-toggle-label { color: var(--ink); }.upload-hint { color: var(--ink-faint); }
+.question-input, .field-input, .chat-input, .formula-input { border-color: var(--border); background: var(--surface-raised); color: var(--ink); }
+.question-input::placeholder, .field-input::placeholder, .chat-input::placeholder { color: var(--ink-faint); }
+.question-input:focus, .field-input:focus, .chat-input:focus, .formula-input:focus { border-color: var(--copper); box-shadow: 0 0 0 3px color-mix(in srgb, var(--copper) 20%, transparent); }
+.solve-spec, .formula-tools { border-color: var(--border); background: color-mix(in srgb, var(--bg-accent) 62%, transparent); }
+.solve-spec-status, .followup-input-box { background: var(--surface-raised); color: var(--ink-muted); border-color: var(--border); }
+.option-toggle-ui { border-color: var(--border); background: var(--surface-raised); }.option-toggle input:checked + .option-toggle-ui { background: var(--accent); border-color: var(--accent); }
+body[data-theme="lunar"] .option-toggle input:checked + .option-toggle-ui { box-shadow: inset 0 0 0 2px #17191d; }
+.btn-primary, .btn-send { background: var(--accent); color: var(--surface); }.btn-primary:hover:not(:disabled), .btn-send:hover { background: var(--accent-hover); }
+body[data-theme="lunar"] .btn-primary, body[data-theme="lunar"] .btn-send { color: #17191d; }.btn-ghost { color: var(--ink-muted); border-color: var(--border); }.btn-ghost:hover { color: var(--ink); background: var(--bg-accent); }
+
+.board { --board-bg: var(--surface-raised); background: var(--board-bg); border-color: var(--border); color: var(--ink); border-radius: 12px; }
+.board-scroll .ai-plain, .ai-plain { color: var(--ink); }
+.solve-section-title { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
+.answer-box { background: var(--copper-soft); border-left-color: var(--copper); color: var(--ink); }
+.status-badge { color: var(--ok); background: var(--ok-soft); }.msg-user { background: var(--copper-soft); border-color: var(--border); color: var(--ink); }
+.followup-area { background: var(--bg-accent); border-color: var(--border); }.followup-block + .followup-block { border-color: var(--border); }.followup-user { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); color: var(--ink); }.followup-tag { background: var(--accent-soft); color: var(--accent); }.followup-reply { background: var(--surface-raised); border-color: var(--border); }
+
+/* 解題 NOTE 在淺、深色模式的底色、文字與浮層均隨主題切換。 */
+.math-note.active, .katex :is(.math-note, [data-note], [note]).active:not(.math-note--whole):not(.math-note--frac-part), .math-note--whole.active, .katex .math-note--whole.active, .katex [data-note].math-note--whole.active { background: var(--copper-soft) !important; color: var(--ink) !important; }
+.math-note-popover { background: var(--ink); color: var(--surface); border: 1px solid color-mix(in srgb, var(--surface) 18%, transparent); box-shadow: 0 14px 34px rgba(0,0,0,.24); }
+.anno-badge { background: var(--bg-accent); border-color: var(--border); color: var(--ink); }.anno-badge.active { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+body[data-theme="lunar"] .anno-badge.active { color: #17191d; }
+
+.overlay { background: rgba(7, 8, 11, .58); backdrop-filter: blur(4px); }.modal { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }.tip-box { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); color: var(--ink); }.tip-box a, .key-link { color: var(--copper); }.toast { background: var(--ink); color: var(--surface); }
+
+@media (min-width: 840px) { .panel-input { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr); column-gap: 30px; }.panel-input > .panel-head, .panel-input > .action-row, .panel-input > .solve-spec { grid-column: 1 / -1; }.panel-input > .formula-tools { align-self: start; margin-top: 16px; }.panel-input > .field-group, .panel-input > .solve-options { min-width: 0; }.panel-input > .field-group:first-of-type { margin-top: 16px; }.panel-input > .action-row { max-width: 420px; }.panel-result { max-width: 900px; margin-inline: auto; } }
+@media (max-width: 767px) { .site-header, .page-main { width: min(100% - 24px, 1140px); }.site-header { height: calc(64px + var(--safe-t)); }.brand-sub { display: none; }.page-main { padding-top: 25px; gap: 18px; }.app-hero { display: block; padding: 8px 2px 2px; }.app-kicker { margin-bottom: 10px; }.app-hero h1 { font-size: clamp(32px, 10vw, 45px); }.app-hero > p:last-child { margin-top: 15px; font-size: 13px; }.panel:not(.panel-result), .panel.panel-result { border-radius: 14px; }.header-nav { gap: 5px; }.nav-btn { min-height: 38px; padding-inline: 9px; font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+/* studio-home 工作台版面：保留首頁所有正式表單與解題功能。 */
+.app-hero { display: block; padding: 18px 4px 28px; }
+.app-kicker { display: none; }
+.app-hero h1 { max-width: none; font-size: clamp(42px, 5.4vw, 72px); }
+.app-hero h1 span { color: var(--copper); }
+.panel-input { display: block !important; padding: 0 !important; overflow: visible !important; }
+.bench-title { display: flex; align-items: center; gap: 11px; min-height: 62px; padding: 0 24px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--copper); box-shadow: 0 0 0 4px color-mix(in srgb, var(--copper) 16%, transparent); }
+.studio-core-grid { display: grid; grid-template-columns: minmax(330px, .92fr) minmax(0, 1.28fr); }
+.studio-field { min-width: 0; padding: 25px 28px; }.studio-attachment { border-right: 1px solid var(--border); }
+.studio-field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }.studio-field-head h2 { margin: 0; font-size: 15px; color: var(--ink); }.studio-field-head span { color: var(--ink-muted); font-size: 12px; }
+.studio-upload-row { display: flex; align-items: center; min-height: 64px; gap: 9px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+.studio-upload { flex: 0 0 58px; width: 58px; min-height: 58px; height: 58px; padding: 0; border-style: solid; border-radius: 14px; background: var(--surface-raised); }.studio-upload:hover, .studio-upload.over { border-color: var(--copper); background: var(--copper-soft); }.studio-upload .upload-graphic { width: 100%; margin: 0; align-items: center; height: 100%; }.studio-upload .upload-graphic svg { width: 26px; height: 26px; }.studio-upload .upload-title, .studio-upload .upload-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.studio-attachment .preview-wrap { flex: 0 0 auto; width: 58px; height: 58px; margin: 0; }.studio-attachment .preview-btn { height: 58px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface-raised); }.studio-attachment .preview-img { display: block; width: 56px; height: 56px; max-width: none; max-height: none; border: 0; border-radius: 0; object-fit: cover; object-position: center; image-rendering: auto; transform: translateZ(0); }.studio-attachment .preview-name, .studio-attachment .preview-zoom-hint { display: none; }.studio-attachment .preview-remove-btn, .studio-attachment .preview-download-btn { top: -6px; width: 22px; height: 22px; font-size: 13px; }.studio-attachment .preview-remove-btn { right: -6px; }.studio-attachment .preview-download-btn { display: none; }
+.studio-field .field-group { margin: 0; }.studio-field .field-label { font-size: 14px; color: var(--ink); margin-bottom: 9px; }.studio-field .field-hint { font-size: 12px; line-height: 1.65; }.studio-field .question-input { min-height: 164px; resize: vertical; background: color-mix(in srgb, var(--surface-raised) 94%, transparent); }.studio-attachment .question-input { min-height: 50px; }.studio-attachment .reference-answer-toggle { margin-top: 10px; }.studio-attachment .field-hint { margin-bottom: 0; }
+.studio-advanced { border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-accent) 35%, transparent); }.studio-advanced > summary { display: flex; align-items: center; justify-content: space-between; min-height: 70px; padding: 0 28px; list-style: none; cursor: pointer; }.studio-advanced > summary::-webkit-details-marker { display: none; }.studio-advanced summary span { display: flex; align-items: baseline; gap: 9px; }.studio-advanced summary b { font-size: 15px; }.studio-advanced summary small { color: var(--ink-muted); font-size: 12px; }.studio-advanced summary svg { width: 22px; stroke: currentColor; fill: none; stroke-width: 2; transition: transform .18s; }.studio-advanced[open] summary svg { transform: rotate(180deg); }
+.studio-advanced-body { padding: 0 28px 26px; }.studio-advanced-column { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }.studio-advanced-column .formula-tools { grid-column: 1 / -1; margin: 0; }.studio-advanced-column .solve-options { margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); }.studio-advanced-column .solve-spec { margin: 0; background: var(--surface-raised); }.studio-advanced-column .solve-spec:last-child { grid-column: 1 / -1; }.studio-advanced-column .solve-spec-row .option-toggle { min-width: min(190px, 100%); }
+.studio-actionbar { display: flex; align-items: center; gap: 18px; min-height: 72px; padding: 14px 28px; border-top: 1px solid var(--border); background: var(--surface); }.studio-actionbar p { flex: 1; max-width: 650px; margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.55; }.studio-actionbar .btn-ghost { min-height: 42px; }
+.studio-solve-dock { position: fixed; z-index: 60; right: max(24px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); width: min(318px, calc(100vw - 48px)); padding: 9px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 15px 38px rgba(0,0,0,.20); backdrop-filter: blur(14px); }.studio-solve-dock .btn-primary { width: 100%; min-height: 48px; }
+.page-main { padding-bottom: 112px; }.result-card { margin-top: 8px; }
+@media (max-width: 760px) { .app-hero { padding: 9px 2px 21px; }.app-hero h1 { font-size: clamp(35px, 11vw, 48px); line-height: 1.17; }.bench-title { min-height: 57px; padding-inline: 17px; }.studio-core-grid { grid-template-columns: 1fr; }.studio-field { padding: 20px 17px; }.studio-attachment { border-right: 0; border-bottom: 1px solid var(--border); }.studio-field .question-input { min-height: 152px; }.studio-advanced > summary { min-height: 62px; padding-inline: 17px; }.studio-advanced summary small { display: none; }.studio-advanced-body { padding: 0 17px 17px; }.studio-advanced-column { grid-template-columns: 1fr; gap: 12px; }.studio-advanced-column .solve-spec:last-child, .studio-advanced-column .formula-tools { grid-column: auto; }.studio-actionbar { min-height: 66px; padding: 12px 17px 78px; }.studio-actionbar p { font-size: 11px; }.studio-solve-dock { left: 0; right: 0; bottom: 0; width: auto; padding: 9px max(12px, env(safe-area-inset-left)) calc(9px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right)); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }.studio-solve-dock .btn-primary { min-height: 48px; }.studio-attachment .preview-wrap, .studio-upload, .studio-attachment .preview-btn { width: 56px; height: 56px; flex-basis: 56px; }.studio-attachment .preview-img { width: 54px; height: 54px; } }
+
+/* studio-home 的章節選取：摘要列保持精簡，完整清單置於彈窗。 */
+.studio-chapter-control { padding: 15px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); }.studio-chapter-control h2 { margin: 0 0 5px; color: var(--ink); font-size: 14px; }.studio-chapter-control > p { margin: 0 0 13px; color: var(--ink-muted); font-size: 12px; line-height: 1.6; }.studio-chapter-trigger { display: flex; width: 100%; min-height: 50px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }.studio-chapter-trigger:hover { border-color: var(--copper); }.studio-chapter-trigger span { display: flex; gap: 10px; align-items: baseline; min-width: 0; }.studio-chapter-trigger small { overflow: hidden; color: var(--copper); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.studio-chapter-trigger svg { width: 19px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; }
+.studio-chapter-dialog { width: min(950px, calc(100% - 32px)); max-height: min(780px, 90dvh); overflow: hidden; padding: 0; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--ink); box-shadow: 0 32px 95px rgba(0,0,0,.44); }.studio-chapter-dialog::backdrop { background: rgba(8, 9, 12, .68); backdrop-filter: blur(5px); }.studio-dialog-head { display: flex; justify-content: space-between; gap: 18px; padding: 23px 24px 19px; border-bottom: 1px solid var(--border); }.studio-dialog-head h2 { margin: 0; font-family: var(--font-display); font-size: 26px; }.studio-dialog-head p { margin: 6px 0 0; color: var(--ink-muted); font-size: 13px; }.studio-dialog-close { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; border: 1px solid var(--border); border-radius: 13px; background: transparent; color: var(--ink); font-size: 32px; font-weight: 300; cursor: pointer; }.studio-dialog-close:hover { border-color: var(--copper); background: var(--copper-soft); }.studio-dialog-body { max-height: calc(90dvh - 210px); overflow: auto; padding: 23px; }.studio-dialog-body .solve-spec { margin: 0; padding: 0; border: 0; background: transparent; }.studio-dialog-body .solve-spec > .field-label, .studio-dialog-body .field-hint, .studio-dialog-body .solve-spec-status { display: none; }.studio-dialog-body .solve-spec-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.studio-dialog-body .solve-spec-row .option-toggle { width: 100%; min-width: 0; min-height: 96px; align-items: flex-start; padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-raised); }.studio-dialog-body .option-toggle-ui { margin-top: 2px; }.studio-dialog-body .option-toggle-label { font-size: 15px; line-height: 1.5; }.studio-dialog-body .option-toggle:has(input:checked) { border-color: var(--copper); background: var(--copper-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--copper) 45%, transparent); }.studio-dialog-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 23px; border-top: 1px solid var(--border); }.studio-dialog-foot > span { color: var(--ink-muted); font-size: 13px; }.studio-dialog-foot > div { display: flex; gap: 8px; }.studio-dialog-foot .btn-ghost, .studio-dialog-foot .btn-primary { min-height: 44px; }.studio-dialog-foot .btn-primary { flex: 0 0 auto; padding-inline: 17px; }
+/* NOTE 需要獨立於板書底色：淺色為深象牙，深色為暖銅褐。 */
+.math-note.active, .katex :is(.math-note, [data-note], [note]).active:not(.math-note--whole):not(.math-note--frac-part), .math-note--whole.active, .katex .math-note--whole.active, .katex [data-note].math-note--whole.active, .solution-note.active { background: var(--copper-soft) !important; color: var(--ink) !important; border-bottom-color: var(--copper) !important; }.math-note-popover { border-color: color-mix(in srgb, var(--copper) 55%, var(--ink)); }.note, .note-block, .math-note-popover { box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 11%, transparent); }body[data-theme="lunar"] .math-note.active, body[data-theme="lunar"] .katex :is(.math-note, [data-note], [note]).active, body[data-theme="lunar"] .solution-note.active { color: #fffaf0 !important; }
+@media (max-width: 650px) { .studio-chapter-dialog { width: min(100% - 20px, 950px); max-height: 88dvh; border-radius: 16px; }.studio-dialog-head { padding: 18px 17px 15px; }.studio-dialog-head h2 { font-size: 22px; }.studio-dialog-body { padding: 14px; }.studio-dialog-body .solve-spec-row { grid-template-columns: 1fr; }.studio-dialog-body .solve-spec-row .option-toggle { min-height: 68px; }.studio-dialog-foot { align-items: flex-end; flex-direction: column; padding: 13px 16px; }.studio-dialog-foot > div { width: 100%; }.studio-dialog-foot .btn-ghost, .studio-dialog-foot .btn-primary { flex: 1; } }
