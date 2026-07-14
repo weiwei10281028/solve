@@ -13,6 +13,16 @@
   overflow: visible;
 }
 
+/* SolutionDocument 的文字 NOTE：觀念題與選項也要有明確、但不搶眼的可點擊提示。 */
+.solution-note {
+  border-bottom: 1px dotted rgba(166, 124, 82, 0.85);
+  background: rgba(184, 112, 42, 0.06);
+  border-radius: 2px;
+  padding: 0 .05em;
+}
+
+.solution-note.active { background: #F5E6C8; }
+
 /* 單一數值／符號 NOTE：對稱 padding 畫框（比 ::before 可靠、可調大小） */
 .katex :is(.math-note, [data-note], [note]):not(.math-note--whole):not(.math-note--frac-part):not([data-note-scope="whole"]) {
   display: inline-block;

@@ -10,11 +10,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <link rel="stylesheet" href="css/app.css?v=20260714b">
+  <link rel="stylesheet" href="css/app.css?v=20260714c">
   <link rel="stylesheet" href="css/board.css?v=20260713l">
   <link rel="stylesheet" href="css/plain-reaction-table.css?v=20250704a">
-  <link rel="stylesheet" href="css/plain-choice-options.css?v=20250630a">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260713c">
+  <link rel="stylesheet" href="css/plain-choice-options.css?v=20260714a">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260714a">
   <link rel="stylesheet" href="css/smiles-draw.css?v=20250627c">
   <link rel="stylesheet" href="css/molfile-draw.css?v=20250627a">
   <link rel="stylesheet" href="css/structure-layout.css?v=20250628a">
@@ -24,14 +24,12 @@
 <header class="site-header">
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
-    <div class="brand-text">
+  <div class="brand-text">
       <span class="brand-name">化學解題工具</span>
       <span class="brand-sub">板書風格詳解</span>
     </div>
   </div>
   <nav class="header-nav">
-    <a class="nav-btn" href="teacher-tools.html">教師工具</a>
-    <a class="nav-btn" href="solution-format.html">排版</a>
     <button class="nav-btn nav-btn--accent" type="button" onclick="openModal()">設定</button>
   </nav>
 </header>
@@ -81,6 +79,18 @@
       <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="上傳圖片，或在此輸入／貼上題目"></textarea>
       <p class="field-hint">有圖則以圖為主，可指定題號（如第 5 題）或選項，亦可補充說明缺少數據或資料，若無圖片可輸入文字說明問題</p>
     </div>
+
+    <details class="formula-tools" id="formulaTools">
+      <summary>公式輸入與本機驗算（不會送出題目）</summary>
+      <div class="formula-tools-body">
+        <math-field id="formulaInput" class="formula-input" math-virtual-keyboard-policy="auto" aria-label="數學公式輸入"></math-field>
+        <div class="formula-tools-actions">
+          <button class="btn-ghost formula-tool-btn" type="button" onclick="insertFormulaIntoQuestion()">插入題目</button>
+          <button class="btn-ghost formula-tool-btn" type="button" onclick="verifyFormulaInput()">驗算公式</button>
+        </div>
+        <p class="formula-tool-status" id="formulaToolStatus" aria-live="polite">可輸入 LaTeX、分數、次方與單位；驗算只檢查可在本機判定的式子。</p>
+      </div>
+    </details>
 
     <div class="field-group">
       <label class="field-label" for="answerInput">參考答案（建議填寫）</label>
@@ -211,25 +221,29 @@
 
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@cortex-js/compute-engine@0.62.1/compute-engine.min.js"></script>
 <script src="js/database-bundle.js"></script>
 <script src="js/db-parse.js?v=20250705a"></script>
 <script src="js/board-formats.js?v=20250703d"></script>
 <script src="js/db-meta.js?v=20250702r"></script>
 <script src="js/db-rules.js?v=20250704d"></script>
 <script src="js/database.js?v=20250705b"></script>
-<script src="js/solve-spec.js?v=20260713b"></script>
+<script src="js/solve-spec.js?v=20260714d"></script>
 <script src="js/prompt-compose.js?v=20260713k"></script>
   <script src="js/prompts.js?v=20260714a"></script>
 <script src="js/plain-reaction-table.js?v=20250705c"></script>
 <script src="js/plain-choice-options.js?v=20260713b"></script>
-<script src="js/math-note/math-note.js?v=20260713b"></script>
-<script src="js/math-note/note-rules.js?v=20260713a"></script>
+<script src="js/math-note/math-note.js?v=20260714b"></script>
+<script src="js/math-note/note-rules.js?v=20260714b"></script>
 <script src="js/math-note/note-presets.js?v=20260713a"></script>
 <script src="js/math-note/note-block.js?v=20250627c"></script>
-<script src="js/math-note/note-check.js?v=20260713j"></script>
-<script src="js/math-note/note-ensure.js?v=20260713a"></script>
+<script src="js/math-note/note-check.js?v=20260714m"></script>
+<script src="js/math-note/note-ensure.js?v=20260714b"></script>
+<script src="js/formula-tools.js?v=20260714b"></script>
 <script src="js/latex-sanitize.js?v=20260713a"></script>
-<script src="js/solution-format.js?v=20260713a"></script>
+<script src="js/solution-format.js?v=20260714a"></script>
 <script src="js/structures-bundle.js?v=20250704a"></script>
 <script src="js/mol-resolver.js?v=20250704b"></script>
 <script src="js/molfile-draw.js?v=20250704a"></script>
@@ -237,7 +251,7 @@
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
 <script src="js/smiles-draw.js?v=20250628h"></script>
 <script src="js/render.js?v=20260713k"></script>
-<script src="js/api.js?v=20250627j"></script>
-  <script src="js/app.js?v=20260714a"></script>
+<script src="js/api.js?v=20260714d"></script>
+<script src="js/app.js?v=20260714h"></script>
 </body>
 </html>

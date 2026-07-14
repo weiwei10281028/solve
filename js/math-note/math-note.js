@@ -74,8 +74,9 @@
     const half = width / 2;
     const left = Math.max(half + 12, Math.min(window.innerWidth - half - 12, rect.left + rect.width / 2));
     const showAbove = rect.top - pop.offsetHeight - gap >= 8;
+    const belowTop = Math.max(8, Math.min(window.innerHeight - pop.offsetHeight - 8, rect.bottom + gap));
     pop.style.left = `${left}px`;
-    pop.style.top = `${showAbove ? rect.top - gap : Math.min(window.innerHeight - 8, rect.bottom + gap)}px`;
+    pop.style.top = `${showAbove ? rect.top - gap : belowTop}px`;
     pop.style.transform = showAbove ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
   }
 
@@ -85,7 +86,12 @@
   }
 
   function parseHtmlDataNote(raw) {
-    return String(raw || '').replace(/^note\s*[=：:]\s*/i, '').trim();
+    return String(raw || '')
+      .replace(/^note\s*[=：:]\s*/i, '')
+      .replace(/[（(]\s*[）)]/g, '')
+      .replace(/[【\[]\s*[】\]]/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
   }
 
   function isSemanticNote(noteText) {
@@ -252,6 +258,7 @@
       } else if (a && !/^note=/i.test(a)) {
         a = `note=${a}`;
       }
+      if (/^note=/i.test(a)) a = 'note=' + parseHtmlDataNote(a);
       return `\\htmlData{${a}}{${body}}`;
     });
   }
@@ -478,15 +485,14 @@
   }
 
   function initClickHandler() {
-    document.addEventListener('click', (e) => {
-      const raw = e.target.closest('[data-note], [note], .math-note');
+    const toggle = (raw, event) => {
       if (!raw) return hidePopover();
       const target = raw.classList.contains('math-note--frac-part')
         ? raw.closest('[data-note].math-note--whole, [data-note][data-note-scope="whole"]') || raw
         : raw;
       const note = target.getAttribute('data-note') || target.getAttribute('note');
       if (!note) return;
-      e.stopPropagation();
+      event?.stopPropagation();
       const isActive = target.classList.contains('active');
       hidePopover();
       if (!isActive) {
@@ -497,6 +503,17 @@
         activeNoteTarget = target;
         positionActivePopover();
       }
+    };
+    document.addEventListener('click', (e) => {
+      const raw = e.target.closest('[data-note], [note], .math-note');
+      toggle(raw, e);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const raw = e.target.closest?.('[data-note], [note], .math-note');
+      if (!raw) return;
+      e.preventDefault();
+      toggle(raw, e);
     });
     window.addEventListener('scroll', schedulePopoverPosition, true);
     window.addEventListener('resize', schedulePopoverPosition);

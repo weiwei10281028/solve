@@ -1035,6 +1035,37 @@ body {
   color: var(--ink-faint);
   font-weight: 400;
 }
+
+/* ── Formula input and local verification ── */
+.formula-tools {
+  margin: -4px 0 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.formula-tools summary {
+  padding: 10px 12px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.formula-tools-body { padding: 0 12px 12px; }
+.formula-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-size: 20px;
+}
+.formula-tools-actions { display: flex; gap: 8px; margin-top: 9px; }
+.formula-tool-btn { min-height: 34px; padding: 6px 10px; font-size: 13px; }
+.formula-tool-status { margin-top: 8px; color: var(--ink-faint); font-size: 12px; line-height: 1.5; }
+.formula-tool-status.is-warning { color: var(--warn); }
 .topology-toggle {
   display: flex;
   gap: 6px;

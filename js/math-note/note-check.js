@@ -72,6 +72,22 @@
     return notes.filter((n) => VAGUE_NOTE_RE.test(n) || /^(?:該|某)?(?:數字|數值|結果|物理量|因子|量)$/.test(n));
   }
 
+  function findEmptyDecorationNotes(notes) {
+    return notes.filter((n) => /[（(]\s*[）)]|\[\s*\]|【\s*】/.test(String(n || '')));
+  }
+
+  /** 粒子數換算須說清楚；未列出的原子量／分子量不強制額外註解來源。 */
+  function findMissingChemicalQuantityNames(body, notes) {
+    const t = String(body || '');
+    if (!/莫耳|分子|原子|式量|分子量|原子量|阿伏加德羅|10\^?\{?23\}?/i.test(t)) return [];
+    const labels = notes.join(' ');
+    const issues = [];
+    if (/10\^?\{?23\}?|阿伏加德羅|個分子|個原子/.test(t) && !/阿伏加德羅|個數轉莫耳|粒子數/.test(labels)) {
+      issues.push('粒子數換算缺少「阿伏加德羅常數」或「個數轉莫耳數」NOTE 說明');
+    }
+    return issues;
+  }
+
   /** 題目中的物理量數字須在 NOTE 標籤交代原始單位；公式本體仍維持簡潔。 */
   function findPhysicalNotesWithoutUnit(notes) {
     return notes.filter((n) => PHYSICAL_NOTE_RE.test(n) && !NOTE_UNIT_RE.test(n));
@@ -119,7 +135,7 @@
       while ((m = re.exec(t)) !== null) {
         const num = String(m[1] || '').trim();
         const den = String(m[2] || '').trim();
-        const looksConc = /V|v|莫耳|mol|\d/.test(den) || /^\d+$/.test(num) || /\d\s*V|V/.test(den);
+        const looksConc = /(?:\d\s*)?[Vv](?:\^|\}|\s|$)|mL|\\,?L/.test(den);
         if (!looksConc) continue;
         if (!/\\htmlData/.test(num) && (/^\d+$/.test(num) || /^\d+\s*$/.test(num))) {
           issues.push(`分式分子 ${num} 未標 NOTE（如莫耳數 9、6）`);
@@ -138,6 +154,15 @@
    */
   function check(text, opts) {
     opts = opts || {};
+    if (text && typeof text === 'object' && global.SolutionDocument?.validate) {
+      const report = global.SolutionDocument.validate(text);
+      return {
+        ok: report.ok, htmlDataCount: report.noteCount || 0, eqLineCount: 0,
+        issues: report.errors || [], vagueNotes: [],
+        summary: report.ok ? `SolutionDocument NOTE ${report.noteCount || 0} 處` : (report.errors || []).join('；'),
+        skipped: false, needsFix: !report.ok, diagnostics: report.diagnostics || {}
+      };
+    }
     const body = stripAnswer(text);
     const htmlData = readHtmlData(body);
     const htmlDataCount = htmlData.count;
@@ -148,33 +173,28 @@
     const issues = [];
 
     const minEq = opts.minEqLines != null ? opts.minEqLines : 3;
-    /** 以最末行可能不標 NOTE 估算，略降門檻 */
+    /** 最終答案可不重標，但每個關鍵推導仍須有足夠 NOTE。 */
     const effectiveLines = Math.max(1, eqLineCount - 1);
     const minNotes = opts.minNotes != null
       ? opts.minNotes
-      : Math.max(3, Math.ceil(effectiveLines * 0.7));
+      : Math.max(3, Math.ceil(effectiveLines * 1.5));
 
     const hasNestedFrac = /\\dfrac\{[^}]*\\dfrac/.test(body) || /\\dfrac\{[^}]*\\frac/.test(body);
     const hasChoiceMath = /^\([A-E]\)/m.test(body) && /\\dfrac|\\frac/.test(body);
-    const densityFloor = hasNestedFrac || hasChoiceMath
-      ? Math.max(minNotes, Math.ceil(effectiveLines * 0.9))
+    let densityFloor = hasNestedFrac || hasChoiceMath
+      ? Math.max(minNotes, Math.ceil(effectiveLines * 1.8))
       : minNotes;
-
-    if (eqLineCount < minEq && !htmlData.unitOnlyCount) {
-      return {
-        ok: true,
-        htmlDataCount,
-        eqLineCount,
-        issues: [],
-        vagueNotes,
-        summary: '算式行數少，略過 NOTE 密度檢查',
-        skipped: true,
-        needsFix: false,
-      };
+    const isChemicalQuantityQuestion = /莫耳|分子|原子|式量|分子量|原子量|阿伏加德羅|10\^?\{?23\}?/i.test(body);
+    if (isChemicalQuantityQuestion && eqLineCount >= 2) {
+      densityFloor = Math.max(densityFloor, 5);
     }
 
     if (htmlDataCount === 0) {
-      issues.push('未發現 \\htmlData（關鍵數可能皆未標 NOTE）');
+      const hasChoice = /^\([A-E]\)/m.test(body);
+      const hasTeachingReason = /(?:因為|因此|判斷|反應性|性質|濃度|體積|質量|莫耳|比例|換算)/.test(body);
+      issues.push(hasChoice || hasTeachingReason
+        ? '未發現 NOTE（觀念／選項判斷與關鍵量都須有可點擊說明）'
+        : '未發現 \\htmlData（關鍵數可能皆未標 NOTE）');
     } else if (htmlDataCount < densityFloor) {
       issues.push(`NOTE 偏少（${htmlDataCount} 個，建議至少約 ${densityFloor} 個）`);
     }
@@ -199,6 +219,11 @@
       issues.push(`note 過泛：${vagueNotes.slice(0, 3).join('、')}`);
     }
 
+    const emptyDecorationNotes = findEmptyDecorationNotes(notes);
+    if (emptyDecorationNotes.length) {
+      issues.push(`NOTE 含無意義空括弧：${emptyDecorationNotes.slice(0, 2).join('、')}`);
+    }
+
     if (unitlessPhysicalNotes.length) {
       issues.push(`物理量 NOTE 缺單位：${unitlessPhysicalNotes.slice(0, 3).join('、')}（如體積（mL））`);
     }
@@ -210,6 +235,10 @@
 
     for (const ri of findUnderNotedRateTimeSteps(body)) {
       if (!issues.includes(ri)) issues.push(ri);
+    }
+
+    for (const ci of findMissingChemicalQuantityNames(body, notes)) {
+      if (!issues.includes(ci)) issues.push(ci);
     }
 
     const ok = issues.length === 0;
@@ -234,5 +263,6 @@
   global.NoteCheck = {
     check,
     VAGUE_NOTE_RE,
+    findMissingChemicalQuantityNames,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

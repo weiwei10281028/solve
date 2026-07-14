@@ -24,12 +24,10 @@ const DEPRECATED = {
   'gemini-3-flash-preview': 'gemini-3.5-flash'
 };
 
-function cleanKey(value) {
-  return String(value || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-}
 function loadSetting(name, fallback = '') {
   return localStorage.getItem(name) || sessionStorage.getItem(name) || fallback;
 }
+function cleanKey(value) { return String(value || '').replace(/[\s\u200B-\u200D\uFEFF]/g, ''); }
 function keySummary(key) {
   const k = cleanKey(key);
   if (!k) return '目前未儲存 API Key';
@@ -67,13 +65,13 @@ function updateSolveSpecStatus() {
   if (!status) return;
   const baseSpec = getSolveSpec();
   const question = document.getElementById('textQuestionInput')?.value || '';
-  const spec = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.withApplicability
-    ? window.SolveSpec.withApplicability(baseSpec, question)
-    : baseSpec;
-  status.textContent = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.describe
-    ? window.SolveSpec.describe(spec)
+  const route = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.route
+    ? window.SolveSpec.route(baseSpec, question, { forceStoichiometry: isForceStoichiometry(), forceCalcCompact: isCalcCompact() })
+    : { id: 'plain', origin: 'auto', solveSpec: baseSpec };
+  status.textContent = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.describeRoute
+    ? window.SolveSpec.describeRoute(route)
     : '未啟用題型規格，將依題目自動判斷。';
-  status.classList.toggle('is-active', !!spec.enabled);
+  status.classList.toggle('is-active', route.id !== 'plain');
 }
 
 function resetSolveSpec() {
@@ -416,7 +414,12 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   const lines = [];
   let warning = false;
   const questionCtx = String(solveOpts?.scopeInput || solveOpts?.questionBody || '');
-  if (solveOpts?.forceStoichiometry && typeof window.checkStoichiometryTableRequired === 'function') {
+  const autoFallback = solveOpts?.formatRoute?.origin === 'auto'
+    && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(String(reply || ''));
+  if (solveOpts?.formatRoute && typeof window.SolveSpec?.describeRoute === 'function') {
+    lines.push('格式：' + window.SolveSpec.describeRoute(solveOpts.formatRoute));
+  }
+  if (solveOpts?.forceStoichiometry && !autoFallback && typeof window.checkStoichiometryTableRequired === 'function') {
     const issues = window.checkStoichiometryTableRequired(reply, '', questionCtx);
     const ok = !issues.length;
     lines.push(ok ? '反應方程式：符合本機檢查' : '反應方程式：待補 ' + issues.slice(0, 2).join('；'));
@@ -426,6 +429,13 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   if (calc) {
     lines.push('計算精簡：' + calc.note);
     warning = warning || calc.ok === false;
+  }
+  if (!autoFallback && typeof window.NoteCheck?.check === 'function') {
+    const noteReport = window.NoteCheck.check(getQualityCheckText(reply));
+    lines.push(noteReport.ok
+      ? `NOTE：${noteReport.htmlDataCount} 處` 
+      : `NOTE：待補 ${noteReport.issues.slice(0, 2).join('；')}`);
+    warning = warning || !noteReport.ok;
   }
   if (solveOpts?.solveSpec?.enabled && typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply) {
     const issues = window.SolveSpec.checkReply(solveOpts.solveSpec, reply);
@@ -438,6 +448,15 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
     lines.push(ok ? '參考答案：一致' : '參考答案：不一致，請複核（未自動改寫）');
     warning = warning || !ok;
   }
+  if (typeof window.FormulaTools?.auditReply === 'function') {
+    const audit = window.FormulaTools.auditReply(reply);
+    if (audit.checked) {
+      lines.push(audit.failed
+        ? `本機算式驗算：${audit.failed} 式不一致，請複核`
+        : `本機算式驗算：${audit.checked} 式一致`);
+      warning = warning || audit.failed > 0;
+    }
+  }
   if (!lines.length) return clearSolveValidation();
   el.hidden = false;
   el.textContent = '設定驗證｜' + lines.join('｜');
@@ -447,22 +466,24 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
 function collectQualityReport(reply, refAnswer, genOpts = {}) {
   const questionCtx = String(genOpts.questionCtx || '');
   const raw = String(reply || '');
+  const autoFallback = genOpts.formatRoute?.origin === 'auto'
+    && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(raw);
   const check = window.checkSolutionBoardStyle;
   let styleIssues = typeof check === 'function'
     ? check(raw, typeof getLastDatabaseRefSolution === 'function' ? getLastDatabaseRefSolution() : '', questionCtx)
     : [];
-  const forceStoich = isForceStoichiometry()
+  const forceStoich = (isForceStoichiometry() || !!genOpts.forceStoichiometry)
     || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(questionCtx));
-  if (forceStoich && typeof window.checkStoichiometryTableRequired === 'function') {
+  if (forceStoich && !autoFallback && typeof window.checkStoichiometryTableRequired === 'function') {
     styleIssues = styleIssues.concat(window.checkStoichiometryTableRequired(raw, '', questionCtx));
   }
   styleIssues = [...new Set(styleIssues)].slice(0, 6);
-  const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check
+  const noteReport = !autoFallback && typeof NoteCheck !== 'undefined' && NoteCheck.check
     ? NoteCheck.check(getQualityCheckText(raw))
     : null;
   const referenceMismatch = !!(refAnswer && !genOpts.refAnswerSkipped
     && typeof window.answersMatch === 'function' && !window.answersMatch(raw, refAnswer));
-  const solveSpecIssues = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply
+  const solveSpecIssues = !autoFallback && typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply
     ? window.SolveSpec.checkReply(genOpts.solveSpec, raw).slice(0, 6)
     : [];
   return { styleIssues, noteReport, referenceMismatch, solveSpecIssues };
@@ -661,8 +682,15 @@ function renderAiInto(container, text) {
     if (typeof window.__RENDER_BUILD === 'undefined') {
       console.warn('[render] 快取可能過舊，請 Ctrl+F5');
     }
+    const isDocument = typeof SolutionDocument !== 'undefined' && SolutionDocument.isDocument?.(text);
+    let compiledNotes = [];
     let body = text || '';
-    if (typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
+    if (isDocument) {
+      const compiled = SolutionDocument.compile(text);
+      if (!compiled.ok) throw new Error(`SolutionDocument 驗證失敗：${compiled.validation.errors.slice(0, 3).join('；')}`);
+      body = compiled.text;
+      compiledNotes = compiled.notes;
+    } else if (typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
       const formatted = SolutionFormat.format(body);
       body = formatted.text;
       if (!formatted.report.ok) console.warn('[詳解排版] 尚有待修項目', formatted.report.errors);
@@ -685,6 +713,10 @@ function renderAiInto(container, text) {
       container.innerHTML = render(body);
     }
     doKaTeX(container);
+    if (compiledNotes.length && typeof SolutionDocument !== 'undefined') {
+      const applied = SolutionDocument.applyInlineNotes(container, compiledNotes);
+      if (applied !== compiledNotes.length) console.warn('[SolutionDocument] 部分文字 NOTE 未套用', { applied, expected: compiledNotes.length });
+    }
     const drawTasks = [];
     if (typeof MolfileDraw !== 'undefined' && MolfileDraw.scan) {
       drawTasks.push(MolfileDraw.scan(container));
@@ -838,9 +870,13 @@ async function startSolve() {
     const scopeInput = typeof extractExplicitScopePhrase === 'function'
       ? extractExplicitScopePhrase(textQuestion)
       : '';
-    const solveSpec = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.withApplicability
-      ? window.SolveSpec.withApplicability(getSolveSpec(), matchInput || textQuestion)
-      : getSolveSpec();
+    const formatRoute = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.route
+      ? window.SolveSpec.route(getSolveSpec(), matchInput || textQuestion, {
+        forceStoichiometry: isForceStoichiometry(),
+        forceCalcCompact: isCalcCompact()
+      })
+      : { id: 'plain', origin: 'auto', solveSpec: getSolveSpec(), forceStoichiometry: isForceStoichiometry(), forceCalcCompact: isCalcCompact() };
+    const solveSpec = formatRoute.solveSpec;
     const refConflict = (refAnswer && typeof window.checkObviousRefAnswerConflict === 'function')
       ? window.checkObviousRefAnswerConflict(matchInput || textQuestion, refAnswer)
       : { conflict: false };
@@ -859,9 +895,10 @@ async function startSolve() {
       refAnswer: refConflict.conflict ? '' : refAnswer,
       refAnswerGuided: refAnswerGuided && !refConflict.conflict,
       refAnswerSkipped: !!refConflict.conflict,
-      forceStoichiometry: isForceStoichiometry(),
-      forceCalcCompact: isCalcCompact(),
-      solveSpec
+      forceStoichiometry: formatRoute.forceStoichiometry,
+      forceCalcCompact: formatRoute.forceCalcCompact,
+      solveSpec,
+      formatRoute
     };
     // 只由使用者明確輸入的範圍控制分題標題；題庫／OCR 的題號不是多題指令。
     updateSolveHeadingMode(scopeInput);
@@ -888,17 +925,13 @@ async function startSolve() {
       dbMatch.teachingRuleIds = teachingRules.ids;
     }
     const noteUserBlock = typeof NoteBlock !== 'undefined' && NoteBlock.buildUserBlock
-      ? NoteBlock.buildUserBlock({
-        matchInput,
-        detailed: detailMode,
-        conceptLabels: dbMatch?.conceptLabels || [],
-        match: dbMatch
-      })
-      : '';
+      ? NoteBlock.buildUserBlock({ matchInput, detailed: detailMode, conceptLabels: dbMatch?.conceptLabels || [], match: dbMatch }) : '';
+    const formatRouteBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildRouteUserBlock
+      ? window.SolveSpec.buildRouteUserBlock(formatRoute) : '';
     const boardFormatBlock = typeof window.BoardFormats !== 'undefined' && window.BoardFormats.buildBoardFormatUserBlock
-      ? window.BoardFormats.buildBoardFormatUserBlock()
-      : '';
-    const fullUserText = userText + teachingRules.userBlock + dbUserBlock + boardFormatBlock + noteUserBlock;
+      ? window.BoardFormats.buildBoardFormatUserBlock() : '';
+    const fullUserText = [userText, teachingRules.userBlock, dbUserBlock, boardFormatBlock, noteUserBlock, formatRouteBlock]
+      .filter(Boolean).join('\n\n');
     const systemText = await getSystemPromptForSolve(matchInput, {
       ...solveOpts,
       teachingRulesAddon: teachingRules.systemAddon
@@ -930,30 +963,22 @@ async function startSolve() {
       maxContinue: 0
     });
     const qctxSolve = appendStoichiometryTag(scopeInput || matchInput || textQuestion || autoHints);
-    const postProcessOpts = {
-      questionCtx: qctxSolve,
-      solveSpec: solveOpts.solveSpec,
-      temperature: 0.25,
-      maxOutputTokens: 4096,
-      timeoutMs: 90000
-    };
-    if (typeof repairKspAgClReactionTables === 'function') {
-      const qctx = typeof getLastMatchInput === 'function' ? getLastMatchInput() : '';
-      reply = repairKspAgClReactionTables(reply, qctx);
+    const postProcessOpts = { questionCtx: qctxSolve, solveSpec: solveOpts.solveSpec, formatRoute, forceStoichiometry: solveOpts.forceStoichiometry, temperature: 0.25, maxOutputTokens: 4096, timeoutMs: 90000 };
+    if (typeof repairKspAgClReactionTables === 'function') reply = repairKspAgClReactionTables(reply, typeof getLastMatchInput === 'function' ? getLastMatchInput() : '');
+    reply = await ensureQualityReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, { refAnswerSkipped: solveOpts.refAnswerSkipped, ...postProcessOpts });
+    const noteFallback = formatRoute.origin === 'auto'
+      && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(String(reply || ''));
+    if (!noteFallback && typeof NoteEnsure !== 'undefined' && typeof NoteEnsure.ensureDensityReply === 'function') {
+      reply = await NoteEnsure.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
+        ...postProcessOpts,
+        maxNoteFix: 1,
+        noteFixTemperature: 0.15
+      });
     }
-    reply = await ensureQualityReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
-      refAnswerSkipped: solveOpts.refAnswerSkipped,
-      ...postProcessOpts
-    });
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
     renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
-    const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check
-      ? NoteCheck.check(getQualityCheckText(reply))
-      : null;
-    if (noteReport && !noteReport.skipped && !noteReport.ok) {
-      console.warn('[NOTE 檢查]', noteReport);
-    }
+    const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check ? NoteCheck.check(getQualityCheckText(reply)) : null;
     if (!isDatabaseEnabled()) {
       const ruleNote = teachingRules.ids?.length
         ? teachingRules.ids.join('、')
@@ -1085,11 +1110,7 @@ async function sendFollowUp() {
       maxContinue: 1
     };
     let { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
-    reply = await ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, {
-      ...genOpts,
-      questionCtx: text,
-      followText: text
-    });
+    reply = await ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, { ...genOpts, questionCtx: text, followText: text });
     apiMessages.push({ role: 'assistant', content: reply });
     fillFollowupReply(block, reply);
     const ruleNote = typeof getLastTeachingRuleMatch === 'function'
@@ -1130,6 +1151,7 @@ document.querySelectorAll('input[data-solve-type], input[data-chapter-id]').forE
 });
 updateSolveButtonState();
 initSolveOptionToggles();
+if (!cfg.key) setTimeout(openModal, 400);
 if (typeof PromptCompose !== 'undefined' && PromptCompose.preload) {
   PromptCompose.preload().catch((err) => console.warn('[PromptCompose] preload', err));
 }
@@ -1152,4 +1174,3 @@ if (typeof PromptCompose !== 'undefined' && PromptCompose.preload) {
   }
 })();
 
-if (!cfg.key) setTimeout(openModal, 400);

@@ -2,6 +2,7 @@
 .ai-plain {
   --choice-label-gap: 0.28em;
   --choice-row-gap: 0.55em;
+  --choice-label-column: 2.35em;
 }
 
 .ai-plain .plain-line--choice {
@@ -22,16 +23,16 @@
 .ai-plain .choice-option-group .choice-option,
 .ai-plain .plain-line--choice > .choice-option,
 .ai-plain .choice-option {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: var(--choice-label-column) minmax(0, 1fr);
+  column-gap: var(--choice-label-gap);
   align-items: flex-start;
-  gap: var(--choice-label-gap);
   padding-left: 0;
   margin-left: 0;
 }
 
 .ai-plain .choice-label {
-  flex: 0 0 auto;
+  grid-column: 1;
   font-weight: 600;
   white-space: nowrap;
   line-height: 1.75;
@@ -41,7 +42,7 @@
 }
 
 .ai-plain .choice-body {
-  flex: 1 1 auto;
+  grid-column: 2;
   min-width: 0;
   line-height: 1.75;
 }
@@ -74,4 +75,9 @@
 
 .ai-plain .choice-option--multistep .choice-step + .choice-step .plain-line-inner {
   margin-top: 0.04em;
+}
+
+@media (max-width: 430px) {
+  .ai-plain { --choice-label-column: 2.15em; }
+  .ai-plain .choice-option { column-gap: 0.22em; }
 }
