@@ -977,7 +977,6 @@ async function startSolve() {
     }
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
-    renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check ? NoteCheck.check(getQualityCheckText(reply)) : null;
     if (!isDatabaseEnabled()) {
       const ruleNote = teachingRules.ids?.length
