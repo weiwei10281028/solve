@@ -13,7 +13,7 @@
   const panelHead = panel?.querySelector('.panel-head');
   if (!panel || !zone || !note || !answer || !formula || !preferences || !actionRow || !solveButton || !clearButton) return;
 
-  document.getElementById('appTitle').innerHTML = '把題目攤開<span>，一步一步看懂它。</span>';
+  document.getElementById('appTitle').innerHTML = '把題目攤開，<span>一步一步看懂它。</span>';
   document.querySelector('.app-hero > p:last-child')?.remove();
   zone.querySelector('input')?.setAttribute('aria-label', '上傳題目圖片，最多兩張');
   zone.classList.add('studio-upload');
@@ -45,23 +45,18 @@
   const advancedBody = document.createElement('div');
   advancedBody.className = 'studio-advanced-body';
   const advancedFirst = document.createElement('div');
-  advancedFirst.className = 'studio-advanced-column';
-  advancedFirst.append(formula, preferences, ...specs);
+  advancedFirst.className = 'studio-advanced-layout';
   advancedBody.append(advancedFirst);
   advanced.append(advancedBody);
 
-  const actionbar = document.createElement('div');
-  actionbar.className = 'studio-actionbar';
-  const actionCopy = document.createElement('p');
-  actionCopy.textContent = '可直接貼上圖片、選取相簿照片或輸入題目；資料只在開始解題時送出。';
-  actionbar.append(actionCopy, clearButton);
+  explanation.append(clearButton);
 
   const dock = document.createElement('div');
   dock.className = 'studio-solve-dock';
   dock.append(solveButton);
 
   actionRow.remove();
-  panel.append(grid, advanced, actionbar);
+  panel.append(grid, advanced);
   document.body.append(dock);
 
   const chapterHost = document.getElementById('chapterOptions');
@@ -76,7 +71,15 @@
     <p>先選題目的章節，解題步驟會依它調整；不選時保持自動判斷。</p>
     <button class="studio-chapter-trigger" type="button" id="openChapterPicker"><span><b>章節類型</b><small id="chapterPickerSummary">尚未選取</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></button>`;
   chapterSpec.remove();
-  advancedFirst.insertBefore(chapterControl, formatSpec);
+  const studySettings = document.createElement('section');
+  studySettings.className = 'studio-advanced-block studio-study-settings';
+  studySettings.innerHTML = '<div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選題目的章節，解題步驟會依它調整；不選時保持自動判斷。</p></div>';
+  studySettings.append(chapterControl, formatSpec);
+  const preferencesSettings = document.createElement('section');
+  preferencesSettings.className = 'studio-advanced-block studio-preferences-settings';
+  preferencesSettings.innerHTML = '<div class="studio-advanced-block-head"><h2>解題偏好</h2><p>調整反應式、計算與公式輸入方式。</p></div>';
+  preferencesSettings.append(preferences, formula);
+  advancedFirst.append(studySettings, preferencesSettings);
 
   const picker = document.createElement('dialog');
   picker.className = 'studio-chapter-dialog';
