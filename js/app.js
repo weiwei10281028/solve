@@ -171,7 +171,7 @@ function openLightbox(index = 0) {
   const lb = document.getElementById('imgLightbox');
   document.getElementById('lightboxImg').src = img.dataUrl;
   lb.hidden = false;
-  document.body.style.overflow = 'hidden';
+  document.body.classList.add('is-lightbox-open');
 }
 
 function downloadImage(index = 0) {
@@ -192,7 +192,7 @@ function downloadLightboxImage(e) {
 function closeLightbox(e) {
   if (e && e.target !== e.currentTarget && !e.target.classList.contains('lightbox-img')) return;
   document.getElementById('imgLightbox').hidden = true;
-  document.body.style.overflow = '';
+  document.body.classList.remove('is-lightbox-open');
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeLightbox();

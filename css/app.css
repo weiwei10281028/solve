@@ -544,8 +544,7 @@ body {
   padding: 12px 14px;
   font-size: 15px;
   line-height: 1.6;
-  overflow-x: clip;
-  overflow-y: hidden;
+  overflow: visible;
   max-width: 100%;
   min-width: 0;
 }
@@ -629,6 +628,11 @@ body {
   display: block;
   width: auto;
   max-width: none;
+}
+
+/* The page remains the vertical scroll owner; this is set only while the image viewer is open. */
+body.is-lightbox-open {
+  overflow: hidden;
 }
 
 .katex .mord.mathrm,

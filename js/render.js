@@ -2398,12 +2398,9 @@ function postProcessPlainBoard(root) {
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
   markAndSpaceNestedFractions(root);
-  syncChoiceLabelBaselines(root);
   normalizePlainLineGaps(root);
-  setupHorizontalLineScroll(root);
   requestAnimationFrame(() => {
     normalizePlainLineGaps(root);
-    setupHorizontalLineScroll(root);
     requestAnimationFrame(() => normalizePlainLineGaps(root));
   });
   if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);

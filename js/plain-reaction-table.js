@@ -895,8 +895,7 @@ function applyPlainLineBreakFixes(root) {
     });
     const flat = (inner.textContent || '').replace(/\s/g, '');
     if (flat.length <= 110 || /取|倍|Ms[−-]?1|×10|\\frac|dfrac|=/.test(flat)) {
-      inner.style.whiteSpace = 'nowrap';
-      inner.classList.add('plain-line--hscroll');
+      inner.style.whiteSpace = 'normal';
     }
   });
 }

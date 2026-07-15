@@ -64,7 +64,7 @@
 }
 
 .board-scroll {
-  padding: 16px 14px;
+  padding: clamp(18px, 2.4vw, 30px) clamp(14px, 3vw, 36px);
   max-height: none;
   overflow-y: visible;
   overflow-x: clip;
@@ -79,7 +79,10 @@
   --plain-line-gap: 12px;
   --plain-line-gap-frac: 20px;
   --plain-inline-math-gap: 0.38em;
-  line-height: 1.75;
+  width: min(100%, 76ch);
+  margin-inline: auto;
+  font-size: 16px;
+  line-height: 1.78;
   color: #2A2520;
   text-align: left;
   max-width: 100%;
@@ -153,17 +156,7 @@
 }
 
 /* 含算式：行高隨內容撐開；橫向溢出由 xwrap 方塊承接 */
-.ai-plain .plain-line-inner:has(.katex, .math-block, .math-unit-tail, .plain-katex-nowrap) {
-  overflow-wrap: normal;
-  word-break: normal;
-  overflow: visible;
-  max-width: 100%;
-  max-height: none;
-  padding-bottom: 0;
-  line-height: inherit;
-}
-
-.ai-plain .plain-line-inner:has(.katex, .math-block) .katex {
+.ai-plain .plain-line-inner .katex {
   line-height: inherit;
   vertical-align: middle;
 }
@@ -206,7 +199,7 @@
   scrollbar-width: thin;
   scrollbar-color: #c5c9ce #e8eaed;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  touch-action: auto;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: none;
   isolation: isolate;
@@ -258,10 +251,22 @@
 
 .ai-plain .katex-display {
   margin: 0.15em 0 0.35em;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.18em 0 0.55em;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: auto;
   text-align: left;
 }
 
 .ai-plain .katex-display > .katex {
+  display: inline-block;
+  width: max-content;
+  min-width: 100%;
   text-align: left;
   margin-left: 0;
   margin-right: auto;
@@ -316,6 +321,40 @@
 .ai-plain .choice-step .plain-line-inner > .math-unit-tail {
   /* 所有行內數值／算式的左右保留空間，避免緊貼中文。 */
   margin-inline: var(--plain-inline-math-gap);
+}
+
+/* Keep an inline formula or value-with-unit intact without making its sentence nowrap. */
+.ai-plain .plain-katex-nowrap,
+.ai-plain .math-unit-tail {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+/* Only independent display equations own an x-scroll region. */
+.board .ai-plain .math-block,
+.board-reply .ai-plain .math-block {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.18em 0 0.55em;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: auto;
+}
+
+.board .ai-plain .math-block > .katex-display,
+.board-reply .ai-plain .math-block > .katex-display {
+  width: max-content;
+  max-width: none;
+  min-width: 100%;
+  overflow: visible;
+  padding: 0;
 }
 
 .board-scroll .katex .katex-html,

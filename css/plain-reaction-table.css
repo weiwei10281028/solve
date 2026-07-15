@@ -11,9 +11,10 @@
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  /* Let the browser choose gesture direction so vertical page scrolling wins naturally. */
+  touch-action: auto;
   overscroll-behavior-x: contain;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c5c9ce #e8eaed;
   text-align: left;
@@ -127,7 +128,3 @@
 }
 
 /* 含算式之行：不在 KaTeX 片段之間任意斷行（純文字行仍用 board.css 預設換行） */
-.ai-plain .plain-line-inner:has(.katex, .math-block, .math-unit-tail, .plain-katex-nowrap) {
-  overflow-wrap: normal;
-  word-break: normal;
-}
