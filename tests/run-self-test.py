@@ -101,7 +101,7 @@ try:
     ok("index → API current build", "api.js?v=20260714d" in idx)
     ok("index → mhchem", "contrib/mhchem.min.js" in idx)
     ok("index → solveSpec current build", "solve-spec.js?v=20260714d" in idx)
-    ok("index → option NOTE current style", "math-note/math-note.css?v=20260714a" in idx)
+    ok("index → option NOTE current style", "math-note/math-note.css?v=20260715a" in idx)
     ok("index → option grid current style", "plain-choice-options.css?v=20260714a" in idx)
     ok("index → structure layout current build", "structure-layout.js?v=20260713b" in idx)
     ok("index → 移除一般入口", "teacher-tools.html\">教師工具" not in idx and "solution-format.html\">排版" not in idx)

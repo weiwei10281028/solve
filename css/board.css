@@ -329,6 +329,15 @@
   display: inline-block;
   max-width: 100%;
   white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.12em 0 0.22em;
+  margin-block: -0.12em -0.22em;
+  scrollbar-width: thin;
+  scrollbar-color: #c5c9ce transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: auto;
   vertical-align: baseline;
 }
 

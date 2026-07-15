@@ -213,3 +213,20 @@
 .math-note-popover .katex {
   font-size: 1em;
 }
+
+/* Choice notes need a visible passive state on a touch screen, not only when active. */
+@media (max-width: 760px) {
+  .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+    background: rgba(184, 112, 42, 0.2) !important;
+    padding: 0.08em 0.12em !important;
+    margin: 0 0.02em !important;
+    border-radius: 4px !important;
+    border-bottom-color: rgba(121, 77, 30, 0.9) !important;
+    box-shadow: inset 0 -1px 0 rgba(121, 77, 30, 0.24) !important;
+  }
+
+  .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+    background: #F5D79E !important;
+    box-shadow: 0 0 0 1.5px var(--copper, #A67C52) !important;
+  }
+}
