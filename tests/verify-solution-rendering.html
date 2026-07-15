@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-TW">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>詳解渲染驗證</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/board.css">
+<link rel="stylesheet" href="../css/math-note/math-note.css">
+<body class="app-page">
+  <main class="page-main">
+    <div class="board"><div class="board-scroll" id="fixture"></div></div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
+  <script src="../js/plain-reaction-table.js"></script>
+  <script src="../js/plain-choice-options.js"></script>
+  <script src="../js/math-note/math-note.js"></script>
+  <script src="../js/latex-sanitize.js"></script>
+  <script src="../js/render.js?v=20260716e"></script>
+  <script>
+    const sample = String.raw`一般 English sentence stays as readable prose and wraps naturally. 已知 $W=128\,\mathrm{mg}$，$n=3.65\,\mathrm{mol}$，溫度為 $28^{\circ}\mathrm{C}$；化學式 $H_2O$、$Fe^{2+}$、$CO$、$SO_3$、$CaO$。
+$$\htmlData{note=樣品質量（128 mg）}{W}=\dfrac{\htmlData{note=樣品質量（128 mg）}{128\,\mathrm{mg}}}{\htmlData{note=莫耳質量（100 g mol^{-1}）}{100\,\mathrm{g\,mol^{-1}}}}=\htmlData{note=計算得到的莫耳數}{1.28\times10^{-3}\,\mathrm{mol}}\quad\longrightarrow\quad\dfrac{\left(\dfrac{128}{100}\right)^2+\left(\dfrac{128}{100}\right)^2}{\dfrac{3.65}{28}+\dfrac{3.65}{28}}$$
+各選項分析如下：
+(A) $H_2O$ 為化學式，敘述正確。
+(B) $Fe^{2+}$ 為離子，敘述正確。
+(C) $CaO$ 為化合物，敘述錯誤。
+(D) $CO$ 與 $SO_3$ 均走數學 token，敘述正確。
+(E) $28$、$128-100=28$、$3.65$ 可保留完整 token，敘述正確。
+雙反斜線輸入也須正確：$\\ce{Fe_xO_y}$、$\\ce{Ca(OH)2 -> CaCO3 + H2O}$。
+@@ANSWER@@(A)(B)(D)(E)`;
+    const fixture = document.getElementById('fixture');
+    fixture.innerHTML = render(sample);
+    doKaTeX(fixture);
+  </script>
+</body>
+</html>

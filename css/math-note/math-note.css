@@ -42,20 +42,20 @@
   cursor: pointer;
 }
 
-/* 選項內的 NOTE 只作輕量提示；避免連續計算數字看起來像一排方塊。 */
+/* 選項內的 NOTE 維持與手機一致的可辨識底色，桌機也能一眼看出可點選處。 */
 .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
-  background: transparent !important;
-  padding: 0 0.02em !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  border-bottom: 1px dotted rgba(166, 124, 82, 0.72);
-  box-shadow: none !important;
+  background: rgba(184, 112, 42, 0.2) !important;
+  padding: 0.08em 0.12em !important;
+  margin: 0 0.02em !important;
+  border-radius: 4px !important;
+  border-bottom: 1px dotted rgba(121, 77, 30, 0.9) !important;
+  box-shadow: inset 0 -1px 0 rgba(121, 77, 30, 0.24) !important;
 }
 
 .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
-  background: rgba(184, 112, 42, 0.12) !important;
-  border-bottom-color: var(--copper, #A67C52);
-  box-shadow: 0 0 0 1px rgba(166, 124, 82, 0.45) !important;
+  background: #F5D79E !important;
+  border-bottom-color: var(--copper, #A67C52) !important;
+  box-shadow: 0 0 0 1.5px var(--copper, #A67C52) !important;
 }
 
 .katex .math-note--sci {
@@ -212,6 +212,12 @@
 
 .math-note-popover .katex {
   font-size: 1em;
+}
+
+/* All NOTE kinds share one passive color; only the active state changes. */
+.katex :is(.math-note, [data-note], [note]),
+.solution-note {
+  background: #F3E8D2 !important;
 }
 
 /* Choice notes need a visible passive state on a touch screen, not only when active. */

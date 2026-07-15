@@ -98,7 +98,12 @@
   }
 
   function repairMath(raw, validate) {
-    const original = String(raw || '').trim();
+    // Some model responses JSON-escape mhchem commands a second time.  In a
+    // math segment, `\\\\ce{...}` is not a literal escape: it is intended to
+    // be mhchem's `\\ce{...}` command.  Normalize only that command before
+    // validation so a valid formula never falls through to readableMath(),
+    // which would expose `ce` and lose its chemical formatting.
+    const original = String(raw || '').trim().replace(/\\\\ce(?=\{)/g, '\\ce');
     if (!original) return { ok: false, latex: '' };
     const candidates = [];
     const add = (v) => { if (v && !candidates.includes(v)) candidates.push(v); };

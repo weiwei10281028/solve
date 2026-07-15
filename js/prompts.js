@@ -248,7 +248,7 @@ function buildQuestionStyleBlocks(opts, questionText) {
             lines.push('【書寫｜指定選項】只分析 (' + selectedOptions.join(')(') + ')；不可列出、提及或判斷其他選項。');
         } else {
             lines.push('【書寫｜選擇題】須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
-            lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 @@ANSWER@@ 一致；純數字選項只詳解答案項。');
+            lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 @@ANSWER@@ 一致；題目列出 A–E 時，所有選項都要完整分析。');
         }
     } else {
         lines.push('【書寫】本題非選擇題：依題目問法作答（問答直答、計算列式、子題 (一)(二) 或 1.2.3. 分段）；**禁止虛構 (A)～(E)**。');
@@ -675,41 +675,60 @@ window.needsFullChoiceOptionAnalysis = function(text) {
     return /何者正確|何者錯誤|哪些.{0,8}正確|下列敘述|多選|可選出|選出.*(?:二|三|多|個)|除.{1,30}外.*皆/.test(s);
 };
 
-/** 選擇題是否缺 (A)～(E) 評析 */
-function checkChoiceCoverage(text, questionCtx) {
+function hasFullChoiceSet(text) {
+    var found = {};
+    String(text || '').replace(/[（(]\s*([A-E])\s*[）)]/g, function(_, letter) {
+        found[letter] = true;
+        return _;
+    });
+    return 'ABCDE'.split('').every(function(letter) { return found[letter]; });
+}
+
+function getAnalyzedChoiceLetters(body) {
+    var found = {};
+    String(body || '').split('\n').forEach(function(line) {
+        var m = line.match(/^\s*\*?\s*[（(]\s*([A-E])\s*[）)](?:\s|$)/);
+        if (m) found[m[1]] = true;
+    });
+    return Object.keys(found);
+}
+
+/**
+ * A choice analysis is content, not decoration.  Once the source contains
+ * A–E, every option must have its own line.  If a reply's answer cites an
+ * option that has no analysis, flag it even when OCR did not retain all
+ * source options; never silently let the renderer hide that mismatch.
+ */
+window.checkChoiceAnalysisCompleteness = function(text, questionCtx) {
     var issues = [];
     var body = String(text || '').split('@@ANSWER@@')[0];
     var qctx = String(questionCtx || '');
-    if (typeof window.hasChoiceOptionsInContext === 'function' && !window.hasChoiceOptionsInContext(qctx)) {
+    var sourceHasFullSet = hasFullChoiceSet(qctx);
+    var answerLetters = getReplyAnswerChoiceLetters(text);
+    var analyzed = getAnalyzedChoiceLetters(body);
+    var hasAnalysis = /各選項分析/.test(body) || analyzed.length > 0;
+    if (!sourceHasFullSet && !hasAnalysis) {
         return issues;
     }
-    var qctxFull = qctx + '\n' + body.slice(0, 1200);
-    var optCount = (body.match(/(?:^|\n)\s*\([A-E]\)/gm) || []).length;
-    if (typeof window.needsFullChoiceOptionAnalysis === 'function'
-        && !window.needsFullChoiceOptionAnalysis(qctxFull)
-        && !/各選項分析/.test(body) && optCount < 3) {
-        return issues;
-    }
-    if (!/\([A-E]\)/.test(body) && !/各選項分析/.test(body)) return issues;
-
-    var found = {};
-    'ABCDE'.split('').forEach(function(ch) {
-        if (new RegExp('(?:^|\\n)\\s*\\*?\\s*\\(' + ch + '\\)', 'm').test(body)
-            || new RegExp('(?:^|\\n)\\s*\\(' + ch + '\\)', 'm').test(body)) {
-            found[ch] = true;
+    if (sourceHasFullSet) {
+        var miss = 'ABCDE'.split('').filter(function(ch) { return analyzed.indexOf(ch) < 0; });
+        if (miss.length) {
+            issues.push('選項分析不完整：題目有 (A)～(E)，缺少：(' + miss.join(')(') + ')。每項必須以獨立一行的 (A)～(E) 開頭；不可假造未辨識到的選項內容。');
         }
-    });
-    var foundCount = Object.keys(found).length;
-    if (foundCount < 2) return issues;
-
-    var miss = 'ABCDE'.split('').filter(function(ch) { return !found[ch]; });
-    if (miss.length >= 1) {
-        issues.push('多選敘述題須逐項評析 (A)～(E)，缺少：(' + miss.join(')(') + ')；請用「各選項分析如下：」後每項獨立一行以 (A) 開頭。');
     }
-    if (!/各選項分析/.test(body) && foundCount >= 3) {
+    var missingAnswerAnalysis = answerLetters.filter(function(ch) { return analyzed.indexOf(ch) < 0; });
+    if (missingAnswerAnalysis.length) {
+        issues.push('答案列出但未逐項分析：(' + missingAnswerAnalysis.join(')(') + ')。請補齊原題中對應選項的理由；若題目選項看不清，須明確回報選項資訊不足。');
+    }
+    if (sourceHasFullSet && !/各選項分析/.test(body)) {
         issues.push('多選敘述題須先寫「各選項分析如下：」再逐項 (A)～(E)。');
     }
     return issues;
+};
+
+/** 選擇題是否缺 (A)～(E) 評析 */
+function checkChoiceCoverage(text, questionCtx) {
+    return window.checkChoiceAnalysisCompleteness(text, questionCtx);
 }
 
 /** 從 @@ANSWER@@ 解析選項字母（支援 BD、(B)(D) 等） */
@@ -728,6 +747,13 @@ function getReplyAnswerChoiceLetters(text) {
         if (!letters.length) {
             var raw = String(ai.raw || '').replace(/\s+/g, '').toUpperCase();
             if (/^[A-E]{1,5}$/.test(raw)) letters = raw.split('');
+        }
+    }
+    if (!letters.length) {
+        var answerTail = String(text || '').split('@@ANSWER@@').slice(1).join('@@ANSWER@@');
+        var rawLetters = answerTail.replace(/[^A-E]/g, '');
+        if (/^[A-E]{1,5}$/.test(rawLetters)) {
+            letters = rawLetters.split('').filter(function(ch, index, all) { return all.indexOf(ch) === index; });
         }
     }
     return letters;
@@ -889,8 +915,8 @@ function checkConceptNoteCoverage(text) {
     if (!/\([A-E]\)/.test(body)) return issues;
     var noteCount = (body.match(/\\htmlData\{/g) || []).length;
     var hasKeyNumbers = /(?:pH|%\s|莫耳|濃度|比例|體積比|\d+\s*%)/i.test(body);
-    if (hasKeyNumbers && noteCount < 2) {
-        issues.push('觀念題關鍵數值須標 NOTE：在 $…$ 內用 $\\htmlData{note=白話短註}{數值或比例}$（至少 2 處，如 pH、百分比、莫耳比）。');
+    if (hasKeyNumbers && noteCount < 3) {
+        issues.push('觀念題關鍵數值須標 NOTE：在 $…$ 內用 $\\htmlData{note=白話短註}{數值或比例}$（至少 3 處，如 pH、百分比、莫耳比）。');
     }
     return issues;
 }
@@ -910,9 +936,9 @@ function checkNoteDensityWithoutReference(text) {
     });
 
     var noteCount = (body.match(/\\htmlData\{/g) || []).length;
-    var noteFloor = Math.max(5, Math.ceil(eqLineCount * 0.85));
-    if (eqLineCount >= 2 && noteCount < noteFloor) {
-        issues.push('NOTE 密度不足：含等號推導須在式內補足 $\\htmlData{note=白話短註}{…}$（每行約 2 個；乘積因子、分式分子分母、中間量分標），不可只標最終結果。');
+    var noteFloor = Math.max(4, eqLineCount * 2);
+    if (eqLineCount >= 1 && noteCount < noteFloor) {
+        issues.push('NOTE 密度不足：含等號推導須在式內補足 $\\htmlData{note=白話短註}{…}$（每行至少 2 個；已知量、乘積因子、分式分子分母、中間量分標），不可只標最終結果。');
     }
     return issues;
 }
@@ -1313,7 +1339,7 @@ function checkBareChemicalFormulas(text) {
         issues.push('化學式須寫 $Cl_2$、$H^+$ 等數學斜體（禁 $\\mathrm{}$、$\\text{}$ 包元素）；反應表列標籤仍用 $\\text{起始}$ 等。');
     }
     if (/[A-Z][a-z]?\\_[0-9]|\\text[A-Z][a-z]?_\d|H\\_2\\textO|\\textO\b/.test(body)) {
-        issues.push('化學式 LaTeX 錯誤：禁止 CO\\_2、\\textN_2、H\\_2\\textO；改寫 $CO_2$、$N_2$、$H_2O$、$O_2$；中文在 $ 外（如 過量的 $O_2$）。');
+        issues.push('化學式格式錯誤：禁止 CO\\_2、\\textN_2、H\\_2\\textO 與裸 H_2S；改寫 $\\ce{CO2}$、$\\ce{N2}$、$\\ce{H2O}$、$\\ce{O2}$；中文在 $ 外。');
     }
     return issues;
 }
@@ -1471,9 +1497,9 @@ window.buildBoardStyleFixUserText = function(issues) {
         return '【修正｜標點】連續化學式與算式之間請加入「，」「；」「故」等標點，避免多個反應式或等式直接黏在一起；其餘內容保持不變並保留 @@ANSWER@@。';
     }
     if (/化學式 LaTeX 錯誤|CO\\\\_2|\\\\textN_2/.test(list)) {
-        return '【修正｜化學式 LaTeX】' + list
-            + '\n全部改為 $CO_2$、$O_2$、$N_2$、$H_2O$ 等（禁 CO\\_2、\\textN_2、H\\_2\\textO、\\text{} 包元素）；'
-            + '例：剩餘氣體為 $CO_2$（共 $x+y$）、$N_2$（$z$）及過量的 $O_2$。保留 @@ANSWER@@。';
+        return '【修正｜化學式 mhchem】' + list
+            + '\n全部改為 $\\ce{CO2}$、$\\ce{O2}$、$\\ce{N2}$、$\\ce{H2O}$ 等（禁 CO\\_2、\\textN_2、H\\_2\\textO、裸下標）；'
+            + '例：剩餘氣體為 $\\ce{CO2}$（共 $x+y$）、$\\ce{N2}$（$z$）及過量的 $\\ce{O2}$。保留 @@ANSWER@@。';
     }
     if (/單題解題禁止用「第N題」當步驟標題/.test(list)) {
         return '【修正｜步驟標題】這是單題解題，請刪除所有「第1題、第2題…」標題行，改為連續推導式；禁止用題號當步驟。保留正確計算與 @@ANSWER@@。';

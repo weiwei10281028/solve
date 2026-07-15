@@ -28,4 +28,15 @@
 .tool-table th { background: var(--bg-accent); }
 .tool-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
 .tool-check input { width: auto; }
+.tool-kicker { margin: 0 0 4px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.reaction-workbench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.reaction-input { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .01em; }
+.field-hint { color: var(--ink-muted); font-size: 12px; line-height: 1.55; margin: 7px 0 0; }
+.reaction-preview { min-height: 52px; display: flex; align-items: center; overflow-x: auto; margin: 14px 0 10px; padding: 13px 15px; border: 1px solid var(--border-light); border-left: 4px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-accent); color: var(--ink); font-family: var(--font-serif); font-size: clamp(18px, 3vw, 25px); white-space: nowrap; }
+.chem-term { display: inline-block; font-style: italic; }
+.chem-coefficient { display: inline-block; margin-right: 1px; font-style: normal; }
+.chem-op { display: inline-block; margin: 0 .3em; font-family: var(--font-sans); font-style: normal; }
+.reaction-preview sub, .reaction-preview sup { font-family: var(--font-sans); font-size: .62em; font-style: normal; line-height: 0; }
+.reaction-steps { margin: 10px 0 14px 22px; color: var(--ink-muted); font-size: 13px; line-height: 1.65; }
+.tool-table tbody tr:last-child td { background: color-mix(in srgb, var(--bg-accent) 68%, transparent); }
 @media (max-width: 760px) { .tool-grid { grid-template-columns: 1fr; } .tool-panel--wide { grid-column: auto; } .tool-main { padding: 14px max(12px, env(safe-area-inset-left)) 28px max(12px, env(safe-area-inset-right)); } }

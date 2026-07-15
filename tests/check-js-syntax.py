@@ -16,7 +16,7 @@ JS = ROOT / "js"
 FILES = [
     "reference-store.js", "solve-spec.js", "prompts.js", "prompt-compose.js", "app.js", "plain-reaction-table.js",
     "board-formats.js", "db-parse.js", "render.js",
-    "latex-sanitize.js", "solution-format.js", "structure-layout.js", "math-note/math-note.js", "math-note/note-check.js", "math-note/note-ensure.js",
+    "latex-sanitize.js", "solution-format.js", "solution-output-gate.js", "structure-layout.js", "reaction-workbench.js", "math-note/math-note.js", "math-note/note-check.js", "math-note/note-ensure.js",
 ]
 REQUIRED = {
     "reference-store.js": ["global.ReferenceStore", "function search"],
@@ -30,7 +30,9 @@ REQUIRED = {
     "app.js": ["function collectQualityReport", "ensureQualityReply"],
     "math-note/math-note.js": ["function positionActivePopover", "function renderNoteContent"],
     "latex-sanitize.js": ["function sanitizeText", "function repairMath"],
+    "solution-output-gate.js": ["global.SolutionOutputGate", "function chemicalIssues", "function check"],
     "solution-format.js": ["global.SolutionDocument", "function validateDocument", "function compileDocument"],
+    "reaction-workbench.js": ["function balanceReaction", "function balanceRedoxHalfReaction", "function reactionHtml"],
 }
 
 

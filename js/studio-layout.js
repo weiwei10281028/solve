@@ -68,12 +68,12 @@
   chapterControl.className = 'studio-chapter-control';
   chapterControl.innerHTML = `
     <h2>章節與作答方式</h2>
-    <p>先選題目的章節，解題步驟會依它調整；不選時保持自動判斷。</p>
+    <p>先選大章節；系統會再依題目命中 Ka、滴定、Ksp、官能基等細項。</p>
     <button class="studio-chapter-trigger" type="button" id="openChapterPicker"><span><b>章節類型</b><small id="chapterPickerSummary">尚未選取</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></button>`;
   chapterSpec.remove();
   const studySettings = document.createElement('section');
   studySettings.className = 'studio-advanced-block studio-study-settings';
-  studySettings.innerHTML = '<div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選題目的章節，解題步驟會依它調整；不選時保持自動判斷。</p></div>';
+  studySettings.innerHTML = '<div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選大章節；系統會再依題目命中 Ka、滴定、Ksp、官能基等細項。</p></div>';
   studySettings.append(chapterControl, formatSpec);
   const preferencesSettings = document.createElement('section');
   preferencesSettings.className = 'studio-advanced-block studio-preferences-settings';
@@ -85,21 +85,66 @@
   picker.className = 'studio-chapter-dialog';
   picker.id = 'chapterPickerDialog';
   picker.innerHTML = `
-    <div class="studio-dialog-head"><div><h2>選擇章節類型</h2><p>可複選 1–3 項；保留所有目前頁面的章節類型。</p></div><button type="button" class="studio-dialog-close" aria-label="關閉">×</button></div>
+    <div class="studio-dialog-head"><div><h2>選擇章節類型</h2><p>可複選 1–3 個大章節；細項會由題目自動命中並加強解題步驟。</p></div><button type="button" class="studio-dialog-close" aria-label="關閉">×</button></div>
     <div class="studio-dialog-body"></div>
     <div class="studio-dialog-foot"><span id="chapterDialogStatus">尚未選取，將自動判斷</span><div><button type="button" class="btn-ghost studio-clear-chapters">清除</button><button type="button" class="btn-primary studio-apply-chapters">套用選擇</button></div></div>`;
-  picker.querySelector('.studio-dialog-body').append(chapterHost);
+  const dialogBody = picker.querySelector('.studio-dialog-body');
+  const chapterPreview = document.createElement('section');
+  chapterPreview.className = 'studio-chapter-preview';
+  chapterPreview.id = 'chapterSelectionPreview';
+  chapterPreview.setAttribute('aria-live', 'polite');
+  dialogBody.append(chapterHost, chapterPreview);
   document.body.append(picker);
 
   const summary = picker.querySelector('#chapterPickerSummary') || document.getElementById('chapterPickerSummary');
   const dialogStatus = picker.querySelector('#chapterDialogStatus');
   const refreshChapterSummary = () => {
-    const selected = [...chapterHost.querySelectorAll('input[data-chapter-id]:checked')].map((input) => input.closest('label')?.querySelector('.option-toggle-label')?.textContent?.trim()).filter(Boolean);
+    const selectedInputs = [...chapterHost.querySelectorAll('input[data-chapter-id]:checked')];
+    const selected = selectedInputs.map((input) => input.closest('label')?.querySelector('.option-toggle-label')?.textContent?.trim()).filter(Boolean);
     const text = selected.length ? selected.join('、') : '尚未選取';
     document.getElementById('chapterPickerSummary').textContent = text;
     dialogStatus.textContent = selected.length ? `已選取：${text}` : '尚未選取，將自動判斷';
+
+    const question = document.getElementById('textQuestionInput')?.value?.trim() || '';
+    const baseSpec = window.SolveSpec?.create
+      ? window.SolveSpec.create({ chapterIds: selectedInputs.map((input) => input.dataset.chapterId) })
+      : null;
+    const spec = baseSpec && question && window.SolveSpec?.withApplicability
+      ? window.SolveSpec.withApplicability(baseSpec, question)
+      : baseSpec;
+    const chapters = spec?.chapters || [];
+    if (!chapters.length) {
+      chapterPreview.innerHTML = '<p class="studio-chapter-preview-empty">選取章節後，這裡會顯示本次解題實際加入的規格內容。</p>';
+      return;
+    }
+
+    const applicabilityText = (chapter) => {
+      if (!question) return '尚未輸入題目；解題時才會確認是否適用。';
+      if (chapter.applicability === 'applicable') return '目前題目已命中此章節關鍵字，會加入解題規格。';
+      if (chapter.applicability === 'not-applicable') return '目前題目未命中此章節關鍵字，不會強制加入解題規格。';
+      return '目前無法確認，解題時會保留為可用規格。';
+    };
+    const topicStateText = (topic) => {
+      if (!question) return '等待題目判定';
+      if (topic.applicability === 'applicable') return '本次套用';
+      if (topic.applicability === 'not-applicable') return '本題不套用';
+      return '可用細項';
+    };
+    chapterPreview.innerHTML = `
+      <div class="studio-chapter-preview-head"><span>本次解題會參考</span><small>章節規格與細項推理，不是額外題庫答案</small></div>
+      <div class="studio-chapter-preview-list">${chapters.map((chapter) => `
+        <article class="studio-chapter-preview-card${chapter.applicability === 'not-applicable' ? ' is-skipped' : ''}">
+          <div><h3>${chapter.label}</h3><p>${chapter.description}</p></div>
+          <dl><div><dt>章節解題步驟</dt><dd>${chapter.steps.join(' → ')}</dd></div><div><dt>目前判定</dt><dd>${applicabilityText(chapter)}</dd></div></dl>
+          <details class="studio-chapter-topic-details"${chapter.topics.some((topic) => topic.applicability === 'applicable') ? ' open' : ''}>
+            <summary>細項 ${chapter.topics.length} 項${chapter.matchedTopicIds?.length ? `：本次命中 ${chapter.matchedTopicIds.length} 項` : '：依題目自動判定'}</summary>
+            <ul>${chapter.topics.map((topic) => `<li class="is-${topic.applicability}"><div><b>${topic.label}</b><span>${topic.description}</span></div><em>${topicStateText(topic)}</em></li>`).join('')}</ul>
+          </details>
+        </article>`).join('')}</div>
+      <p class="studio-chapter-preview-source">細項規格會隨題目改變：只有命中的細項才會加入 AI 的解題提示與回覆檢核；不會因為勾選而額外載入題庫、講義或既有答案。</p>`;
   };
   chapterHost.addEventListener('change', refreshChapterSummary);
+  document.getElementById('textQuestionInput')?.addEventListener('input', refreshChapterSummary);
   refreshChapterSummary();
   document.getElementById('openChapterPicker').addEventListener('click', () => picker.showModal());
   picker.querySelector('.studio-dialog-close').addEventListener('click', () => picker.close());

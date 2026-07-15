@@ -1,5 +1,18 @@
 /* ── board.css：詳解板書區排版 ── */
 
+/* 本機 KaTeX 可見性保底：CDN CSS 未載入時仍隱藏 MathML/annotation，避免露出 ceSO3。 */
+.katex { display: inline-block; }
+.katex .katex-mathml {
+  position: absolute;
+  clip: rect(1px, 1px, 1px, 1px);
+  padding: 0;
+  border: 0;
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+}
+.katex .katex-html { display: inline-block; }
+
 @font-face {
   font-family: 'BoardKaTeXMath';
   src: url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2') format('woff2');
@@ -35,10 +48,10 @@
   font-weight: 600;
 }
 
-/* KaTeX：變數用數學斜體；數字/符號維持同深度 */
-.board .ai-plain .katex :is(.mathnormal, .mord.mathnormal, .mord.mathrm, .mathrm),
-.board-reply .ai-plain .katex :is(.mathnormal, .mord.mathnormal, .mord.mathrm, .mathrm) {
-  font-family: BoardKaTeXMath, KaTeX_Math, serif;
+/* 數學變數與數值使用 KaTeX 字型；只有 \text{} 內的中文沿用正文。 */
+.board .ai-plain .katex :is(.mathnormal, .mord.mathnormal),
+.board-reply .ai-plain .katex :is(.mathnormal, .mord.mathnormal) {
+  font-family: 'BoardKaTeXMath', KaTeX_Math, serif;
   font-style: italic;
   font-weight: 400;
   letter-spacing: 0;
@@ -77,7 +90,7 @@
 .board-scroll .ai-plain,
 .ai-plain {
   --plain-line-gap: 12px;
-  --plain-line-gap-frac: 20px;
+  --plain-line-gap-frac: 16px;
   --plain-inline-math-gap: 0.38em;
   width: min(100%, 76ch);
   margin-inline: auto;
@@ -123,6 +136,16 @@
   margin-top: 0;
 }
 
+/* 選項分析標題是正文節奏的一部分，不顯示額外橫幅。 */
+.ai-plain .plain-line--choice-heading {
+  margin-top: calc(var(--plain-line-gap) + 4px);
+}
+
+.ai-plain .plain-line--choice-heading .plain-line-inner {
+  font-size: 1.05em;
+  font-weight: 700;
+}
+
 .ai-plain .plain-line--step {
   margin-top: var(--plain-line-gap);
   margin-bottom: 0;
@@ -158,7 +181,7 @@
 /* 含算式：行高隨內容撐開；橫向溢出由 xwrap 方塊承接 */
 .ai-plain .plain-line-inner .katex {
   line-height: inherit;
-  vertical-align: middle;
+  vertical-align: baseline;
 }
 
 .ai-plain .plain-line--has-frac {
@@ -167,7 +190,7 @@
 
 /* 分式的分子、分母會超出一般文字行盒；提高行高並保留垂直緩衝。 */
 .ai-plain .plain-line--has-frac .plain-line-inner {
-  line-height: 2.05;
+  line-height: 1.95;
 }
 
 .ai-plain > .plain-line:first-child.plain-line--has-frac {
@@ -197,17 +220,27 @@
   margin-bottom: 2px;
   box-sizing: border-box;
   scrollbar-width: thin;
-  scrollbar-color: #c5c9ce #e8eaed;
+  /* Keep the draggable thumb but let the equation sit directly on the board. */
+  scrollbar-color: #aeb4ba transparent;
   -webkit-overflow-scrolling: touch;
-  touch-action: auto;
+  /* This is the only horizontal scroller in a calculation row.  Both axes
+     stay native so a vertical swipe on a phone still scrolls the page. */
+  touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior-x: contain;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
   isolation: isolate;
+}
+
+/* 僅由計算式啟用；不讓一般中文說明段落變成橫向捲動區。 */
+.ai-plain .formula-scroll .plain-line-xcontent {
+  display: inline-block;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
 /* 橫向捲動列會裁切垂直溢出；含分式時額外預留上下空間。 */
 .ai-plain .plain-line--has-frac .plain-line-xwrap--scroll {
-  padding-bottom: calc(10px + 0.28em);
+  padding-bottom: calc(10px + 0.14em);
 }
 
 /* 量測用：單行不換行後比對實際寬度（與 --scroll 同邏輯） */
@@ -231,18 +264,33 @@
   vertical-align: top;
 }
 
+/* A calculation row has one scroll owner.  Do not leave a second scrollbar
+   inside one fraction or unit fragment; that breaks the row's alignment. */
+.ai-plain .plain-line-xwrap--scroll .plain-katex-nowrap,
+.ai-plain .plain-line-xwrap--scroll .math-unit-tail {
+  max-width: none;
+  overflow: visible;
+}
+
 .ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar {
   height: 6px;
 }
 
 .ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
-  background: #e8eaed;
-  border-radius: 4px;
+  background: transparent;
 }
 
 .ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
-  background: #c5c9ce;
+  background: #aeb4ba;
   border-radius: 4px;
+}
+
+/* 桌面增加閱讀行寬；手機維持原有滿寬與邊距。 */
+@media (min-width: 768px) {
+  .board-scroll .ai-plain,
+  .ai-plain {
+    width: min(100%, 90ch);
+  }
 }
 
 .ai-plain .plain-line-inner:has(.katex-display) {
@@ -252,14 +300,10 @@
 .ai-plain .katex-display {
   margin: 0.15em 0 0.35em;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.18em 0 0.55em;
-  scrollbar-width: thin;
-  scrollbar-color: #c5c9ce transparent;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  touch-action: auto;
+  /* A display formula is wrapped by .math-block or .plain-line-xwrap.  It
+     must never create a second, fragment-level scrollbar of its own. */
+  overflow: visible;
+  padding: 0;
   text-align: left;
 }
 
@@ -304,7 +348,7 @@
 .board-reply .katex {
   font-size: 1em;
   line-height: inherit;
-  vertical-align: middle;
+  vertical-align: baseline;
   overflow: visible;
   color: inherit;
 }
@@ -327,17 +371,11 @@
 .ai-plain .plain-katex-nowrap,
 .ai-plain .math-unit-tail {
   display: inline-block;
-  max-width: 100%;
+  max-width: none;
   white-space: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.12em 0 0.22em;
-  margin-block: -0.12em -0.22em;
-  scrollbar-width: thin;
-  scrollbar-color: #c5c9ce transparent;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  touch-action: auto;
+  overflow: visible;
+  padding: 0;
+  margin-block: 0;
   vertical-align: baseline;
 }
 
@@ -351,10 +389,27 @@
   overflow-y: hidden;
   padding: 0.18em 0 0.55em;
   scrollbar-width: thin;
-  scrollbar-color: #c5c9ce transparent;
+  scrollbar-color: #aeb4ba transparent;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  touch-action: auto;
+  overscroll-behavior-y: auto;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.board .ai-plain .math-block::-webkit-scrollbar,
+.board-reply .ai-plain .math-block::-webkit-scrollbar {
+  height: 6px;
+}
+
+.board .ai-plain .math-block::-webkit-scrollbar-track,
+.board-reply .ai-plain .math-block::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.board .ai-plain .math-block::-webkit-scrollbar-thumb,
+.board-reply .ai-plain .math-block::-webkit-scrollbar-thumb {
+  background: #aeb4ba;
+  border-radius: 4px;
 }
 
 .board .ai-plain .math-block > .katex-display,
@@ -395,7 +450,7 @@
 .board-scroll .katex .mrel,
 .ai-plain .katex .mrel,
 .board-reply .katex .mrel {
-  font-family: KaTeX_Main, 'Segoe UI Symbol', serif;
+  font-family: KaTeX_Main, serif;
   font-size: 1em;
   font-style: normal;
   font-weight: 400;
@@ -417,7 +472,7 @@
   opacity: 1;
 }
 
-/* 行內數字與英文：統一深淺，不再特別加粗 */
+/* 行內數字與英文維持 KaTeX 的緊湊字寬與數學字形。 */
 .ai-plain .katex .mord:not(.mathnormal),
 .board-scroll .katex .mord:not(.mathnormal),
 .board-reply .katex .mord:not(.mathnormal) {
@@ -444,4 +499,88 @@
 .katex .vlist-t,
 .katex .vlist-b {
   overflow: visible;
+}
+
+/* One structural layout for (A)–(E). Labels never borrow the previous
+   option's indent; wrapped continuation lines remain in their own body cell. */
+.ai-plain {
+  --choice-label-column: 2.5rem;
+  --choice-label-gap: 1rem;
+  --choice-row-gap: 0.72rem;
+}
+
+.ai-plain .plain-line--choice {
+  margin: var(--plain-line-gap) 0 0;
+}
+
+.ai-plain .choice-option-group {
+  display: grid;
+  gap: var(--choice-row-gap);
+}
+
+.ai-plain .choice-option {
+  display: grid;
+  grid-template-columns: var(--choice-label-column) minmax(0, 1fr);
+  column-gap: var(--choice-label-gap);
+  align-items: start;
+  margin: 0;
+  padding: 0;
+}
+
+.ai-plain .choice-label {
+  grid-column: 1;
+  margin: 0;
+  padding: 0;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: inherit;
+  font-style: normal;
+  font-weight: 700;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.ai-plain .choice-body {
+  grid-column: 2;
+  min-width: 0;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+}
+
+/* 選項敘述必須隨中文換行，不得被計算式橫向捲動器截斷。 */
+.ai-plain .choice-body .plain-line-xwrap--scroll,
+.ai-plain .choice-body .plain-line-xcontent {
+  overflow: visible;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+.ai-plain .choice-body .math-block {
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  white-space: normal;
+}
+
+.ai-plain .choice-body--steps {
+  display: grid;
+  gap: 0.32em;
+}
+
+.ai-plain .choice-step,
+.ai-plain .choice-step .plain-line-inner,
+.ai-plain .choice-body > .plain-line-inner {
+  display: block;
+  min-width: 0;
+  line-height: inherit;
+}
+
+.ai-plain .choice-body .math-block {
+  margin: 0.1em 0 0;
+}
+
+@media (max-width: 430px) {
+  .ai-plain {
+    --choice-label-column: 2.25rem;
+    --choice-label-gap: 0.6rem;
+  }
 }

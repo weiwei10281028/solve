@@ -55,9 +55,25 @@ function getSolveSpec() {
 function renderChapterOptions() {
   const host = document.getElementById('chapterOptions');
   if (!host || typeof window.SolveSpec === 'undefined') return;
-  host.innerHTML = Object.entries(window.SolveSpec.CHAPTERS).map(([id, chapter]) =>
-    `<label class="option-toggle" for="chapter-${id}"><input type="checkbox" id="chapter-${id}" data-chapter-id="${id}"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">${chapter[0]}</span></label>`
-  ).join('');
+  const groupInfo = {
+    '結構與鍵結': '從原子、電子到分子結構與作用力。',
+    '物質與反應': '反應式、能量、氣體與溶液的定量判讀。',
+    '反應與平衡': '速率、平衡、酸鹼與電化學的條件推論。',
+    '元素與應用': '元素、有機、材料與大分子的結構－性質連結。',
+    '實驗與資料': '實驗設計、量測品質與資料證據。'
+  };
+  const groups = Object.entries(window.SolveSpec.CHAPTERS).reduce((all, [id, chapter]) => {
+    (all[chapter.group] ||= []).push([id, chapter]);
+    return all;
+  }, {});
+  host.innerHTML = Object.entries(groups).map(([group, chapters]) => `
+    <section class="chapter-option-group" aria-labelledby="chapter-group-${group}">
+      <div class="chapter-option-group-head"><h3 id="chapter-group-${group}">${group}</h3><p>${groupInfo[group] || ''}</p></div>
+      <div class="solve-spec-row">${chapters.map(([id, chapter]) => {
+        const topicCount = chapter.topics?.length || 0;
+        return `<label class="option-toggle" for="chapter-${id}"><input type="checkbox" id="chapter-${id}" data-chapter-id="${id}"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-copy"><span class="option-toggle-label">${chapter.label}</span><span class="option-toggle-description">${chapter.description}</span><span class="option-toggle-meta">${topicCount} 個細項會依題目自動套用</span></span></label>`;
+      }).join('')}</div>
+    </section>`).join('');
 }
 
 function updateSolveSpecStatus() {
@@ -531,6 +547,136 @@ async function ensureQualityReply(cfg, apiMessages, systemText, reply, refAnswer
   return reply;
 }
 
+/**
+ * 主詳解的最後一道閘門：每一份修正版都重新驗證。若兩次修正後仍不合格，
+ * 呼叫端只能顯示檢查失敗訊息，不能把原始詳解放進畫面。
+ */
+function collectFinalOutputReport(reply, refAnswer, genOpts = {}) {
+  const autoFallback = genOpts.formatRoute?.origin === 'auto'
+    && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(String(reply || ''));
+  const gate = typeof window.SolutionOutputGate?.check === 'function'
+    ? window.SolutionOutputGate.check(reply, {
+      requireRenderer: true,
+      requireNotes: !autoFallback
+    })
+    : {
+      ok: false,
+      text: String(reply || ''),
+      issues: ['輸出檢查器未載入，不能輸出詳解。']
+    };
+  const quality = collectQualityReport(gate.text, refAnswer, genOpts);
+  const criticalStyleIssues = quality.styleIssues.filter((issue) =>
+    /回覆末尾需要|化學式|LaTeX|公式格式|未包在/.test(String(issue))
+  );
+  const issues = [...new Set([
+    ...(gate.issues || []),
+    ...criticalStyleIssues,
+    ...(quality.solveSpecIssues || [])
+  ])];
+  return {
+    ok: issues.length === 0,
+    text: gate.text,
+    issues,
+    gate,
+    quality
+  };
+}
+
+function buildFinalOutputFixText(report, refAnswer) {
+  const gateText = typeof window.SolutionOutputGate?.buildFixUserText === 'function'
+    ? window.SolutionOutputGate.buildFixUserText(report)
+    : '【輸出前檢查未通過】請修正所有公式與 NOTE 缺漏。';
+  const qualityText = buildQualityFixUserText(report.quality || {
+    styleIssues: [],
+    noteReport: report.gate?.noteReport || null,
+    solveSpecIssues: []
+  }, refAnswer);
+  return gateText + '\n\n' + qualityText;
+}
+
+async function ensureVerifiedMainSolution(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
+  let current = String(reply || '');
+  let report = collectFinalOutputReport(current, refAnswer, genOpts);
+  const maxFix = 2;
+  for (let attempt = 0; attempt <= maxFix; attempt += 1) {
+    if (report.ok) return { ok: true, text: report.text, report, attempts: attempt };
+    if (attempt === maxFix) break;
+    console.warn('[輸出閘門] 詳解未通過，要求完整修正：', report.issues);
+    try {
+      const { text: fixed } = await callAPI(cfg, [
+        ...apiMessages,
+        { role: 'assistant', content: current },
+        { role: 'user', content: buildFinalOutputFixText(report, refAnswer) }
+      ], systemText, {
+        ...genOpts,
+        maxOutputTokens: Math.min(Number(genOpts.maxOutputTokens) || 4096, 4096),
+        maxContinue: 0,
+        temperature: 0.15,
+        _outputGateFix: attempt + 1
+      });
+      if (!fixed) break;
+      current = fixed;
+      report = collectFinalOutputReport(current, refAnswer, genOpts);
+    } catch (err) {
+      console.warn('[輸出閘門] 修正重試失敗', err);
+      break;
+    }
+  }
+  // 公式／化學式／NOTE 已通過時，題型規格的非關鍵提示不應阻擋正常詳解。
+  // 直接採用最後一次已正規化內容，避免畫面顯示「未通過檢查」假錯誤。
+  const criticalStyleIssues = (report.quality?.styleIssues || [])
+    .filter((issue) => /回覆末尾需要|化學式|LaTeX|公式格式|未包在/.test(String(issue)));
+  if (report.gate?.ok && criticalStyleIssues.length === 0) {
+    return { ok: true, text: report.gate.text, report, attempts: maxFix };
+  }
+  return { ok: false, text: '', report, attempts: maxFix };
+}
+
+function buildOutputGateFailureMessage(report) {
+  const details = (report?.issues || []).slice(0, 3).join('；') || '格式、化學式或 NOTE 檢查未通過';
+  return '【詳解未輸出】\n系統已阻擋未通過檢查的內容，請重新作答。\n檢查項目：' + details + '\n@@ANSWER@@請重新作答';
+}
+
+function getChoiceCompletenessIssues(reply, questionCtx) {
+  if (typeof window.checkChoiceAnalysisCompleteness !== 'function') return [];
+  return window.checkChoiceAnalysisCompleteness(reply, questionCtx);
+}
+
+function attachChoiceCompletenessError(reply, issues) {
+  const detail = (issues || []).join('；');
+  return `【選項完整性錯誤】${detail}\n系統未補寫未知的選項內容；請提供完整題目或重新辨識後再解。\n\n${String(reply || '')}`;
+}
+
+/** One targeted retry, then surface an explicit integrity error instead of inventing a missing option. */
+async function ensureChoiceCompletenessReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
+  const questionCtx = String(genOpts.questionCtx || '');
+  const issues = getChoiceCompletenessIssues(reply, questionCtx);
+  if (!issues.length) return reply;
+  if (genOpts._choiceCompletenessFixed) return attachChoiceCompletenessError(reply, issues);
+  try {
+    const { text: fixed } = await callAPI(cfg, [
+      ...apiMessages,
+      { role: 'assistant', content: reply },
+      { role: 'user', content: [
+        '【修正｜選項完整性】' + issues.join('；'),
+        '只能依原題已辨識的選項補齊遺漏的逐項分析；不可猜測、杜撰或改寫未知選項內容。',
+        '題目確有 (A)～(E) 時，每項必須獨立一行，並使 @@ANSWER@@ 的每個選項都能對應到該行判斷。',
+        '若原題選項本身看不清，請明確寫「選項資訊不足，無法完成逐項分析」，不要假造內容。保留其他正確推導與 @@ANSWER@@。'
+      ].join('\n') }
+    ], systemText, {
+      ...genOpts,
+      maxContinue: 0,
+      temperature: 0.15,
+      _choiceCompletenessFixed: true
+    });
+    if (fixed && !getChoiceCompletenessIssues(fixed, questionCtx).length) return fixed;
+    return attachChoiceCompletenessError(fixed || reply, getChoiceCompletenessIssues(fixed || reply, questionCtx));
+  } catch (err) {
+    console.warn('[選項完整性] 修正失敗', err);
+    return attachChoiceCompletenessError(reply, issues);
+  }
+}
+
 /** 化學計量表強制：參考答案／H₂O 修正後再檢，缺表則 API 重寫 */
 async function ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
   const questionCtx = String(genOpts.questionCtx || '');
@@ -675,6 +821,8 @@ function updateDatabaseStatusLine() {
 }
 
 function renderAiInto(container, text) {
+  const previousVisibility = container?.style?.visibility || '';
+  if (container?.style) container.style.visibility = 'hidden';
   try {
     if (typeof render !== 'function' || typeof doKaTeX !== 'function') {
       throw new Error('render.js 未載入，請強制重新整理頁面');
@@ -693,8 +841,18 @@ function renderAiInto(container, text) {
     } else if (typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
       const formatted = SolutionFormat.format(body);
       body = formatted.text;
-      if (!formatted.report.ok) console.warn('[詳解排版] 尚有待修項目', formatted.report.errors);
+      if (!formatted.report.ok) {
+        throw new Error('詳解格式檢查未通過：' + (formatted.report.errors || []).slice(0, 3).join('；'));
+      }
+      const chemicalIssues = typeof window.SolutionOutputGate?.chemicalIssues === 'function'
+        ? window.SolutionOutputGate.chemicalIssues(body)
+        : [];
+      if (chemicalIssues.length) {
+        throw new Error('化學式檢查未通過：' + chemicalIssues.slice(0, 3).join('；'));
+      }
     }
+    // 結構化詳解也要沿用既有化學式正規化，避免 choice_analysis 繞過 KaTeX。
+    if (typeof normalizeBareCeTokens === 'function') body = normalizeBareCeTokens(body);
     if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
@@ -713,6 +871,9 @@ function renderAiInto(container, text) {
       container.innerHTML = render(body);
     }
     doKaTeX(container);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (container?.style) container.style.visibility = previousVisibility;
+    }));
     if (compiledNotes.length && typeof SolutionDocument !== 'undefined') {
       const applied = SolutionDocument.applyInlineNotes(container, compiledNotes);
       if (applied !== compiledNotes.length) console.warn('[SolutionDocument] 部分文字 NOTE 未套用', { applied, expected: compiledNotes.length });
@@ -738,14 +899,31 @@ function renderAiInto(container, text) {
       afterDraw();
     }
   } catch (err) {
+    if (container?.style) container.style.visibility = previousVisibility;
     console.error('詳解渲染失敗', err);
     container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
   }
 }
 
-function setMainSolution(text) {
+function setMainSolution(text, options = {}) {
   const el = document.getElementById('mainSolution');
-  renderAiInto(el, text);
+  let output = text;
+  const raw = String(text || '').trim();
+  const isError = !raw || raw.startsWith('❌') || raw.startsWith('【詳解未輸出】');
+  // Keep a synchronous guard at the last caller before DOM insertion. The
+  // async output gate above is authoritative for retries; this guard covers
+  // stale callers and prevents a malformed fallback from ever being painted.
+  if (!options.skipOutputGate && !isError && typeof window.SolutionOutputGate?.check === 'function') {
+    const report = window.SolutionOutputGate.check(text, {
+      requireRenderer: true,
+      requireNotes: true
+    });
+    if (!report.ok) {
+      console.error('[輸出閘門] DOM 插入前再次阻擋：', report.issues || []);
+      output = buildOutputGateFailureMessage(report);
+    }
+  }
+  renderAiInto(el, output);
   scrollBoard(el);
 }
 
@@ -971,10 +1149,24 @@ async function startSolve() {
     if (!noteFallback && typeof NoteEnsure !== 'undefined' && typeof NoteEnsure.ensureDensityReply === 'function') {
       reply = await NoteEnsure.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
         ...postProcessOpts,
-        maxNoteFix: 1,
+        maxNoteFix: 5,
         noteFixTemperature: 0.15
       });
     }
+    reply = await ensureChoiceCompletenessReply(cfg, apiMessages, systemText, reply, postProcessOpts);
+    setBadge('詳解檢查中…', '#F9F3E6', '#8A6D3B');
+    const verified = await ensureVerifiedMainSolution(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
+      refAnswerSkipped: solveOpts.refAnswerSkipped,
+      ...postProcessOpts
+    });
+    if (!verified.ok) {
+      console.error('[輸出閘門] 阻擋未通過的詳解：', verified.report?.issues || []);
+      setMainSolution(buildOutputGateFailureMessage(verified.report));
+      setBadge('詳解未通過檢查', '#F9EDED', '#9B4444');
+      toast('詳解未通過公式／化學式／NOTE 檢查，未顯示原始內容；請重新作答。');
+      return;
+    }
+    reply = verified.text;
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
     const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check ? NoteCheck.check(getQualityCheckText(reply)) : null;

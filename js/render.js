@@ -2,7 +2,7 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20260713k';
+window.__RENDER_BUILD = '20260716j';
 window.__RENDER_PIPELINE_DEFAULT = 'legacy';
 
 const BOARD_LAYOUT_ENABLED = false;
@@ -22,12 +22,16 @@ function isInsideDollarMath(str, index) {
 }
 
 function addCasesRowSpacing(block, env) {
-  let b = String(block || '');
-  const reactionCount = (b.match(/\\rightleftharpoons|\\rightarrow/g) || []).length;
-  if (env === 'array' && reactionCount > 1) return b.replace(/\\\\(?!\[)/g, '\\\\[0.65em]');
-  if (env === 'array' && reactionCount) return b;
-  if (env !== 'cases' && env !== 'array') return b;
-  return b.replace(/\\\\(?!\[)/g, '\\\\[1.1em]');
+  // KaTeX accepts `\\[0.65em]` inside an array, but the plain-line pipeline can
+  // later split that row break and leave `[0.65em]` visible as ordinary text.
+  // Keep the model's own row spacing instead of injecting formatting syntax here.
+  return String(block || '');
+}
+
+function stripLeakedArrayRowSpacing(value) {
+  return String(value ?? '')
+    .replace(/(?:\\\\)?\[\s*\d+(?:\.\d+)?\s*(?:em|ex|pt)\s*\]/gi, '')
+    .trim();
 }
 
 /** 統一修正 LaTeX 區塊邊界（cases/array、巢狀 $、連續算式） */
@@ -39,7 +43,6 @@ function fixLatexBlocks(text) {
   // 結論前逗號改全形（與中文句號同級標點）
   s = s.replace(/,\s*\\quad\s*\\text\{\s*故\s*\}/g, '\\text{，}\\quad\\text{故 }');
   s = s.replace(/(\\dfrac\{[^}]+\}\{[^}]+\})\s*,\s*(\\quad\s*\\text\{\s*故)/g, '$1\\text{，}$2');
-  s = s.replace(/\$\s*([0-9]+(?:\.[0-9]+)?(?:%|％)?)\s*\$/g, '$1');
   s = s.replace(/\$\s+(?=\\[a-zA-Z{])/g, '$');
   s = s.replace(/([^\n]*?)\$\s*(\\begin\{cases\}[\s\S]*?\\end\{cases\})\s*\$/g, (m, prefix, body) => {
     const p = String(prefix || '').trimEnd();
@@ -243,12 +246,33 @@ function chemDigitsToSubscripts(formula) {
   return String(formula || '').replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2');
 }
 
+function chemistryLatex(body) {
+  const chemistry = String(body || '').trim();
+  // 化學式統一交給 KaTeX mhchem；禁止降級成普通文字或手工上下標。
+  return `\\ce{${chemistry}}`;
+}
+
+function normalizeMhchemForKatex(latex) {
+  // Keep a final guard at the renderer boundary for structured replies that
+  // do not pass through LatexSanitize.  Only a double-escaped mhchem command
+  // is changed; ordinary LaTeX escapes and layout remain untouched.
+  const normalized = String(latex || '').replace(/\\\\ce(?=\{)/g, '\\ce');
+  return normalized;
+}
+
 /** 將化學式片段包成 $CO_2$ 型（不用 \\text{}） */
 function wrapChemFormula(formula) {
   let f = String(formula || '').replace(/\\_/g, '_').trim();
   if (!f) return '';
-  if (!/_/.test(f) && /[A-Z][a-z]?\d/.test(f)) f = chemDigitsToSubscripts(f);
-  return `$${f}$`;
+  f = f
+    .replace(/_\{?(\d+)\}?/g, '$1')
+    .replace(/\^\{?([0-9]*[+\-])\}?/g, '^$1');
+  return `$${chemistryLatex(f)}$`;
+}
+
+function isChemLatexToken(value) {
+  const t = String(value || '').trim();
+  return /^(?:[A-Z][a-z]?(?:_\{?\d+\}?|\d+)?)+(?:\^\{?[0-9]*[+\-]\}?)?$/.test(t);
 }
 
 /** 修正 AI 常見錯誤：CO\\_2、\\textN_2、H\\_2\\textO 等 */
@@ -262,6 +286,7 @@ function repairMalformedChemLatex(text) {
       .replace(/\\text([A-Z][a-z]?(?:_\{?[0-9+\-]+\}?|\d+)*)/g, '$1')
       .replace(/([A-Z][a-z]?)\\_([0-9]+)/g, '$1_$2')
       .replace(/H_2\\textO|H\\_2\\textO/g, 'H_2O');
+    if (isChemLatexToken(fixed)) return wrapChemFormula(fixed);
     return fixed === inner ? m : `$${fixed}$`;
   });
 
@@ -284,11 +309,26 @@ function repairMalformedChemLatex(text) {
 }
 
 function normalizeUnicodeChemSubscripts(text) {
-  return String(text || '').replace(/([A-Z][a-z]?)([₀₁₂₃₄₅₆₇₈₉]+)/g, (m, el, subs, off) => {
-    if (isInsideDollarMath(text, off)) return m;
-    const digits = [...subs].map((c) => UNICODE_SUB_MAP[c] || c).join('');
-    return wrapChemFormula(`${el}_${digits}`);
+  const source = String(text || '');
+  const sub = /[₀₁₂₃₄₅₆₇₈₉]/g;
+  const supMap = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-' };
+  const toLatex = (formula, charge) => {
+    const base = String(formula).replace(sub, (ch) => UNICODE_SUB_MAP[ch] || ch);
+    const chem = chemDigitsToSubscripts(base);
+    const suffix = charge ? `^{${[...charge].map((ch) => supMap[ch] || ch).join('')}}` : '';
+    return wrapChemFormula(chem + suffix);
+  };
+  // Process the complete formula at once: $SO_3$ is one token, never a bare
+  // S followed by a separately rendered O_3.
+  let out = source.replace(/(?<![$\w\\])((?:[A-Z][a-z]?[₀₁₂₃₄₅₆₇₈₉0-9]*){2,})([⁰¹²³⁴⁵⁶⁷⁸⁹]*[⁺⁻])?(?![A-Za-z0-9_])/g, (m, formula, charge, off) => {
+    if (isInsideDollarMath(source, off)) return m;
+    return toLatex(formula, charge);
   });
+  out = out.replace(/(?<![$\w\\])([A-Z][a-z]?)([⁰¹²³⁴⁵⁶⁷⁸⁹]+[⁺⁻])(?![A-Za-z0-9_])/g, (m, formula, charge, off) => {
+    if (isInsideDollarMath(out, off)) return m;
+    return toLatex(formula, charge);
+  });
+  return out;
 }
 
 function wrapBareChemicalFormulas(text) {
@@ -312,7 +352,7 @@ function wrapBareChemicalFormulas(text) {
     });
     out = out.replace(ionRe, (m, ion, off) => {
       if (isInsideDollarMath(out, off)) return m;
-      return `$${m}$`;
+      return wrapChemFormula(ion);
     });
     return out;
   }).join('\n');
@@ -342,10 +382,132 @@ function repairBareTextMacros(text) {
 }
 
 /** 裸寫分式、Δt 等片段包進 $…$ */
+/* Keep loose-model repairs outside existing KaTeX segments. */
+function mapOutsideMathSegments(text, mapper) {
+  return String(text || '').split(/(\$\$[\s\S]*?\$\$|\$[^$\n]*\$)/g).map((part) => {
+    if (/^\$\$[\s\S]*\$\$$/.test(part) || /^\$[^$\n]*\$$/.test(part)) return part;
+    return mapper(part);
+  }).join('');
+}
+
+/* Convert common AI plain-text math dialects into independent inline tokens. */
+function normalizeLooseInlineMath(text) {
+  return mapOutsideMathSegments(text, (plain) => plain.split('\n').map((line) => {
+    let s = line;
+    if (/〔[^〕]*(?:\d+\s*\^|[（(]\s*\d+\s*[）)]\s*\/)/.test(s)) s = s.replace(/[〔〕]/g, '');
+    s = s.replace(/(\d+(?:\.\d+)?)\s*\^\s*(至|到)\s*(\d+(?:\.\d+)?)\s*\^/g, (match, start, connector, end) => (
+      `$${start}^{\\circ}\\mathrm{C}\\text{${connector}}${end}^{\\circ}\\mathrm{C}$`
+    ));
+    s = s.replace(/[（(]\s*(\d+(?:\.\d+)?)\s*[）)]\s*\/\s*[（(]\s*(\d+(?:\.\d+)?)\s*[）)]/g, (match, numerator, denominator) => (
+      `$\\dfrac{${numerator}}{${denominator}}$`
+    ));
+    return s;
+  }).join('\n'));
+}
+
+/* Naked numeric calculations use the same KaTeX token path as fractions. */
+function wrapPlainNumericRuns(text) {
+  let output = mapOutsideMathSegments(text, (plain) => plain.replace(
+    /(?<![A-Za-z_\\\d.])(\d+(?:\.\d+)?(?:\s*(?:[+\-×*/÷=≈])\s*\d+(?:\.\d+)?)+)(?![A-Za-z_\\\d.])/g,
+    (match, expression) => `$${expression.replace(/×/g, '\\times ').replace(/÷/g, '\\div ')}$`
+  ));
+  output = mapOutsideMathSegments(output, (plain) => plain.replace(
+    /(?<![A-Za-z_\\\d.])(\d+(?:\.\d+)?)(?![A-Za-z_\\\d.^])/g,
+    (match, number) => `$${number}$`
+  ));
+  return output;
+}
+
+/**
+ * Keep only scientific tokens in KaTeX.  Ordinary English prose stays as
+ * browser text and may wrap naturally; quantities, variables, units and
+ * chemistry abbreviations share the same KaTeX/NOTE-capable path.
+ */
+function wrapSemanticMathTokens(text) {
+  return mapOutsideMathSegments(text, (plain) => {
+    let s = plain;
+    const unitLatex = (unit) => {
+      const key = String(unit || '').replace(/\s+/g, '');
+      if (key === 'g/mol') return '\\mathrm{g\\,mol^{-1}}';
+      if (key === '°C') return '^{\\circ}\\mathrm{C}';
+      return `\\mathrm{${key}}`;
+    };
+    // A quantity is one token, so the number and unit share a baseline even
+    // when no explanatory NOTE is attached.
+    s = s.replace(/(?<![A-Za-z$\\])(\d+(?:\.\d+)?)\s*(g\s*\/\s*mol|mol|mg|mL|kg|g|L|M|atm|kPa|Pa|K|°C)(?![A-Za-z])/g,
+      (_, value, unit) => `$${value}\\,${unitLatex(unit)}$`);
+    s = mapOutsideMathSegments(s, (outside) => outside.replace(
+      /(?<![A-Za-z$\\])(g\s*\/\s*mol|mol|mg|mL|kg|g|L|M|atm|kPa|Pa|K|°C)(?![A-Za-z])/g,
+      (_, unit) => `$${unitLatex(unit)}$`
+    ));
+    s = mapOutsideMathSegments(s, (outside) => outside.replace(
+      /(?<![A-Za-z$\\])(pH|Kc|Kp)(?![A-Za-z])/g,
+      (_, token) => `$${token === 'Kc' ? 'K_c' : token === 'Kp' ? 'K_p' : token}$`
+    ));
+    return mapOutsideMathSegments(s, (outside) => outside.replace(
+      /(?<![A-Za-z$\\])([Wn])(?=\s*(?:[=≈]|為|是|表示|值|[_^]))/g,
+      '$$$1$$'
+    ));
+  });
+}
+
+/** The only non-structural token normalizer used by board and legacy replies. */
+function wrapBareMhchemTokens(text) {
+  // `\ce{...}` is valid only inside KaTeX delimiters. Models occasionally
+  // emit it bare or inside Markdown code ticks. Normalize the command before
+  // the formula matcher can turn its inner H2S/SF4 into nested math text.
+  return mapOutsideMathSegments(text, (plain) => {
+    const unquoted = String(plain || '')
+      .replace(/`+\s*(?:\\?ce\{([^{}\n]+)\}|\\ce([A-Z][A-Za-z0-9^_+\-]*))\s*`+/g,
+        (_, braced, shortForm) => '\\ce{' + (braced || shortForm || '') + '}');
+    return unquoted.replace(/\\ce(?:\{([^{}\n]+)\}|([A-Z][A-Za-z0-9^_+\-]*))/g, (whole, braced, shortForm) => {
+      const body = String(braced || shortForm || '').trim();
+      return body ? `$${chemistryLatex(body)}$` : whole;
+    });
+  });
+}
+
+/* Repair the common model shorthand ceFe_xO_y before KaTeX sees it. */
+function normalizeBareCeTokens(text) {
+  let fixed = String(text || '')
+    .replace(/`([^`\n]*(?:\\?ce(?=\{|[A-Z]))[^`\n]*)`/g, '$1')
+    .replace(/`+\s*\\?ce\{([^{}\n]+)\}\s*`+/g, '\\ce{$1}')
+    .replace(/`+\s*ce([A-Z][A-Za-z0-9_{}^+\-()]*)\s*`+/g, '\\ce{$1}')
+    .replace(/\$([^$\n]+)\$/g, (whole, inner) => {
+    const match = inner.match(/(^|[^A-Za-z])ce(?=[A-Z])/);
+    if (!match) return whole;
+    const ceAt = match.index + match[1].length;
+    const body = inner.slice(ceAt + 2).trim();
+    if (!body) return whole;
+    return '$' + inner.slice(0, ceAt) + '\\ce{' + body + '}$';
+  });
+  return mapOutsideMathSegments(fixed, (plain) => plain
+    .replace(/(?<![A-Za-z])\\?ce\{([^{}\n]+)\}/g, (_, body) => '$\\ce{' + body + '}$')
+    .replace(/(?<![A-Za-z])ce([A-Z][A-Za-z0-9_{}^+\-()]*)/g,
+      (_, body) => '$\\ce{' + body + '}$'));
+}
+
+function normalizeScientificTokens(text) {
+  let s = repairMalformedChemLatex(text);
+  s = normalizeBareCeTokens(s);
+  s = wrapBareMhchemTokens(s);
+  s = wrapBareChemicalFormulas(s);
+  s = wrapSemanticMathTokens(s);
+  return wrapPlainNumericRuns(s);
+}
+
 function wrapBareLatexSnippets(text) {
   return String(text || '').split('\n').map((line) => {
     if (/^\s*\$\$/.test(line)) return line;
     let s = line;
+    // Existing inline math is already paired.  Hide it while repairing bare
+    // LaTeX so a closing $ can never be mistaken for a new opening delimiter.
+    const pairedMath = [];
+    s = s.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$/g, (math) => {
+      const marker = `@@MATH_TOKEN_${pairedMath.length}@@`;
+      pairedMath.push(math);
+      return marker;
+    });
     s = s.replace(/\$([A-Za-z](?:_\{?[A-Za-z0-9]+\}?)?)\$\s*(\\propto\s*\\(?:d)?frac\{[^{}]*\}\{[^{}]*\})/g, (m, left, right) => `$${left}${right}$`);
     s = s.replace(/\$([^$\n]+)\$\s*([A-Za-z]?[^$\n]*\\(?:sqrt|dfrac|frac)\{[^{}]*\}[^$\n]*)\$/g, (m, a, b) => `$${a.trim()}${b.trim()}$`);
     s = s.replace(/\$([^$\n]+)\$\s*([A-Za-z]?[^$\n]*\\(?:sqrt|dfrac|frac)\{[^{}]*\}[^$\n]*)(?=\s+[\u4e00-\u9fff]|$)/g, (m, a, b, off) => {
@@ -376,7 +538,7 @@ function wrapBareLatexSnippets(text) {
       if (isInsideDollarMath(s, off)) return m;
       return `$${expr}$`;
     });
-    return s;
+    return s.replace(/@@MATH_TOKEN_(\d+)@@/g, (marker, index) => pairedMath[Number(index)] || marker);
   }).join('\n');
 }
 
@@ -684,6 +846,9 @@ function repairOrphanDollarLines(text) {
   const unwrapPlainMath = (inner) => {
     const s = String(inner || '').trim();
     if (!s || /\\[a-zA-Z]/.test(s)) return null;
+    // Only unwrap accidental math delimiters around prose.  Bare arithmetic
+    // must stay in KaTeX so numbers share the NOTE-capable render path.
+    if (!/[\u4e00-\u9fff]/.test(s)) return null;
     if (/[\u4e00-\u9fff]/.test(s) && !/[_^{}\\]/.test(s)) return s;
     if (/^[\u4e00-\u9fffA-Za-z0-9\s=+\-×÷*/（）().,，、：:次個片段段莫耳mol%％°℃]+$/.test(s)) return s;
     return null;
@@ -692,12 +857,17 @@ function repairOrphanDollarLines(text) {
   return merged.filter((line) => {
     const t = String(line || '').trim();
     return t !== '$' && t !== '$$';
-  }).map((line) => {
-    let s = String(line || '');
-    s = s.replace(/\$\$([^$]+)\$\$/g, (m, inner) => unwrapPlainMath(inner) || m);
-    s = s.replace(/\$([^$\n\\]+)\$/g, (m, inner) => unwrapPlainMath(inner) || m);
-    return s;
-  }).join('\n');
+  }).map((line) => String(line || '').split(/(\$\$[\s\S]*?\$\$|\$[^$\n]*\$)/g).map((segment) => {
+    if (/^\$\$[\s\S]*\$\$$/.test(segment)) {
+      const plain = unwrapPlainMath(segment.slice(2, -2));
+      return plain == null ? segment : plain;
+    }
+    if (/^\$[^$\n]*\$$/.test(segment)) {
+      const plain = unwrapPlainMath(segment.slice(1, -1));
+      return plain == null ? segment : plain;
+    }
+    return segment;
+  }).join('')).join('\n');
 }
 
 /** 判斷單位是否屬於等號鏈最後結果；中間代入仍應移除單位。 */
@@ -748,7 +918,9 @@ function stripAllCalcUnitsAndEmptyNotes(text) {
     s = s.replace(numericUnit, (matched, offset, source) => (
       isTerminalCalcResultUnit(source, offset, matched.length) ? matched : ''
     ));
-    s = s.replace(/(?<=[\d\}])(?:\\,|\\;|\\!|\\\s*|~|\s)*\^\{\\circ\}(?:\\(?:text|mathrm)\{C\}|C)/gi, '');
+    if (!/\\text\{(?:至|到)\}/.test(s)) {
+      s = s.replace(/(?<=[\d\}])(?:\\,|\\;|\\!|\\\s*|~|\s)*\^\{\\circ\}(?:\\(?:text|mathrm)\{C\}|C)/gi, '');
+    }
     s = s.replace(unitOnlyNote, '');
     s = s.replace(/\\htmlData\{[^{}]*\}\{\s*\}/g, '');
     s = s.replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').trim();
@@ -836,12 +1008,38 @@ function repairCalcMathTypography(text) {
   }).join('\n');
 }
 
+/* 將一整串元素分式拆成兩欄一行，避免選項欄位因此整列橫向捲動。 */
+function splitLongInlineFractionRuns(text) {
+  return String(text || '').replace(/\$(?!\$)([^$\n]+)\$/g, (whole, inner) => {
+    if (((inner.match(/\\(?:d?frac)\b/g) || []).length) < 3) return whole;
+
+    const parts = [];
+    const boundary = /[，；;]\s*(?=(?:n(?:_[A-Za-z0-9{}]+)?|[A-Za-z](?:_[A-Za-z0-9{}]+)?)\s*[:：])/g;
+    let start = 0;
+    let match;
+    while ((match = boundary.exec(inner))) {
+      parts.push(inner.slice(start, match.index + 1).trim());
+      start = boundary.lastIndex;
+    }
+    parts.push(inner.slice(start).trim());
+    if (parts.length < 3 || parts.some(part => !part)) return whole;
+
+    const rows = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      rows.push(parts.slice(i, i + 2).join('\\quad '));
+    }
+    return rows.map(row => `$${row}$`).join('\n');
+  });
+}
+
 function preprocessBoardCompiledText(raw) {
   let text = String(raw || '').trim();
   text = salvageBrokenKcDisplayLine(text);
   text = promoteInlineReactionArrayToDisplay(text);
   text = isolateDisplayMathOnOwnLine(text);
-  text = repairMalformedChemLatex(text);
+  text = normalizeLooseInlineMath(text);
+  text = normalizeScientificTokens(text);
+  text = splitLongInlineFractionRuns(text);
   text = repairCalcMathTypography(text);
   if (typeof flattenReactionIceTables === 'function') text = flattenReactionIceTables(text);
   text = fixLatexBlocks(text);
@@ -862,7 +1060,8 @@ function preprocessLegacyPlainText(raw) {
   text = salvageBrokenKcDisplayLine(text);
   text = promoteInlineReactionArrayToDisplay(text);
   text = isolateDisplayMathOnOwnLine(text);
-  text = repairMalformedChemLatex(text);
+  text = normalizeLooseInlineMath(text);
+  text = splitLongInlineFractionRuns(text);
   text = repairCalcMathTypography(text);
   if (typeof flattenReactionIceTables === 'function') text = flattenReactionIceTables(text);
   text = fixLatexBlocks(text);
@@ -876,8 +1075,8 @@ function preprocessLegacyPlainText(raw) {
   text = organizeReactionCasesLayout(text);
   text = wrapSingleOrphanLatexLines(text);
   text = wrapBareLatexSnippets(text);
-  text = wrapBareChemicalFormulas(text);
-  text = repairMalformedChemLatex(text);
+  text = normalizeLooseInlineMath(text);
+  text = normalizeScientificTokens(text);
   text = normalizeMathOperatorsInPlain(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessEarly(text);
   text = repairBareTextMacros(text);
@@ -890,8 +1089,6 @@ function preprocessLegacyPlainText(raw) {
   text = isolateDisplayMathOnOwnLine(text);
   text = repairUnclosedInlineMath(text);
   text = repairBareTextMacros(text);
-  text = stripRawCalcUnitsInInlineMath(text);
-  text = stripAllCalcUnitsAndEmptyNotes(text);
   text = fixLatexBlocks(text);
   if (typeof MathNote !== 'undefined') text = MathNote.preprocessLate(text);
   text = repairOrphanDollarLines(text);
@@ -1400,7 +1597,7 @@ function compileParagraphParts(parts) {
 }
 
 function formatRxnTableCell(cell) {
-  const t = String(cell ?? '').trim();
+  const t = stripLeakedArrayRowSpacing(cell);
   if (!t || t === '—' || t === '-' || t === '–') return '\\text{—}';
   if (/^\\/.test(t)) return t;
   if (/[\u4e00-\u9fff]/.test(t)) return `\\text{${t}}`;
@@ -1408,7 +1605,7 @@ function formatRxnTableCell(cell) {
 }
 
 function formatRxnTableLabel(label) {
-  const t = String(label || '').trim();
+  const t = stripLeakedArrayRowSpacing(label);
   if (!t) return '';
   if (/^\\text\{/.test(t)) return t;
   if (/[\u4e00-\u9fff]/.test(t)) return `\\text{${t}}`;
@@ -1684,6 +1881,7 @@ function boardDocToCheckText(raw) {
 
 window.preprocessBoardCompiledText = preprocessBoardCompiledText;
 window.preprocessLegacyPlainText = preprocessLegacyPlainText;
+window.normalizeScientificTokens = normalizeScientificTokens;
 window.parseBoard = parseBoard;
 window.normalizeBoardDoc = normalizeBoardDoc;
 window.validateBoardDoc = validateBoardDoc;
@@ -1734,6 +1932,36 @@ function lineHasLeakedLatex(el) {
   return walk(el);
 }
 
+/** 純計算行才建立橫向捲動區，中文說明行仍交由正常換行處理。 */
+function isFormulaScrollCandidate(content) {
+  if (!content) return false;
+  if (content.querySelector('.math-block, .katex-display')) return true;
+  const formulas = [...content.querySelectorAll('.katex')];
+  if (!formulas.length) return false;
+
+  // Prose and option explanations may contain several valid scientific tokens.
+  // They must still wrap like text; only a formula-only run owns horizontal
+  // scrolling.  KaTeX's own \text{} labels are not direct text nodes here.
+  const directText = [...content.childNodes]
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent || '')
+    .join('')
+    .replace(/\s+/g, '');
+  const operatorRun = formulas.some((formula) => formula.querySelector('.mfrac, .mrel, .mbin'));
+
+  // A calculation line may combine Chinese labels with several intact formula
+  // fragments.  When it overflows, the line—not each individual fraction—must
+  // own the horizontal scroll track so the equation stays aligned as one unit.
+  const isCalculationRun = operatorRun && (
+    formulas.length >= 6
+    || (formulas.length >= 2 && directText.length <= 18)
+  );
+  if (isCalculationRun) return true;
+
+  if ((directText.match(/[\u4e00-\u9fff]/g) || []).length >= 4 || /[A-Za-z]{3,}/.test(directText)) return false;
+  return operatorRun;
+}
+
 function applyLineHorizontalScroll(inner, wrap, content) {
   if (!inner?.isConnected || !wrap || !content) return;
   const avail = inner.clientWidth
@@ -1746,6 +1974,15 @@ function applyLineHorizontalScroll(inner, wrap, content) {
   }
   if (lineHasLeakedLatex(content)) {
     wrap.classList.remove('plain-line-xwrap--scroll');
+    wrap.classList.remove('formula-scroll');
+    inner.classList.remove('plain-line-inner--xscroll');
+    content.style.whiteSpace = 'normal';
+    inner.style.whiteSpace = 'normal';
+    return;
+  }
+  if (!isFormulaScrollCandidate(content)) {
+    wrap.classList.remove('plain-line-xwrap--scroll');
+    wrap.classList.remove('formula-scroll');
     inner.classList.remove('plain-line-inner--xscroll');
     content.style.whiteSpace = 'normal';
     inner.style.whiteSpace = 'normal';
@@ -1753,6 +1990,7 @@ function applyLineHorizontalScroll(inner, wrap, content) {
   }
   const needX = measureLineOverflow(inner, content);
   wrap.classList.toggle('plain-line-xwrap--scroll', needX);
+  wrap.classList.toggle('formula-scroll', needX);
   inner.classList.toggle('plain-line-inner--xscroll', needX);
   inner.classList.remove('plain-line--hscroll', 'plain-line--hscroll-math');
   inner.style.whiteSpace = 'normal';
@@ -1762,10 +2000,12 @@ const lineScrollObservers = new WeakMap();
 
 function setupHorizontalLineScroll(root) {
   if (!root) return;
-  const rows = root.querySelectorAll(
-    '.plain-line-inner, .choice-body, .choice-step .plain-line-inner'
-  );
+  const rows = root.querySelectorAll('.plain-line-inner');
   rows.forEach((inner) => {
+    // Choice rendering already gives each option a .plain-line-inner.  Do not
+    // wrap its parent a second time: that made token-rich prose look like one
+    // unbreakable calculation line on narrow screens.
+    if (inner.classList.contains('choice-body') && inner.querySelector('.plain-line-inner')) return;
     if (!inner.querySelector('.katex, .math-block, .math-unit-tail')) return;
 
     inner.style.overflow = 'visible';
@@ -1817,7 +2057,7 @@ function tryRenderLatex(tex, display) {
     const holder = document.createElement('span');
     if (display) holder.className = 'math-block';
     const { trust, macros } = getKatexOpts();
-    katex.render(tex, holder, {
+    katex.render(normalizeMhchemForKatex(tex), holder, {
       displayMode: !!display,
       throwOnError: false,
       strict: 'ignore',
@@ -1828,6 +2068,41 @@ function tryRenderLatex(tex, display) {
   } catch (_) {
     return null;
   }
+}
+
+function recoverBareMhchemInDom(root) {
+  if (!root || typeof renderMathInElement !== 'function') return;
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement?.closest('.katex, .math-note-popover')) continue;
+    if ((node.nodeValue || '').includes('\\ce')) nodes.push(node);
+  }
+  if (!nodes.length) return;
+
+  const { trust, macros } = getKatexOpts();
+  nodes.forEach((textNode) => {
+    const source = textNode.nodeValue || '';
+    const normalized = wrapBareMhchemTokens(source);
+    if (normalized === source || !textNode.parentNode) return;
+    const holder = document.createElement('span');
+    holder.textContent = normalized;
+    renderMathInElement(holder, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false }
+      ],
+      throwOnError: false,
+      strict: 'ignore',
+      trust,
+      macros,
+      preProcess: (math) => normalizeMhchemForKatex(repairInlineMathTypography(String(math || '')))
+    });
+    const fragment = document.createDocumentFragment();
+    while (holder.firstChild) fragment.appendChild(holder.firstChild);
+    textNode.replaceWith(fragment);
+  });
 }
 
 function hideKatexErrors(root) {
@@ -2142,28 +2417,6 @@ function markAndSpaceNestedFractions(root) {
 }
 
 /** 標籤垂直中心對齊各選項首行說明文字（算式在次行不影響） */
-function measureChoiceAnchorRect(anchor) {
-  if (!anchor || !anchor.getBoundingClientRect) return null;
-  const katex = anchor.querySelector(':scope .katex');
-  if (!katex) return anchor.getBoundingClientRect();
-
-  const firstStep = anchor.closest('.choice-body')?.querySelector('.choice-step .plain-line-inner');
-  if (firstStep && firstStep !== anchor) return firstStep.getBoundingClientRect();
-
-  try {
-    const range = document.createRange();
-    range.setStart(anchor, 0);
-    const stopNode = katex.closest('.plain-katex-nowrap') || katex;
-    if (stopNode && anchor.contains(stopNode)) {
-      range.setEndBefore(stopNode);
-    } else {
-      range.setEndBefore(katex);
-    }
-    if (!range.collapsed) return range.getBoundingClientRect();
-  } catch { /* fallback */ }
-  return anchor.getBoundingClientRect();
-}
-
 function lineHasFraction(line) {
   const inner = line.querySelector('.plain-line-inner') || line;
   return !!inner.querySelector('.mfrac, .katex .mfrac');
@@ -2260,30 +2513,6 @@ function normalizePlainLineGaps(root) {
   });
 }
 
-function syncChoiceLabelBaselines(root) {
-  if (!root) return;
-  root.querySelectorAll('.choice-option').forEach((opt) => {
-    const label = opt.querySelector('.choice-label');
-    const body = opt.querySelector('.choice-body');
-    if (!label || !body) return;
-    label.style.marginTop = '';
-
-    const anchor = body.querySelector('.choice-step .plain-line-inner')
-      || body.querySelector('.plain-line-inner')
-      || body;
-    const labelRect = label.getBoundingClientRect();
-    const anchorRect = measureChoiceAnchorRect(anchor);
-    if (!labelRect.height || !anchorRect?.height) return;
-
-    const labelMid = labelRect.top + labelRect.height / 2;
-    const anchorMid = anchorRect.top + anchorRect.height / 2;
-    const dy = anchorMid - labelMid;
-    if (Math.abs(dy) >= 0.5) {
-      label.style.marginTop = `${dy}px`;
-    }
-  });
-}
-
 const BOARD_KEEP_TEXT = /^(起始|變化|結果|移至左|移至右|完全反應|完全移至|完全向左|完全向右|再向左|再向右|後來體積|原來體積|初|平|平衡|右|左|初始)$/;
 
 function collectBoardPlainScopes(root) {
@@ -2324,43 +2553,6 @@ function normalizeChemLatexInPlain(root) {
   });
 }
 
-/** KaTeX 後：純文字僅包英文字母（數字、標點不包，避免字級與排版跑掉） */
-function applyBoardLetterTypography(root) {
-  if (!root || typeof document === 'undefined') return;
-  const skipSel = '.katex, .math-block, .math-note-popover, .board-latin, .choice-label, script, style';
-  collectBoardPlainScopes(root).forEach((plain) => {
-    const textNodes = [];
-    const walker = document.createTreeWalker(plain, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) textNodes.push(node);
-    textNodes.forEach((textNode) => {
-      const parent = textNode.parentElement;
-      if (!parent || parent.closest(skipSel)) return;
-      const text = textNode.textContent || '';
-      if (!/[A-Za-z]/.test(text)) return;
-      const re = /[A-Za-z]+/g;
-      const frag = document.createDocumentFragment();
-      let last = 0;
-      let changed = false;
-      let match;
-      while ((match = re.exec(text))) {
-        if (match.index > last) {
-          frag.appendChild(document.createTextNode(text.slice(last, match.index)));
-        }
-        const span = document.createElement('span');
-        span.className = 'board-latin';
-        span.textContent = match[0];
-        frag.appendChild(span);
-        last = match.index + match[0].length;
-        changed = true;
-      }
-      if (!changed) return;
-      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-      parent.replaceChild(frag, textNode);
-    });
-  });
-}
-
 /** 中文與英數片段之間補齊一致空白，避免忽遠忽近 */
 function normalizeCjkLatinSpacing(root) {
   if (!root || typeof document === 'undefined') return;
@@ -2394,6 +2586,7 @@ function postProcessPlainBoard(root) {
   if (typeof keepMathUnitTails === 'function') keepMathUnitTails(root);
   if (typeof adjustPlainReactionTables === 'function') adjustPlainReactionTables(root);
   hideKatexErrors(root);
+  recoverBareMhchemInDom(root);
   recoverLeakedLatexInDom(root);
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
@@ -2405,7 +2598,10 @@ function postProcessPlainBoard(root) {
   });
   if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);
   normalizeCjkLatinSpacing(root);
-  applyBoardLetterTypography(root);
+  // This must run after KaTeX and NOTE post-processing: only the completed
+  // inline structure can tell whether a whole calculation row needs one
+  // horizontal scroll owner instead of several fragment-level scrollbars.
+  setupHorizontalLineScroll(root);
 }
 
 function doKaTeX(element) {
@@ -2417,7 +2613,9 @@ function doKaTeX(element) {
     strict: 'ignore',
     trust,
     macros,
-    preProcess: (math) => repairInlineMathTypography(String(math || '').replace(/^\$+|\$+$/g, ''))
+    preProcess: (math) => normalizeMhchemForKatex(
+      repairInlineMathTypography(String(math || '').replace(/^\$+|\$+$/g, ''))
+    )
   };
   renderMathInElement(element, {
     delimiters: [

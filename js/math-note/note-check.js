@@ -177,12 +177,12 @@
     const effectiveLines = Math.max(1, eqLineCount - 1);
     const minNotes = opts.minNotes != null
       ? opts.minNotes
-      : Math.max(3, Math.ceil(effectiveLines * 1.5));
+      : Math.max(4, effectiveLines * 2);
 
     const hasNestedFrac = /\\dfrac\{[^}]*\\dfrac/.test(body) || /\\dfrac\{[^}]*\\frac/.test(body);
     const hasChoiceMath = /^\([A-E]\)/m.test(body) && /\\dfrac|\\frac/.test(body);
     let densityFloor = hasNestedFrac || hasChoiceMath
-      ? Math.max(minNotes, Math.ceil(effectiveLines * 1.8))
+      ? Math.max(minNotes, effectiveLines * 2)
       : minNotes;
     const isChemicalQuantityQuestion = /莫耳|分子|原子|式量|分子量|原子量|阿伏加德羅|10\^?\{?23\}?/i.test(body);
     if (isChemicalQuantityQuestion && eqLineCount >= 2) {

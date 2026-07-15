@@ -52,7 +52,7 @@ python tests/run-self-test.py
 ### 樣式與版面
 
 1. 主頁樣式在 `css/app.css`，解題板樣式在 `css/board.css`。
-2. 專用元件分別位於 `plain-reaction-table.css`、`plain-choice-options.css`、`math-note/`、結構式相關 CSS。
+2. 選項 grid 與科學 token 的基線規則集中在 `board.css`；其餘專用元件位於 `plain-reaction-table.css`、`math-note/`、結構式相關 CSS。
 3. 更新 CSS 後調整 `index.html` 的對應快取版號，並以至少一題包含公式、表格與結構式的題目做人工檢查。
 
 ## 變更完成前檢查表

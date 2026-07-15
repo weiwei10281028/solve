@@ -1,7 +1,117 @@
 <!DOCTYPE html>
-<html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>化學計量工作台</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/app.css?v=20260713i"><link rel="stylesheet" href="css/tool.css?v=20260713a"></head>
-<body class="app-page"><header class="site-header"><div class="brand"><span class="brand-mark" aria-hidden="true"></span><div class="brand-text"><span class="brand-name">化學計量工作台</span><span class="brand-sub">反應式、莫耳比與單位檢查</span></div></div><nav class="header-nav"><a class="nav-btn" href="solution-format.html">排版</a><a class="nav-btn" href="evaluation-lab.html">測試台</a></nav></header>
-<main class="page-main tool-main"><div class="tool-grid"><section class="tool-panel"><h1 class="tool-title">反應式檢查</h1><p class="tool-desc">支援常見化學式的元素守恆檢查；複雜配位化合物、離子電荷與有機結構仍須人工確認。</p><label class="tool-label" for="reaction">反應式</label><input class="tool-input" id="reaction" placeholder="例：2H2 + O2 → 2H2O"><div class="tool-actions"><button class="btn-primary" id="checkReaction" type="button">檢查元素守恆</button></div><p class="tool-status" id="reactionStatus"></p><div class="tool-table-wrap"><table class="tool-table" id="atomTable" hidden><thead><tr><th>元素</th><th>反應物</th><th>生成物</th></tr></thead><tbody></tbody></table></div></section><section class="tool-panel"><h2 class="tool-title">限量試劑</h2><p class="tool-desc">填入已換算的莫耳數。程式比較 <code>n/係數</code>，最低者為限量試劑。</p><div class="tool-table-wrap"><table class="tool-table"><thead><tr><th>物質</th><th>角色</th><th>係數</th><th>莫耳數</th></tr></thead><tbody id="stoichRows"></tbody></table></div><div class="tool-actions"><button class="btn-ghost" id="addStoich" type="button">新增列</button><button class="btn-primary" id="checkStoich" type="button">檢查 n/係數</button></div><p class="tool-status" id="stoichStatus"></p></section><section class="tool-panel tool-panel--wide"><h2 class="tool-title">計量表操作提醒</h2><div class="tool-list"><div class="tool-row"><div class="tool-row-main"><div class="tool-row-title">先配平，再換算</div><div class="tool-row-meta">質量、體積、濃度先轉成可比較的莫耳數，才能套莫耳比。</div></div></div><div class="tool-row"><div class="tool-row-main"><div class="tool-row-title">單位不可省略</div><div class="tool-row-meta">輸出詳解前仍需經過排版工具；程式只檢查結構化數值，不能推測題目單位。</div></div></div></div></section></div></main>
-<script src="js/knowledge-store.js?v=20260713a"></script><script src="js/knowledge-tools.js?v=20260713a"></script><script>
-(function(){const $=id=>document.getElementById(id),reactionStatus=$('reactionStatus'),table=$('atomTable');function addRow(name='',role='reactant',coefficient='',amount=''){const tr=document.createElement('tr');tr.innerHTML='<td><input class="tool-input" aria-label="物質"></td><td><select class="tool-select" aria-label="角色"><option value="reactant">反應物</option><option value="product">生成物</option></select></td><td><input class="tool-input" type="number" min="0" step="any" aria-label="係數"></td><td><input class="tool-input" type="number" min="0" step="any" aria-label="莫耳數"></td>';const cells=tr.querySelectorAll('input,select');cells[0].value=name;cells[1].value=role;cells[2].value=coefficient;cells[3].value=amount;$('stoichRows').append(tr);} addRow('A','reactant',1,'');addRow('B','reactant',1,'');addRow('產物','product',1,'');$('addStoich').onclick=()=>addRow();$('checkReaction').onclick=()=>{const result=KnowledgeTools.checkReaction($('reaction').value);if(result.error){reactionStatus.textContent=result.error;reactionStatus.className='tool-status tool-status--bad';table.hidden=true;return;}const body=table.querySelector('tbody');body.replaceChildren();Object.keys({...result.left,...result.right}).sort().forEach(el=>{const tr=document.createElement('tr');[el,result.left[el]||0,result.right[el]||0].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});body.append(tr);});table.hidden=false;reactionStatus.textContent=result.ok?'通過：元素數量守恆。':`不守恆：${result.difference.join('；')}`;reactionStatus.className=`tool-status ${result.ok?'tool-status--ok':'tool-status--bad'}`;};$('checkStoich').onclick=()=>{const rows=[...$('stoichRows').querySelectorAll('tr')].map(tr=>{const x=tr.querySelectorAll('input,select');return{name:x[0].value,role:x[1].value,coefficient:x[2].value,amount:x[3].value};});const result=KnowledgeTools.stoich(rows);if(result.issues.length){$('stoichStatus').textContent=`請檢查：${result.issues.join('、')}`;$('stoichStatus').className='tool-status tool-status--bad';return;}if(!result.limiting){$('stoichStatus').textContent='至少需要一列反應物。';$('stoichStatus').className='tool-status tool-status--bad';return;}$('stoichStatus').textContent=`限量試劑：${result.limiting.name}（n/係數 = ${result.limiting.ratio}）。`;$('stoichStatus').className='tool-status tool-status--ok';};})();
-</script></body></html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>化學解題工具｜反應式工作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css?v=20260713i">
+  <link rel="stylesheet" href="css/tool.css?v=20260713a">
+</head>
+<body class="app-page">
+  <header class="site-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div class="brand-text"><span class="brand-name">化學解題工具</span><span class="brand-sub">反應式工作台</span></div></div>
+    <nav class="header-nav"><a class="nav-btn" href="solution-format.html">格式</a><a class="nav-btn" href="evaluation-lab.html">評測</a></nav>
+  </header>
+  <main class="page-main tool-main">
+    <div class="tool-grid">
+      <section class="tool-panel tool-panel--wide reaction-workbench">
+        <div class="reaction-workbench-head"><div><p class="tool-kicker">REACTION WORKBENCH</p><h1 class="tool-title">反應式驗證、配平與解題連動</h1></div><span class="tool-badge">元素＋電荷</span></div>
+        <p class="tool-desc">輸入時以空格分隔物種，例如 <code>MnO4^- + Fe2+ + H+ → Mn2+ + Fe3+ + H2O</code>。系統先讀取結構，再安全顯示化學式；不會將 <code>H</code> 當成可刪除的格式字元。</p>
+        <label class="tool-label" for="reaction">反應式</label>
+        <input class="tool-input reaction-input" id="reaction" value="MnO4^- + 5Fe2+ + 8H+ → Mn2+ + 5Fe3+ + 4H2O" spellcheck="false" aria-describedby="reactionHint">
+        <p class="field-hint" id="reactionHint">可使用 →、->、係數、括號、結晶水與離子電荷；建議電荷寫成 <code>SO4^2-</code>。</p>
+        <div class="tool-actions">
+          <button class="btn-primary" id="checkReaction" type="button">驗證反應式</button>
+          <button class="btn-ghost" id="balanceReaction" type="button">自動配平</button>
+          <button class="btn-ghost" id="acidRedox" type="button">酸性半反應</button>
+          <button class="btn-ghost" id="basicRedox" type="button">鹼性半反應</button>
+        </div>
+        <p class="tool-status" id="reactionStatus" aria-live="polite"></p>
+        <div class="reaction-preview" id="reactionPreview" aria-label="安全化學式預覽"></div>
+        <ol class="reaction-steps" id="reactionSteps" hidden></ol>
+        <div class="tool-table-wrap"><table class="tool-table" id="atomTable" hidden><thead><tr><th>檢查項目</th><th>反應物</th><th>生成物</th><th>結果</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <section class="tool-panel">
+        <h2 class="tool-title">計量與限量試劑</h2>
+        <p class="tool-desc">配平後可直接帶入物種與係數，再填入已換算的莫耳數；系統以 <code>n/係數</code> 找出限量試劑。</p>
+        <div class="tool-actions"><button class="btn-ghost" id="useBalanced" type="button" disabled>帶入已配平係數</button></div>
+        <div class="tool-table-wrap"><table class="tool-table"><thead><tr><th>物質</th><th>角色</th><th>係數</th><th>莫耳數</th></tr></thead><tbody id="stoichRows"></tbody></table></div>
+        <div class="tool-actions"><button class="btn-ghost" id="addStoich" type="button">新增列</button><button class="btn-primary" id="checkStoich" type="button">檢查 n/係數</button></div>
+        <p class="tool-status" id="stoichStatus" aria-live="polite"></p>
+      </section>
+
+      <section class="tool-panel">
+        <h2 class="tool-title">這個工具能怎麼幫助解題？</h2>
+        <div class="tool-list">
+          <div class="tool-row"><div class="tool-row-main"><div class="tool-row-title">先抓到式子錯字</div><div class="tool-row-meta">逐元素與總電荷比對；像 <code>8^+</code>、<code>4_2O</code> 會被視為無效物種，而不是默默顯示。</div></div></div>
+          <div class="tool-row"><div class="tool-row-main"><div class="tool-row-title">係數變成可用資料</div><div class="tool-row-meta">配平結果可帶進莫耳比與限量試劑，減少「式子正確、計算卻用錯係數」的錯誤。</div></div></div>
+          <div class="tool-row"><div class="tool-row-main"><div class="tool-row-title">氧化還原可看步驟</div><div class="tool-row-meta">半反應模式會依酸性或鹼性條件補 H₂O、H⁺／OH⁻ 與 e⁻，適合檢查書寫過程。</div></div></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="js/knowledge-store.js?v=20260713a"></script>
+  <script src="js/knowledge-tools.js?v=20260713a"></script>
+  <script src="js/reaction-workbench.js?v=20260715a"></script>
+  <script>
+  (function () {
+    const $ = id => document.getElementById(id);
+    const reaction = $('reaction'), reactionStatus = $('reactionStatus'), preview = $('reactionPreview'), atomTable = $('atomTable'), steps = $('reactionSteps');
+    let lastBalanced = null;
+    const formatCharge = charge => charge ? `^${Math.abs(charge) === 1 ? '' : Math.abs(charge)}${charge > 0 ? '+' : '-'}` : '';
+    const labelTerm = term => `${term.formula}${formatCharge(term.charge)}`;
+    function setReactionStatus(message, ok) { reactionStatus.textContent = message; reactionStatus.className = `tool-status ${ok ? 'tool-status--ok' : 'tool-status--bad'}`; }
+    function renderCheck(result, successMessage) {
+      if (result.error) { preview.replaceChildren(); atomTable.hidden = true; steps.hidden = true; setReactionStatus(result.error, false); return false; }
+      preview.innerHTML = KnowledgeTools.reactionHtml(result.parsed);
+      const body = atomTable.querySelector('tbody'); body.replaceChildren();
+      Object.keys({ ...result.left, ...result.right }).sort().forEach(element => {
+        const row = document.createElement('tr'); const same = result.left[element] === result.right[element];
+        [element, result.left[element] || 0, result.right[element] || 0, same ? '守恆' : '不守恆'].forEach(value => { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }); body.append(row);
+      });
+      const chargeRow = document.createElement('tr'); const chargeOk = !result.chargeDifference;
+      ['總電荷', result.leftCharge, result.rightCharge, chargeOk ? '守恆' : '不守恆'].forEach(value => { const cell = document.createElement('td'); cell.textContent = value; chargeRow.append(cell); }); body.append(chargeRow);
+      atomTable.hidden = false; steps.hidden = true;
+      setReactionStatus(result.ok ? (successMessage || '驗證通過：元素數量與總電荷均守恆。') : `需要修正：${[...result.difference, result.chargeDifference].filter(Boolean).join('；')}`, result.ok);
+      return result.ok;
+    }
+    function validate() { renderCheck(KnowledgeTools.checkReaction(reaction.value)); }
+    function applyBalanced(result, message) {
+      if (!result.ok) { setReactionStatus(result.error, false); return; }
+      reaction.value = result.reaction; lastBalanced = result.parsed; $('useBalanced').disabled = false;
+      renderCheck(result.validation, message);
+    }
+    function addRow(name = '', role = 'reactant', coefficient = '', amount = '') {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td><input class="tool-input" aria-label="物質"></td><td><select class="tool-select" aria-label="角色"><option value="reactant">反應物</option><option value="product">生成物</option></select></td><td><input class="tool-input" type="number" min="0" step="1" aria-label="係數"></td><td><input class="tool-input" type="number" min="0" step="any" aria-label="莫耳數"></td>';
+      const fields = row.querySelectorAll('input,select'); fields[0].value = name; fields[1].value = role; fields[2].value = coefficient; fields[3].value = amount; $('stoichRows').append(row);
+    }
+    $('checkReaction').onclick = validate;
+    $('balanceReaction').onclick = () => applyBalanced(KnowledgeTools.balanceReaction(reaction.value), '已完成最小整數係數配平，並通過元素與電荷驗證。');
+    function runRedox(medium, label) {
+      const result = KnowledgeTools.balanceRedoxHalfReaction(reaction.value, medium);
+      if (!result.ok) { setReactionStatus(result.error, false); return; }
+      reaction.value = result.reaction; lastBalanced = result.parsed; $('useBalanced').disabled = false;
+      renderCheck(result.validation, `${label}已完成；請依下列步驟核對。`);
+      steps.replaceChildren(); result.steps.forEach(step => { const item = document.createElement('li'); item.textContent = step; steps.append(item); }); steps.hidden = false;
+    }
+    $('acidRedox').onclick = () => runRedox('acidic', '酸性半反應配平');
+    $('basicRedox').onclick = () => runRedox('basic', '鹼性半反應配平');
+    $('addStoich').onclick = () => addRow();
+    $('useBalanced').onclick = () => { if (!lastBalanced) return; $('stoichRows').replaceChildren(); lastBalanced.reactants.forEach(term => addRow(labelTerm(term), 'reactant', term.coefficient)); lastBalanced.products.forEach(term => addRow(labelTerm(term), 'product', term.coefficient)); $('stoichStatus').textContent = '已帶入配平係數；填入莫耳數後即可檢查限量試劑。'; $('stoichStatus').className = 'tool-status'; };
+    $('checkStoich').onclick = () => {
+      const rows = [...$('stoichRows').querySelectorAll('tr')].map(row => { const fields = row.querySelectorAll('input,select'); return { name: fields[0].value, role: fields[1].value, coefficient: fields[2].value, amount: fields[3].value }; });
+      const result = KnowledgeTools.stoich(rows); const target = $('stoichStatus');
+      if (result.issues.length) { target.textContent = `請檢查：${result.issues.join('、')}`; target.className = 'tool-status tool-status--bad'; return; }
+      if (!result.limiting) { target.textContent = '至少需要一列反應物。'; target.className = 'tool-status tool-status--bad'; return; }
+      target.textContent = `限量試劑：${result.limiting.name}（n/係數 = ${result.limiting.ratio}）。`; target.className = 'tool-status tool-status--ok';
+    };
+    validate();
+  })();
+  </script>
+</body>
+</html>

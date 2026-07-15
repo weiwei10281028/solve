@@ -4,6 +4,8 @@ const CHOICE_LABEL_RE = /^(?:\(|（)([A-E])(?:\)|）)\s*(.*)$/s;
 const PUNCT_ONLY_RE = /^[、,，.。；;：:\s]+$/;
 const CHEM_STEP_LABEL_RE = /^(?:總溶質|總重|溶質|溶液|濃度|分子量|原子數|莫耳數|莫耳分率|體積|質量|分壓|密度|係數|反應量|剩餘率|變化量|初始|變化|結果)$/;
 
+const OPTION_ANALYSIS_HEADING_RE = /^各選項分析如下[：:]?$/;
+
 function isPunctuationOnly(text) {
   const t = String(text || '').trim();
   return !t || PUNCT_ONLY_RE.test(t);
@@ -272,6 +274,7 @@ function buildChoiceGroupHtml(items) {
 function classifyPlainLine(line) {
   const t = String(line || '').trim();
   if (!t) return 'empty';
+  if (OPTION_ANALYSIS_HEADING_RE.test(t)) return 'choice-heading';
   if (/^【[^【】]+】$/.test(t)) return 'section';
   if (/^第\s*[\d一二三四五六七八九十]+\s*題/.test(t)) {
     return (typeof window !== 'undefined' && typeof window.isSolveQuestionHeadingAllowed === 'function'
@@ -320,6 +323,9 @@ function wrapOnePlainLineInner(line) {
   }
   const kind = classifyPlainLine(cleaned);
   if (kind === 'skip') return '';
+  if (kind === 'choice-heading') {
+    return `<div class="plain-line plain-line--choice-heading"><div class="plain-line-inner">${cleaned}</div></div>`;
+  }
   if (kind === 'section') {
     const title = cleaned.replace(/^【|】$/g, '');
     return `<div class="solve-section"><div class="solve-section-title">${title}</div></div>`;

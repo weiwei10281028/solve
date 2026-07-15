@@ -31,11 +31,29 @@
     });
   }
 
-  /** NOTE 文字保留中文，僅將 CO_2、Fe^{3+}、K_c 等片段以 KaTeX 呈現。 */
+  /** NOTE 文字保留中文；科學 token 與主詳解共用同一個 KaTeX/mhchem 入口。 */
   function renderNoteContent(pop, note) {
-    const text = String(note || '');
-    const tokenRe = /(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[A-Za-z]+(?:(?:_\{[^{}]+\}|_[A-Za-z0-9]+)|(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-]+))+)/g;
+    const raw = String(note || '');
+    const text = typeof window.normalizeScientificTokens === 'function'
+      ? window.normalizeScientificTokens(raw)
+      : raw;
     pop.replaceChildren();
+    if (typeof renderMathInElement === 'function') {
+      pop.textContent = text;
+      renderMathInElement(pop, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ],
+        throwOnError: false,
+        strict: 'ignore',
+        trust: KATEX_TRUST,
+        macros: KATEX_MACROS
+      });
+      return;
+    }
+
+    const tokenRe = /(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[A-Za-z]+(?:(?:_\{[^{}]+\}|_[A-Za-z0-9]+)|(?:\^\{[^{}]+\}|\^[A-Za-z0-9+\-]+))+)/g;
     let cursor = 0;
     let match;
     while ((match = tokenRe.exec(text))) {
@@ -258,7 +276,12 @@
       } else if (a && !/^note=/i.test(a)) {
         a = `note=${a}`;
       }
-      if (/^note=/i.test(a)) a = 'note=' + parseHtmlDataNote(a);
+      if (/^note=/i.test(a)) {
+        const note = parseHtmlDataNote(a);
+        // Keep valid KaTeX content, but never create a blank clickable NOTE.
+        if (!note || !String(body || '').trim()) return body;
+        a = 'note=' + note;
+      }
       return `\\htmlData{${a}}{${body}}`;
     });
   }

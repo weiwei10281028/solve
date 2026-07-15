@@ -38,7 +38,10 @@
 
   function validate(latex, displayMode) {
     if (typeof global.katex === 'undefined' || !global.katex.renderToString) return true;
-    global.katex.renderToString(latex, { displayMode: !!displayMode, throwOnError: true, strict: 'ignore', trust: false });
+    const trust = typeof global.MathNote?.getKatexTrust === 'function'
+      ? global.MathNote.getKatexTrust()
+      : ((ctx) => ctx.command === '\\htmlData' || ctx.command === '\\htmlClass');
+    global.katex.renderToString(latex, { displayMode: !!displayMode, throwOnError: true, strict: 'ignore', trust });
     return true;
   }
 
@@ -231,10 +234,10 @@
     const choices = (doc.blocks || []).filter(b => b.type === 'choice_analysis');
     choices.forEach((block, i) => {
       const count = (block.items || []).filter(item => (item.content || []).some(p => p.type === 'inline_note')).length;
-      if (count < Math.min(2, (block.items || []).length)) coverage.push(`選項分析 ${i + 1} 缺少至少兩個判斷依據 NOTE`);
+      if (count < (block.items || []).length) coverage.push(`選項分析 ${i + 1} 每個選項都須有至少一個判斷依據 NOTE`);
     });
     (doc.blocks || []).forEach((block, i) => {
-      if (block.type === 'calculation' && (block.notes || []).length < 2) coverage.push(`計算段 ${i + 1} 缺少關鍵量／換算 NOTE`);
+      if (block.type === 'calculation' && (block.notes || []).length < 2) coverage.push(`計算段 ${i + 1} 缺少已知量或因子 NOTE`);
       if (block.type === 'stoichiometry_table' && (block.notes || []).length < 3) coverage.push(`反應表 ${i + 1} 缺少起始、變化與表格意義 NOTE`);
     });
     return { ok: !coverage.length && !quality.length && !anchors.length, coverage, quality, anchor: anchors, ui: [] };
