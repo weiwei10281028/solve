@@ -117,14 +117,14 @@
 }
 
 .ai-plain .katex-display.reaction-table-fallback .array {
-  line-height: 2.6;
-  border-spacing: 0 0.36em;
+  line-height: 2.9;
+  border-spacing: 0 0.52em;
 }
 
 .ai-plain .reaction-table-fallback td.hline,
 .ai-plain .reaction-table-fallback .hline {
-  padding-top: 0.75em !important;
-  padding-bottom: 0.4em !important;
+  padding-top: 0.9em !important;
+  padding-bottom: 0.5em !important;
 }
 
 /* 含算式之行：不在 KaTeX 片段之間任意斷行（純文字行仍用 board.css 預設換行） */

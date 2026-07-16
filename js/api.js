@@ -42,7 +42,10 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
     generationConfig: {
       maxOutputTokens: genOpts.maxOutputTokens ?? 8192,
       temperature: genOpts.temperature ?? 0.1,
-      ...(genOpts.temperature === 0 ? { seed: 0 } : {})
+      ...(genOpts.temperature === 0 ? { seed: 0 } : {}),
+      ...(genOpts.responseFormat ? { responseFormat: genOpts.responseFormat } : {}),
+      ...(!genOpts.responseFormat && genOpts.responseMimeType ? { responseMimeType: genOpts.responseMimeType } : {}),
+      ...(!genOpts.responseFormat && genOpts.responseSchema ? { responseSchema: genOpts.responseSchema } : {})
     }
   };
   const controller = new AbortController(); const timeoutMs = genOpts.timeoutMs ?? 120000;

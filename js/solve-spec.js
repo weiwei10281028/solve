@@ -201,22 +201,22 @@
     opts = opts || {};
     const manual = withApplicability(spec, question);
     if (opts.forceStoichiometry) return { id: 'reaction_table', origin: 'manual', solveSpec: manual, forceStoichiometry: true, forceCalcCompact: !!opts.forceCalcCompact };
-    if (manual.formatIds.length || manual.chapterIds.length) return { id: 'manual', origin: 'manual', solveSpec: manual, forceStoichiometry: false, forceCalcCompact: !!opts.forceCalcCompact };
-    const id = autoFormatId(question);
-    const autoSpec = (id === 'calculation' || id === 'concept' || id === 'choice' || id === 'reaction_calculation')
-      ? withApplicability(create({ formatIds: [id === 'reaction_calculation' ? 'calculation' : id] }), question)
-      : create({});
-    autoSpec.autoRoute = id;
-    return { id, origin: 'auto', solveSpec: autoSpec, forceStoichiometry: id === 'reaction_table' || id === 'reaction_calculation', forceCalcCompact: !!opts.forceCalcCompact };
+    if (manual.formatIds.length || manual.chapterIds.length || opts.forceCalcCompact) return { id: 'manual', origin: 'manual', solveSpec: manual, forceStoichiometry: false, forceCalcCompact: !!opts.forceCalcCompact };
+    return { id: 'plain', origin: 'auto', detectedId: autoFormatId(question), solveSpec: create({}), forceStoichiometry: false, forceCalcCompact: false };
   }
   function describeRoute(value) {
     const routeValue = value || {};
-    const labels = { plain: '一般詳解', calculation: '計算題四步推導', concept: '概念／性質三步判斷', choice: '選擇題逐項分析', reaction_table: '反應方程式表', reaction_calculation: '反應表＋四步計算', manual: '手動格式' };
-    return `${routeValue.origin === 'manual' ? '手動優先' : '自動判斷'}：${labels[routeValue.id] || '一般詳解'}${routeValue.id === 'plain' ? '（題意不明確時不強制套版）' : ''}。`;
+    if (routeValue.origin !== 'manual') return '未啟用進階功能：依題目正常作答。';
+    const active = [];
+    if (routeValue.forceStoichiometry) active.push('反應方程式表達');
+    if (routeValue.forceCalcCompact) active.push('計算精簡');
+    routeValue.solveSpec?.chapters?.filter((item) => item.applicability !== 'not-applicable').forEach((item) => active.push(item.label));
+    routeValue.solveSpec?.formats?.forEach((item) => active.push(item.label));
+    return `已啟用進階功能：${[...new Set(active)].join('、') || '手動格式'}。`;
   }
   function buildRouteUserBlock(value) {
     if (!value || value.id === 'plain' || value.id === 'manual') return '';
-    if (value.id === 'reaction_table') return '【本機格式路由｜反應方程式表】題目同時涉及反應物種與量的變化。先寫配平反應式，再完整輸出起始／變化／結果三列；資料不足不可硬湊表格，改用一般詳解並說明不足。';
+    if (value.id === 'reaction_table') return '【本機格式路由｜反應方程式表】完整詳解內容必須維持；反應式與起始／變化／結果表是額外區塊，不可用表格取代計算、理由或逐項分析。';
     if (value.id === 'reaction_calculation') return '【本機格式路由｜反應表＋四步計算】先用反應方程式表整理反應物種與起始／變化／結果；再依「已知與目標、關係式、代入計算、驗算與結論」完成共用計算。若選項只是數字／比例，最後只需對照並寫答案，不必逐項重複計算。資料不足不可硬湊表格。';
     return `【本機格式路由】本題適合「${({ calculation: '計算題四步推導', concept: '概念／性質三步判斷', choice: '選擇題逐項分析' })[value.id]}」；只套用此格式，不適用時回到一般詳解。`;
   }
@@ -241,6 +241,19 @@
     spec.formats.forEach((item) => lines.push(`【格式：${item.label}】${item.rule}。`));
     return lines.length > 1 ? lines.join('\n') : '';
   }
+  function buildActiveBlock(routeValue) {
+    if (!routeValue || routeValue.origin !== 'manual') return '';
+    const lines = ['【使用者已啟用進階功能｜本次詳解必須明確反映】'];
+    if (routeValue.forceStoichiometry) {
+      lines.push('【反應方程式表達】完整詳解、計算與逐項分析不得刪減；只額外加入配平反應式與 reaction_table（物種欄、起始、變化、結果／平衡列）。');
+    }
+    if (routeValue.forceCalcCompact) {
+      lines.push('【計算精簡】同一推理的代數合併成 1～2 條等號鏈；保留理由與關鍵中間量，不得省略化學推理。');
+    }
+    const specBlock = buildUserBlock(routeValue.solveSpec);
+    if (specBlock) lines.push(specBlock);
+    return lines.join('\n');
+  }
   function checkReply(spec, reply) {
     if (!spec?.enabled) return [];
     const text = String(reply || '');
@@ -253,5 +266,5 @@
     return issues;
   }
 
-  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, autoFormatId, route, describe, describeRoute, buildRouteUserBlock, buildUserBlock, checkReply });
+  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, autoFormatId, route, describe, describeRoute, buildRouteUserBlock, buildUserBlock, buildActiveBlock, checkReply });
 })(typeof window !== 'undefined' ? window : globalThis);

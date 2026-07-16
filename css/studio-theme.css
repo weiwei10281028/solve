@@ -19,6 +19,7 @@ body[data-theme="ivory"] {
   --accent-hover: #203f30;
   --accent-soft: #e1ebe2;
   --copper: #9b6a32;
+  --hero-accent: #2f6b57;
   --copper-soft: #ecd9bc;
   --danger: #a33d35;
   --danger-soft: #fae9e6;
@@ -47,6 +48,7 @@ body[data-theme="lunar"] {
   --accent-hover: #ffffff;
   --accent-soft: #2b2e38;
   --copper: #c6c8d4;
+  --hero-accent: #8fc7b1;
   --copper-soft: #483a2b;
   --danger: #f0a9ad;
   --danger-soft: #3a252a;
@@ -75,7 +77,7 @@ body[data-theme="lunar"] .nav-btn--accent { color: #17191d; }
 .app-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .42fr); align-items: end; gap: 28px; padding: 20px 4px 10px; }
 .app-kicker { grid-column: 1 / -1; margin: 0; color: var(--copper); font: 600 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .14em; }
 .app-hero h1 { margin: 0; font: 700 clamp(37px, 5.1vw, 61px)/1.14 var(--font-display); letter-spacing: -.055em; color: var(--ink); }
-.app-hero h1 span { color: var(--copper); }
+.app-hero h1 span { color: var(--hero-accent); }
 .app-hero > p:last-child { max-width: 290px; margin: 0 0 5px; padding-left: 16px; border-left: 1px solid var(--copper); color: var(--ink-muted); font-size: 14px; line-height: 1.75; }
 
 .panel:not(.panel-result), .panel.panel-result { background: color-mix(in srgb, var(--surface) 94%, transparent); border-color: var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -122,7 +124,7 @@ body[data-theme="lunar"] .anno-badge.active { color: #17191d; }
 .app-hero { display: block; padding: 18px 4px 28px; }
 .app-kicker { display: none; }
 .app-hero h1 { max-width: none; font-size: clamp(42px, 5.4vw, 72px); }
-.app-hero h1 span { color: var(--copper); }
+.app-hero h1 span { color: var(--hero-accent); }
 .panel-input { display: block !important; padding: 0 !important; overflow: visible !important; }
 .bench-title { display: flex; align-items: center; gap: 11px; min-height: 62px; padding: 0 24px; border-bottom: 1px solid var(--border); font-size: 15px; }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--copper); box-shadow: 0 0 0 4px color-mix(in srgb, var(--copper) 16%, transparent); }

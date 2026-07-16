@@ -680,7 +680,7 @@ async function ensureChoiceCompletenessReply(cfg, apiMessages, systemText, reply
 /** 化學計量表強制：參考答案／H₂O 修正後再檢，缺表則 API 重寫 */
 async function ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
   const questionCtx = String(genOpts.questionCtx || '');
-  const forceStoich = isForceStoichiometry()
+  const forceStoich = !!genOpts.forceStoichiometry || isForceStoichiometry()
     || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(questionCtx));
   if (!forceStoich) return reply;
 
@@ -820,7 +820,7 @@ function updateDatabaseStatusLine() {
   /* 頂部狀態列已移除 */
 }
 
-function renderAiInto(container, text) {
+function renderAiInto(container, text, options = {}) {
   const previousVisibility = container?.style?.visibility || '';
   if (container?.style) container.style.visibility = 'hidden';
   try {
@@ -838,7 +838,7 @@ function renderAiInto(container, text) {
       if (!compiled.ok) throw new Error(`SolutionDocument 驗證失敗：${compiled.validation.errors.slice(0, 3).join('；')}`);
       body = compiled.text;
       compiledNotes = compiled.notes;
-    } else if (typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
+    } else if (!options.skipLegacyGate && typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
       const formatted = SolutionFormat.format(body);
       body = formatted.text;
       if (!formatted.report.ok) {
@@ -851,8 +851,7 @@ function renderAiInto(container, text) {
         throw new Error('化學式檢查未通過：' + chemicalIssues.slice(0, 3).join('；'));
       }
     }
-    // 結構化詳解也要沿用既有化學式正規化，避免 choice_analysis 繞過 KaTeX。
-    if (typeof normalizeBareCeTokens === 'function') body = normalizeBareCeTokens(body);
+    if (!options.skipLegacyGate && typeof normalizeBareCeTokens === 'function') body = normalizeBareCeTokens(body);
     if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
@@ -867,13 +866,12 @@ function renderAiInto(container, text) {
       }
       container.innerHTML = board.html;
     } else {
-      window.__LAST_RENDER_PIPELINE = 'legacy';
-      container.innerHTML = render(body);
+      const coreReady = options.skipLegacyGate && typeof renderCompiledSolution === 'function';
+      window.__LAST_RENDER_PIPELINE = coreReady ? 'core' : 'legacy';
+      container.innerHTML = coreReady ? renderCompiledSolution(body) : render(body);
     }
     doKaTeX(container);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (container?.style) container.style.visibility = previousVisibility;
-    }));
+    if (container?.style) container.style.visibility = previousVisibility;
     if (compiledNotes.length && typeof SolutionDocument !== 'undefined') {
       const applied = SolutionDocument.applyInlineNotes(container, compiledNotes);
       if (applied !== compiledNotes.length) console.warn('[SolutionDocument] 部分文字 NOTE 未套用', { applied, expected: compiledNotes.length });
@@ -916,14 +914,14 @@ function setMainSolution(text, options = {}) {
   if (!options.skipOutputGate && !isError && typeof window.SolutionOutputGate?.check === 'function') {
     const report = window.SolutionOutputGate.check(text, {
       requireRenderer: true,
-      requireNotes: true
+      requireNotes: false
     });
     if (!report.ok) {
       console.error('[輸出閘門] DOM 插入前再次阻擋：', report.issues || []);
       output = buildOutputGateFailureMessage(report);
     }
   }
-  renderAiInto(el, output);
+  renderAiInto(el, output, options);
   scrollBoard(el);
 }
 
@@ -1017,28 +1015,12 @@ async function startSolve() {
         await resolveDatabaseMatch(matchInput, { force: true });
       }
     } else {
-      setBadge('辨識題目中…', '#F9F3E6', '#8A6D3B');
-
-      if (isDatabaseEnabled()) {
-        try {
-          const catalogLine = await buildMatchCatalogLine();
-          const urls = imgDataURLs.map(item => item.dataUrl);
-          autoHints = await extractImageMatchHints(cfg, urls, catalogLine);
-        } catch (err) {
-          console.warn('自動配對辨識失敗', err);
-        }
-      } else if (typeof extractImageMatchHints === 'function' && isDatabaseEnabled()) {
-        try {
-          const urls = imgDataURLs.map(item => item.dataUrl);
-          autoHints = await extractImageMatchHints(cfg, urls, '');
-        } catch (err) {
-          console.warn('題眼關鍵字辨識失敗', err);
-        }
-      }
-      matchInput = [textQuestion, autoHints].filter(Boolean).join(' ').trim();
+      setBadge('準備題目中…', '#F9F3E6', '#8A6D3B');
+      // 圖片直接交給同一次解題請求，不先額外呼叫 Gemini 做題眼辨識。
+      matchInput = textQuestion;
       lastMatchInput = matchInput;
 
-      if (isDatabaseEnabled()) {
+      if (isDatabaseEnabled() && matchInput) {
         setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
         await resolveDatabaseMatch(matchInput, { force: true });
       }
@@ -1102,18 +1084,12 @@ async function startSolve() {
     if (dbMatch && teachingRules.ids?.length) {
       dbMatch.teachingRuleIds = teachingRules.ids;
     }
-    const noteUserBlock = typeof NoteBlock !== 'undefined' && NoteBlock.buildUserBlock
-      ? NoteBlock.buildUserBlock({ matchInput, detailed: detailMode, conceptLabels: dbMatch?.conceptLabels || [], match: dbMatch }) : '';
-    const formatRouteBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildRouteUserBlock
-      ? window.SolveSpec.buildRouteUserBlock(formatRoute) : '';
-    const boardFormatBlock = typeof window.BoardFormats !== 'undefined' && window.BoardFormats.buildBoardFormatUserBlock
-      ? window.BoardFormats.buildBoardFormatUserBlock() : '';
-    const fullUserText = [userText, teachingRules.userBlock, dbUserBlock, boardFormatBlock, noteUserBlock, formatRouteBlock]
+    const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
+      ? window.SolveSpec.buildActiveBlock(formatRoute) : '';
+    const fullUserText = [userText, teachingRules.userBlock, dbUserBlock]
       .filter(Boolean).join('\n\n');
-    const systemText = await getSystemPromptForSolve(matchInput, {
-      ...solveOpts,
-      teachingRulesAddon: teachingRules.systemAddon
-    });
+    if (typeof window.SolutionCore === 'undefined') throw new Error('solution-core.js 未載入');
+    const systemText = window.SolutionCore.buildSystem(teachingRules.systemAddon, advancedBlock);
 
     if (textOnly) {
       apiMessages = [{
@@ -1138,47 +1114,53 @@ async function startSolve() {
       temperature: 0.25,
       maxOutputTokens: 6144,
       timeoutMs: 120000,
-      maxContinue: 0
+      maxContinue: 0,
+      responseFormat: {
+        text: { mimeType: 'APPLICATION_JSON', schema: window.SolutionCore.SCHEMA }
+      }
     });
-    const qctxSolve = appendStoichiometryTag(scopeInput || matchInput || textQuestion || autoHints);
-    const postProcessOpts = { questionCtx: qctxSolve, solveSpec: solveOpts.solveSpec, formatRoute, forceStoichiometry: solveOpts.forceStoichiometry, temperature: 0.25, maxOutputTokens: 4096, timeoutMs: 90000 };
-    if (typeof repairKspAgClReactionTables === 'function') reply = repairKspAgClReactionTables(reply, typeof getLastMatchInput === 'function' ? getLastMatchInput() : '');
-    reply = await ensureQualityReply(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, { refAnswerSkipped: solveOpts.refAnswerSkipped, ...postProcessOpts });
-    const noteFallback = formatRoute.origin === 'auto'
-      && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(String(reply || ''));
-    if (!noteFallback && typeof NoteEnsure !== 'undefined' && typeof NoteEnsure.ensureDensityReply === 'function') {
-      reply = await NoteEnsure.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
-        ...postProcessOpts,
-        maxNoteFix: 5,
-        noteFixTemperature: 0.15
+    let prepared = window.SolutionCore.prepare(reply);
+    const tableIssues = solveOpts.forceStoichiometry && typeof window.checkStoichiometryTableRequired === 'function'
+      ? window.checkStoichiometryTableRequired(prepared.text, '', fullUserText)
+      : [];
+    if (tableIssues.length) {
+      const fixed = await ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, {
+        forceStoichiometry: true,
+        questionCtx: fullUserText,
+        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: window.SolutionCore.SCHEMA } }
       });
+      const fixedPrepared = window.SolutionCore.prepare(fixed);
+      const tableBlocks = fixedPrepared.document?.blocks?.filter((block) => block.type === 'chemical_equation' || block.type === 'reaction_table') || [];
+      if (fixedPrepared.ok && prepared.document && tableBlocks.some((block) => block.type === 'reaction_table')) {
+        const mergedDocument = {
+          ...prepared.document,
+          blocks: [
+            ...tableBlocks,
+            ...prepared.document.blocks.filter((block) => block.type !== 'chemical_equation' && block.type !== 'reaction_table')
+          ]
+        };
+        prepared = { ...prepared, document: mergedDocument, text: window.SolutionCore.compile(mergedDocument) };
+      }
     }
-    reply = await ensureChoiceCompletenessReply(cfg, apiMessages, systemText, reply, postProcessOpts);
-    setBadge('詳解檢查中…', '#F9F3E6', '#8A6D3B');
-    const verified = await ensureVerifiedMainSolution(cfg, apiMessages, systemText, reply, solveOpts.refAnswer, {
-      refAnswerSkipped: solveOpts.refAnswerSkipped,
-      ...postProcessOpts
-    });
-    if (!verified.ok) {
-      console.error('[輸出閘門] 阻擋未通過的詳解：', verified.report?.issues || []);
-      setMainSolution(buildOutputGateFailureMessage(verified.report));
-      setBadge('詳解未通過檢查', '#F9EDED', '#9B4444');
-      toast('詳解未通過公式／化學式／NOTE 檢查，未顯示原始內容；請重新作答。');
-      return;
+    if (solveOpts.forceStoichiometry && prepared.document?.blocks?.some((block) => block.type === 'reaction_table')) {
+      const blocks = prepared.document.blocks;
+      const tableBlocks = blocks.filter((block) => block.type === 'chemical_equation' || block.type === 'reaction_table');
+      const detailBlocks = blocks.filter((block) => block.type !== 'chemical_equation' && block.type !== 'reaction_table');
+      const orderedDocument = { ...prepared.document, blocks: [...tableBlocks, ...detailBlocks] };
+      prepared = { ...prepared, document: orderedDocument, text: window.SolutionCore.compile(orderedDocument) };
     }
-    reply = verified.text;
+    if (!prepared.ok) console.warn('[SolutionCore] JSON 解析失敗，使用原始回覆顯示');
     apiMessages.push({ role: 'assistant', content: reply });
-    setMainSolution(reply);
-    const noteReport = typeof NoteCheck !== 'undefined' && NoteCheck.check ? NoteCheck.check(getQualityCheckText(reply)) : null;
+    setMainSolution(prepared.text, { skipOutputGate: true, skipLegacyGate: true });
+    reply = prepared.text;
+    if (advancedBlock) renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     if (!isDatabaseEnabled()) {
       const ruleNote = teachingRules.ids?.length
         ? teachingRules.ids.join('、')
         : (typeof getTeachingRuleIdsFromLastMatch === 'function' ? getTeachingRuleIdsFromLastMatch().join('、') : '');
       setBadge(ruleNote ? `詳解完成（規定：${ruleNote}）` : '詳解完成（純提示詞）', '#EAF2ED', '#3D6B52');
     } else {
-      const noteBadgeSuffix = noteReport && !noteReport.skipped && !noteReport.ok
-        ? `｜${noteReport.summary}`
-        : '';
+      const noteBadgeSuffix = '';
       const match = getLastDatabaseMatch();
       if (match?.tier && match.tier < 3) {
         const verify = verifyAnswerLocally(reply, match.answerKey);
@@ -1328,7 +1310,7 @@ document.getElementById('answerInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
 });
 renderChapterOptions();
-document.querySelectorAll('input[data-solve-type], input[data-chapter-id]').forEach((input) => {
+document.querySelectorAll('#stoichiometryToggle, #calcCompactToggle, input[data-solve-type], input[data-chapter-id]').forEach((input) => {
   input.addEventListener('change', (event) => {
     if (event.target.dataset.chapterId && event.target.checked) {
       const selected = document.querySelectorAll('input[data-chapter-id]:checked');
@@ -1342,6 +1324,7 @@ document.querySelectorAll('input[data-solve-type], input[data-chapter-id]').forE
 });
 updateSolveButtonState();
 initSolveOptionToggles();
+updateSolveSpecStatus();
 if (!cfg.key) setTimeout(openModal, 400);
 if (typeof PromptCompose !== 'undefined' && PromptCompose.preload) {
   PromptCompose.preload().catch((err) => console.warn('[PromptCompose] preload', err));

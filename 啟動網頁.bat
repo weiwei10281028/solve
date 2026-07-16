@@ -11,5 +11,5 @@ echo.
 echo  關閉此視窗即停止伺服器
 echo  ================================
 echo.
-python -m http.server 18080
+python dev-server.py
 pause

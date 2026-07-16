@@ -1,6 +1,7 @@
 /** 純詳解模式：選項 (A)～(E) 上下排列＋說明文字懸掛縮排；多行收進同一選項；步驟標籤併算式 */
 
-const CHOICE_LABEL_RE = /^(?:\(|（)([A-E])(?:\)|）)\s*(.*)$/s;
+// 選項數量由題目決定；不把規則鎖死在 (A)～(E)。
+const CHOICE_LABEL_RE = /^(?:\(|（)([A-Z])(?:\)|）)\s*(.*)$/s;
 const PUNCT_ONLY_RE = /^[、,，.。；;：:\s]+$/;
 const CHEM_STEP_LABEL_RE = /^(?:總溶質|總重|溶質|溶液|濃度|分子量|原子數|莫耳數|莫耳分率|體積|質量|分壓|密度|係數|反應量|剩餘率|變化量|初始|變化|結果)$/;
 
@@ -26,8 +27,8 @@ function isAnswerCitationLine(text) {
   const t = String(text || '').trim();
   if (!t) return false;
   const body = t.replace(/^(?:答案|故|選(?:項)?)[：:]\s*/, '');
-  if (/^(?:(?:\(|（)[A-E](?:\)|）)\s*[、,，\s]*)+$/.test(body)) return true;
-  if (/^(?:\(|（)[A-E](?:\)|）)\s*[、,，.]?\s*$/.test(t)) return true;
+  if (/^(?:(?:\(|（)[A-Z](?:\)|）)\s*[、,，\s]*)+$/.test(body)) return true;
+  if (/^(?:\(|（)[A-Z](?:\)|）)\s*[、,，.]?\s*$/.test(t)) return true;
   return false;
 }
 
@@ -46,7 +47,7 @@ function splitInlineChoices(text) {
   const t = String(text || '').trim();
   if (!t) return [];
 
-  const re = /(?:\(|（)[A-E](?:\)|）)/g;
+  const re = /(?:\(|（)[A-Z](?:\)|）)/g;
   const indices = [];
   let m;
   while ((m = re.exec(t))) indices.push(m.index);

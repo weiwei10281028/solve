@@ -1,0 +1,119 @@
+const fs = require('fs');
+const vm = require('vm');
+const Core = require('../js/solution-core.js');
+
+const doc = {
+  blocks: [
+    { type: 'paragraph', text: '先配平 MnO4^-；係數比為 1:5.' },
+    { type: 'paragraph', text: String.raw`代入 $[\ce{Fe2+}]=\dfrac{5\times0.016\,\mathrm{M}\times10.5\,\mathrm{mL}}{10.0\,\mathrm{mL}}=0.084\,\mathrm{M}$。` },
+    { type: 'chemical_equation', expression: 'MnO4^- + 5Fe2+ + 8H+ -> Mn2+ + 5Fe3+ + 4H2O' },
+    { type: 'calculation', text: '高錳酸根莫耳數:', expression: String.raw`n_{MnO4^-}=0.016M\times0.0105L=1.68\times10^{-4}mol,n_{Fe2+}=5\times n_{MnO4^-}=8.4\times10^{-4}mol,[Fe2+]=\frac{8.4\times10^{-4}mol}{0.0100L}=0.084M=` },
+    { type: 'choice', label: 'F', text: '可延伸至第五個以後的選項', verdict: '敘述正確' }
+  ],
+  answer: 'A,B,C,F'
+};
+
+const result = Core.prepare(JSON.stringify(doc));
+if (!result.ok) throw new Error('結構化詳解解析失敗');
+if (!result.text.includes('\\ce{MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O}')) throw new Error('反應式未由本機編譯');
+if (!result.text.includes('(F)')) throw new Error('選項仍被限制為 A～E');
+if (!result.text.includes('\\htmlData{note=滴定液濃度，單位 M}{0.016}')) throw new Error('本機 NOTE 未包含單位語意');
+if (!result.text.includes('\\htmlData{note=亞鐵離子濃度，單位 M}{0.084}')) throw new Error('跨行濃度 NOTE 對應錯誤');
+if (!result.text.includes('\\htmlData{note=溶液體積（L）}{0.0100}')) throw new Error('跨行體積 NOTE 對應錯誤');
+if (Core.formatText('針對第 22 題選項分析如下').includes('htmlData')) throw new Error('題號不應套用 NOTE');
+if (/note=[^}]*(?:（[A-E]）|\([A-E]\))/.test(result.text)) throw new Error('NOTE 單位被誤判為選項標籤');
+if (/0\.016M|0\.0105L|10\^\{-4\}mol|\\mathrm\{M\}/.test(result.text)) throw new Error('計算式仍直接顯示單位');
+if (/\\mathrm\{(?:M|mL|L|mol)\}|\d(?:M|mL|L|mol)\b/.test(result.text)) throw new Error('文字欄位內的算式仍直接顯示單位');
+if (!/係數比為 .*：.*。/.test(result.text) || result.text.includes('係數比為 1:5.')) throw new Error('文字標點未統一全形');
+if (/=\$/.test(result.text)) throw new Error('未移除無右值的尾端等號');
+if (!result.text.endsWith('@@ANSWER@@A、B、C、F')) throw new Error('答案標點未統一');
+
+const bareCalculation = Core.prepare(JSON.stringify({
+  blocks: [{ type: 'calculation', expression: String.raw`x=\dfrac{0.016\times10.5\times5}{10.0}=0.084` }],
+  answer: '0.084 M'
+}));
+if ((bareCalculation.text.match(/\\htmlData\{/g) || []).length < 5) throw new Error('無單位算式未補足本機 NOTE');
+
+const malformedJson = String.raw`{"blocks":[{"type":"calculation","expression":"x=\dfrac{0.016\times10.5}{10.0}=0.0168"}],"answer":"0.0168 M"}`;
+if (!Core.prepare(malformedJson).ok) throw new Error('Gemini Lite 未跳脫 LaTeX 的 JSON 未被修復');
+const validButWrongEscape = String.raw`{"blocks":[{"type":"calculation","expression":"x=\frac{5\times0.016}{10.0}=0.008"}],"answer":"0.008 M"}`;
+const repairedEscape = Core.prepare(validButWrongEscape);
+if (!repairedEscape.ok || !repairedEscape.text.includes('\\dfrac') || !repairedEscape.text.includes('\\times')) throw new Error('合法但錯誤的 JSON 跳脫未被修復');
+
+const repeatedVerdict = Core.prepare(JSON.stringify({blocks:[{type:'choice',label:'A',text:'理由，敘述正確',verdict:'敘述正確'}],answer:'A'}));
+if ((repeatedVerdict.text.match(/敘述正確/g) || []).length !== 1) throw new Error('選項結論重複');
+
+const liteShape = Core.prepare(JSON.stringify([{ paragraph: { text: '說明' }, choice: [{ label: 'A', text: '理由', verdict: '敘述正確' }], answer: 'A' }]));
+if (!liteShape.ok || !liteShape.text.includes('(A) 理由，敘述正確。')) throw new Error('Gemini Lite 替代 JSON 結構未正規化');
+
+const denseLite = Core.prepare(JSON.stringify({blocks:[
+  {type:'paragraph',text:'首先計算甲溶液中 IO3^- 的濃度。甲溶液：0.428 g / 214 g mol^-1 = 0.002 mol，溶於 100 mL，濃度為 0.02 M。實驗一：[IO3^-] = 0.02 M * (4/20) = 0.004 M，[HSO3^-] = 0.004 M * (10/20) = 0.002 M。符合 1.25^2 = 1.5625，故反應為二級。'},
+  {type:'choice',label:'E',text:'混合後 [IO3^-] = 0.02 M * (1/20) = 0.001 M，[HSO3^-] = 0.004 M * (15/20) = 0.003 M。速率比為 (0.001/0.004)^2 = 1/16，時間為 50 s * 16 = 800 s',verdict:'敘述正確'}
+],answer:'E'}));
+if (!denseLite.ok || denseLite.text.split('\n').length < 7) throw new Error('密集段落未依語意拆行');
+if ((denseLite.text.match(/\\dfrac/g) || []).length < 5) { console.log(denseLite.text); throw new Error('斜線比例未轉為完整分式'); }
+if (/\s\/\s|\s\*\s|\^2\b/.test(denseLite.text)) throw new Error('仍有斜線、星號或裸次方');
+if ((denseLite.text.match(/\\htmlData\{/g) || []).length < 18) throw new Error('密集文字算式的 NOTE 不足');
+
+const schemaDrift = Core.prepare(JSON.stringify({blocks:[
+  {type:'paragraph',text:'首先配平反應式：MnO4^- + 5Fe2+ + 8H+ -> Mn2+ + 5Fe3+ + 4H2O。'},
+  {type:'choice',label:'D',text:'酸足量即可，敘述錯誤。 (E) 濃度過高會增加讀值誤差，敘述錯誤。',verdict:'敘述錯誤'}
+],answer:'A,B,C'}));
+if (!schemaDrift.text.includes('\\ce{MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O}')) throw new Error('文字欄中的反應式未提升為專業化學式');
+if (!schemaDrift.text.includes('\n(E) ')) throw new Error('Gemini 黏連的下一選項未被拆回獨立列');
+
+const fineTune = Core.prepare(JSON.stringify({blocks:[
+  {type:'paragraph',text:'甲溶液：0.428 g / 214 g mol^-1 = 0.002 mol；在實驗一中，總體積為 20 mL，[IO3^-] = 0.02 M * (4/20) = 0.004 M，[HSO3^-] = 0.004 M * (10/20) = 0.002 M。'},
+  {type:'choice',label:'E',text:'速率 v1=k(0.004)^2；新條件 v2=k(0.001)^2；速率比 v1/v2=16；時間比 t2/t1=16，故 t2=800 s',verdict:'敘述正確'}
+],answer:'E'}));
+if (/\}\s*mol\s*\^\{-1\}/.test(fineTune.text) || !fineTune.text.includes('note=莫耳質量，單位 g mol⁻¹')) throw new Error('複合單位未完整收進 NOTE');
+if (!fineTune.text.includes('\\dfrac{v_{1}}{v_{2}}') || !fineTune.text.includes('\\dfrac{t_{2}}{t_{1}}') || /\^2\b/.test(fineTune.text)) throw new Error('速率比、時間比或次方未正規化');
+if ((fineTune.text.match(/\n/g) || []).length < 7 || !/\(E\)[^\n]+\n[^\n]+\n/.test(fineTune.text)) throw new Error('句號、分號或選項計算未分段');
+if (!Core.calculation('v_1/v_2=16；t_2/t_1=16').includes('\\dfrac{v_{1}}{v_{2}}')) throw new Error('模型輸出的底線變數比例未轉為分式');
+
+const advancedDoc = Core.prepare(JSON.stringify({blocks:[
+  {type:'heading',text:'已知與目標'},
+  {type:'chemical_equation',expression:'MnO4^- + 5Fe2+ + 8H+ -> Mn2+ + 5Fe3+ + 4H2O'},
+  {type:'reaction_table',species:['MnO4^-','Fe2+','Mn2+','Fe3+'],rows:[
+    {label:'起始',values:['a','b','0','0']},
+    {label:'變化',values:['-x','-5x','+x','+5x']},
+    {label:'結果',values:['a-x','b-5x','x','5x']}
+  ]}
+],answer:'完成'}));
+if (!advancedDoc.text.includes('【已知與目標】') || !advancedDoc.text.includes('\\begin{array}') || !advancedDoc.text.includes('\\ce{MnO4^-}')) throw new Error('進階標題或反應變化表未由本機編譯');
+if (Object.keys(Core.SCHEMA.properties.blocks.items.properties).join(',') !== 'type,text') throw new Error('Gemini schema 未精簡為穩定的兩欄結構');
+if (Core.SCHEMA.type !== 'object' || Core.SCHEMA.properties.blocks.type !== 'array') throw new Error('Gemini JSON schema 型別必須使用標準小寫');
+const compactTable = Core.prepare(JSON.stringify({blocks:[{type:'reaction_table',text:'物種：A｜B｜C；起始：2｜5｜0；變化：-x｜-2x｜+x；結果：0｜1｜2'}],answer:'C = 2'}));
+if (!compactTable.text.includes('\\begin{array}') || !compactTable.text.includes('2')) throw new Error('精簡反應表未由本機編譯');
+const completedTable = Core.prepare(JSON.stringify({blocks:[
+  {type:'chemical_equation',text:'MnO4^- + 5Fe2+ + 8H+ -> Mn2+ + 5Fe3+ + 4H2O'},
+  {type:'reaction_table',text:'物種：MnO4^-｜Fe2+；起始：0.000168｜0.00084；變化：-0.000168｜-0.00084；結果：0｜0'}
+],answer:'A'}));
+if (!completedTable.text.includes('\\ce{Mn^2+}') || !completedTable.text.includes('\\ce{Fe^3+}') || !completedTable.text.includes('0.00084') || !completedTable.text.includes('\\rightarrow') || !completedTable.text.includes('\\text{＋}')) throw new Error('反應表未依反應式固定排列');
+
+const solveSpecContext = { window: {} };
+vm.runInNewContext(fs.readFileSync('js/solve-spec.js', 'utf8'), solveSpecContext);
+const Spec = solveSpecContext.window.SolveSpec;
+const normalRoute = Spec.route(Spec.create({}), '計算反應物的莫耳數與剩餘量', {});
+if (normalRoute.id !== 'plain' || normalRoute.forceStoichiometry || Spec.buildActiveBlock(normalRoute)) throw new Error('未勾選時仍影響一般解題');
+const manualRoute = Spec.route(Spec.create({ formatIds: ['calculation'] }), '求濃度', { forceCalcCompact: true });
+const activeBlock = Spec.buildActiveBlock(manualRoute);
+if (manualRoute.origin !== 'manual' || !activeBlock.includes('計算精簡') || !activeBlock.includes('計算題四步推導')) throw new Error('已勾選的進階功能未進入執行規格');
+
+const app = fs.readFileSync('js/app.js', 'utf8');
+const boardCss = fs.readFileSync('css/board.css', 'utf8');
+const renderer = fs.readFileSync('js/render.js', 'utf8');
+const startSolve = app.slice(app.indexOf('async function startSolve()'), app.indexOf('async function sendFollowUp'));
+if ((startSolve.match(/callAPI\(/g) || []).length !== 1) throw new Error('主解題不是單次 Gemini 呼叫');
+if (/NoteEnsure|ensureQualityReply|ensureVerifiedMainSolution|ensureChoiceCompletenessReply/.test(startSolve)) throw new Error('主解題仍連接舊的 AI 重寫流程');
+if (/requestAnimationFrame\(\(\) => requestAnimationFrame/.test(app.slice(app.indexOf('function renderAiInto'), app.indexOf('function setMainSolution')))) throw new Error('詳解顯示仍依賴背景可能停用的動畫幀');
+if (!/renderCompiledSolution\(body\)/.test(app) || !/function renderCompiledSolution/.test(renderer)) throw new Error('結構化詳解仍經過舊自動公式流程');
+if (!/grid-template-columns:\s*2\.75rem minmax\(0, 1fr\)/.test(boardCss)) throw new Error('選項未使用固定標籤欄與懸掛縮排');
+if (!/plain-line-inner--xscroll::after/.test(boardCss) || !/可左右滑動查看完整公式/.test(renderer)) throw new Error('長公式缺少橫向滑動提示');
+if (!/measureAtomicFormulaOverflow/.test(renderer)) throw new Error('長中文仍可能被誤判為公式橫滑');
+if (!/lineScrollResizeBound/.test(renderer)) throw new Error('視窗尺寸改變後不會更新公式橫滑');
+if (!/responseFormat:\s*\{\s*text:\s*\{\s*mimeType:\s*'APPLICATION_JSON',\s*schema:\s*window\.SolutionCore\.SCHEMA/.test(startSolve)) throw new Error('Gemini 呼叫未使用官方結構化輸出格式');
+if (!/buildSystem\(teachingRules\.systemAddon, advancedBlock\)/.test(startSolve)) throw new Error('進階設定未進入 system prompt');
+if (!/if \(advancedBlock\) renderSolveValidation/.test(startSolve)) throw new Error('進階設定完成後未執行本機驗證');
+if (!/initSolveOptionToggles\(\);\s*updateSolveSpecStatus\(\);/.test(app)) throw new Error('重開頁面後進階狀態未同步');
+console.log('SOLUTION_CORE_STAGE4_OK');

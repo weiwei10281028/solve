@@ -2,7 +2,7 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20260716j';
+window.__RENDER_BUILD = '20260716o';
 window.__RENDER_PIPELINE_DEFAULT = 'legacy';
 
 const BOARD_LAYOUT_ENABLED = false;
@@ -1437,6 +1437,15 @@ function render(rawText) {
   return assemblePlainHtml(preprocessed, answerText);
 }
 
+/* SolutionCore 已完成公式與 NOTE 編譯；只沿用既有行列排版，避免舊自動公式流程重複改寫。 */
+function renderCompiledSolution(rawText) {
+  if (!rawText) return `<div class="ai-plain">${buildAnswerHtml('—')}</div>`;
+  const { body, answerText } = splitBodyAndAnswer(String(rawText).trim());
+  return assemblePlainHtml(body, answerText);
+}
+
+window.renderCompiledSolution = renderCompiledSolution;
+
 const BOARD_MARKER_START = '@@BOARD@@';
 const BOARD_MARKER_END = '@@END@@';
 const BOARD_DOC_VERSION = 1;
@@ -1480,7 +1489,7 @@ function normalizeBoardBlock(block) {
     b.items = sourceItems.map((item, index) => {
       const out = Object.assign({}, item);
       const rawLetter = String(out.letter || out.label || '').toUpperCase();
-      out.letter = (rawLetter.match(/[A-E]/) || [String.fromCharCode(65 + index)])[0];
+      out.letter = (rawLetter.match(/[A-Z]/) || [String.fromCharCode(65 + index)])[0];
       if (Array.isArray(out.parts)) {
         out.parts = out.parts.map((part) => typeof part === 'string'
           ? { kind: 'text', text: part }
@@ -1638,7 +1647,7 @@ function compileChoiceGroup(block) {
   const lines = [];
   for (const item of block?.items || []) {
     const letter = String(item?.letter || '').trim().toUpperCase();
-    if (!/^[A-E]$/.test(letter)) continue;
+    if (!/^[A-Z]$/.test(letter)) continue;
     const steps = compileChoiceItemSteps(item);
     if (!steps.length) continue;
     lines.push(`(${letter}) ${steps[0]}`);
@@ -1807,8 +1816,8 @@ function validateBoardDoc(doc) {
         } else {
           block.items.forEach((item, j) => {
             const letter = String(item?.letter || '').trim().toUpperCase();
-            if (!/^[A-E]$/.test(letter)) {
-              errors.push(`blocks[${i}].items[${j}] letter 須為 A～E`);
+            if (!/^[A-Z]$/.test(letter)) {
+              errors.push(`blocks[${i}].items[${j}] letter 須為 A～Z`);
             }
             if (!compileChoiceItemSteps(item).length) {
               errors.push(`blocks[${i}].items[${j}] 須有 parts 或 steps`);
@@ -1912,6 +1921,19 @@ function measureLineOverflow(inner, content) {
   return needX;
 }
 
+function measureAtomicFormulaOverflow(inner, content) {
+  if (!inner || !content) return false;
+  const avail = inner.clientWidth || inner.getBoundingClientRect().width || 0;
+  if (avail <= 0) return false;
+  const formulas = content.querySelectorAll('.math-block, .plain-katex-nowrap, .katex-display');
+  return [...formulas].some((formula) => {
+    const target = formula.matches('.katex-display')
+      ? (formula.querySelector(':scope > .katex') || formula)
+      : formula;
+    return Math.max(target.scrollWidth || 0, target.getBoundingClientRect().width || 0) > avail + 1;
+  });
+}
+
 function lineHasLeakedLatex(el) {
   if (!el) return false;
   const walk = (node) => {
@@ -1932,34 +1954,36 @@ function lineHasLeakedLatex(el) {
   return walk(el);
 }
 
-/** 純計算行才建立橫向捲動區，中文說明行仍交由正常換行處理。 */
+/**
+ * 有算式就候選；是否橫滑只看出是否溢出。
+ * 中文多寡只決定「整行鎖 nowrap」或「說明可換行、寬算式仍可橫滑」。
+ */
 function isFormulaScrollCandidate(content) {
   if (!content) return false;
-  if (content.querySelector('.math-block, .katex-display')) return true;
-  const formulas = [...content.querySelectorAll('.katex')];
-  if (!formulas.length) return false;
+  return !!(
+    content.querySelector('.math-block, .katex-display, .plain-katex-nowrap')
+    || content.querySelector('.katex .mfrac, .katex .mrel, .katex .mbin')
+  );
+}
 
-  // Prose and option explanations may contain several valid scientific tokens.
-  // They must still wrap like text; only a formula-only run owns horizontal
-  // scrolling.  KaTeX's own \text{} labels are not direct text nodes here.
-  const directText = [...content.childNodes]
+function countDirectChinese(content) {
+  if (!content) return 0;
+  return ([...content.childNodes]
     .filter((node) => node.nodeType === Node.TEXT_NODE)
     .map((node) => node.textContent || '')
     .join('')
-    .replace(/\s+/g, '');
-  const operatorRun = formulas.some((formula) => formula.querySelector('.mfrac, .mrel, .mbin'));
+    .match(/[\u4e00-\u9fff]/g) || []).length;
+}
 
-  // A calculation line may combine Chinese labels with several intact formula
-  // fragments.  When it overflows, the line—not each individual fraction—must
-  // own the horizontal scroll track so the equation stays aligned as one unit.
-  const isCalculationRun = operatorRun && (
-    formulas.length >= 6
-    || (formulas.length >= 2 && directText.length <= 18)
-  );
-  if (isCalculationRun) return true;
-
-  if ((directText.match(/[\u4e00-\u9fff]/g) || []).length >= 4 || /[A-Za-z]{3,}/.test(directText)) return false;
-  return operatorRun;
+function clearLineHorizontalScroll(inner, wrap, content) {
+  wrap?.classList.remove('plain-line-xwrap--scroll', 'plain-line-xwrap--nowrap');
+  inner?.classList.remove('plain-line-inner--xscroll');
+  wrap?.removeAttribute('role');
+  wrap?.removeAttribute('tabindex');
+  wrap?.removeAttribute('aria-label');
+  if (wrap) wrap.scrollLeft = 0;
+  if (content) content.style.whiteSpace = 'normal';
+  if (inner) inner.style.whiteSpace = 'normal';
 }
 
 function applyLineHorizontalScroll(inner, wrap, content) {
@@ -1972,34 +1996,48 @@ function applyLineHorizontalScroll(inner, wrap, content) {
     requestAnimationFrame(() => applyLineHorizontalScroll(inner, wrap, content));
     return;
   }
-  if (lineHasLeakedLatex(content)) {
-    wrap.classList.remove('plain-line-xwrap--scroll');
-    wrap.classList.remove('formula-scroll');
-    inner.classList.remove('plain-line-inner--xscroll');
-    content.style.whiteSpace = 'normal';
-    inner.style.whiteSpace = 'normal';
+  if (lineHasLeakedLatex(content) || !isFormulaScrollCandidate(content)) {
+    clearLineHorizontalScroll(inner, wrap, content);
     return;
   }
-  if (!isFormulaScrollCandidate(content)) {
-    wrap.classList.remove('plain-line-xwrap--scroll');
-    wrap.classList.remove('formula-scroll');
-    inner.classList.remove('plain-line-inner--xscroll');
-    content.style.whiteSpace = 'normal';
-    inner.style.whiteSpace = 'normal';
-    return;
-  }
-  const needX = measureLineOverflow(inner, content);
+  const sparseText = countDirectChinese(content) < 8;
+  const needX = sparseText
+    ? measureLineOverflow(inner, content)
+    : measureAtomicFormulaOverflow(inner, content);
   wrap.classList.toggle('plain-line-xwrap--scroll', needX);
-  wrap.classList.toggle('formula-scroll', needX);
+  // 純算式：整行不換行橫滑；含說明：中文可換行，溢出算式仍靠同一 scroller 橫滑
+  wrap.classList.toggle('plain-line-xwrap--nowrap', needX && sparseText);
   inner.classList.toggle('plain-line-inner--xscroll', needX);
+  if (needX) {
+    wrap.setAttribute('role', 'region');
+    wrap.setAttribute('tabindex', '0');
+    wrap.setAttribute('aria-label', '可左右滑動查看完整公式');
+  } else {
+    wrap.removeAttribute('role');
+    wrap.removeAttribute('tabindex');
+    wrap.removeAttribute('aria-label');
+  }
+  if (!needX) content.style.whiteSpace = 'normal';
   inner.classList.remove('plain-line--hscroll', 'plain-line--hscroll-math');
   inner.style.whiteSpace = 'normal';
 }
 
 const lineScrollObservers = new WeakMap();
+const lineScrollRoots = new Set();
+let lineScrollResizeBound = false;
 
 function setupHorizontalLineScroll(root) {
   if (!root) return;
+  lineScrollRoots.add(root);
+  if (!lineScrollResizeBound) {
+    lineScrollResizeBound = true;
+    window.addEventListener('resize', () => setTimeout(() => {
+      lineScrollRoots.forEach((item) => {
+        if (item.isConnected) setupHorizontalLineScroll(item);
+        else lineScrollRoots.delete(item);
+      });
+    }, 0), { passive: true });
+  }
   const rows = root.querySelectorAll('.plain-line-inner');
   rows.forEach((inner) => {
     // Choice rendering already gives each option a .plain-line-inner.  Do not
@@ -2029,15 +2067,13 @@ function setupHorizontalLineScroll(root) {
     const run = () => applyLineHorizontalScroll(inner, wrap, content);
 
     run();
-    requestAnimationFrame(() => {
-      run();
-      requestAnimationFrame(run);
-    });
+    requestAnimationFrame(run);
+    if (document.fonts?.ready) document.fonts.ready.then(run).catch(() => {});
 
     if (typeof ResizeObserver !== 'undefined') {
       const prev = lineScrollObservers.get(inner);
       if (prev) prev.disconnect();
-      const ro = new ResizeObserver(() => run());
+      const ro = new ResizeObserver(run);
       ro.observe(inner);
       if (inner.parentElement) ro.observe(inner.parentElement);
       lineScrollObservers.set(inner, ro);
@@ -2437,11 +2473,8 @@ function getPlainLineGapPx(container, prevLine, curLine) {
     }
     return parseFloat(raw) || 12;
   })();
-  const fracRaw = container?.closest?.('.ai-plain')
-    ? getComputedStyle(container.closest('.ai-plain')).getPropertyValue('--plain-line-gap-frac').trim()
-    : '';
-  const fracGap = fracRaw.endsWith('px') ? (parseFloat(fracRaw) || 16) : 16;
-  if (lineHasFraction(prevLine) || lineHasFraction(curLine)) return Math.max(base, fracGap);
+  // Fractions use the same baseline rhythm as every other line.  The old
+  // fraction-specific target was the source of visibly oversized gaps.
   return base;
 }
 

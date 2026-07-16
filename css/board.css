@@ -184,13 +184,17 @@
   vertical-align: baseline;
 }
 
+/* 分式行：提高行高，避免上下行貼在一起 */
 .ai-plain .plain-line--has-frac {
-  margin-top: var(--plain-line-gap-frac);
+  margin-top: var(--plain-line-gap);
 }
 
-/* 分式的分子、分母會超出一般文字行盒；提高行高並保留垂直緩衝。 */
-.ai-plain .plain-line--has-frac .plain-line-inner {
-  line-height: 1.95;
+.ai-plain .plain-line--has-frac .plain-line-inner,
+.ai-plain .plain-line-inner:has(.mfrac),
+.ai-plain .choice-step:has(.mfrac) .plain-line-inner {
+  line-height: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .ai-plain > .plain-line:first-child.plain-line--has-frac {
@@ -211,39 +215,24 @@
   overflow: visible;
 }
 
+/* 唯一橫滑容器：選項／一般行共用 */
 .ai-plain .plain-line-xwrap--scroll {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
-  padding-top: 0.32em;
-  padding-bottom: 10px;
+  padding-top: 0.45em;
+  padding-bottom: 12px;
   margin-bottom: 2px;
   box-sizing: border-box;
   scrollbar-width: thin;
-  /* Keep the draggable thumb but let the equation sit directly on the board. */
   scrollbar-color: #aeb4ba transparent;
   -webkit-overflow-scrolling: touch;
-  /* This is the only horizontal scroller in a calculation row.  Both axes
-     stay native so a vertical swipe on a phone still scrolls the page. */
   touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: auto;
   isolation: isolate;
 }
 
-/* 僅由計算式啟用；不讓一般中文說明段落變成橫向捲動區。 */
-.ai-plain .formula-scroll .plain-line-xcontent {
-  display: inline-block;
-  min-width: max-content;
-  white-space: nowrap;
-}
-
-/* 橫向捲動列會裁切垂直溢出；含分式時額外預留上下空間。 */
-.ai-plain .plain-line--has-frac .plain-line-xwrap--scroll {
-  padding-bottom: calc(10px + 0.14em);
-}
-
-/* 量測用：單行不換行後比對實際寬度（與 --scroll 同邏輯） */
 .ai-plain .plain-line-xcontent--measure {
   display: inline-block;
   white-space: nowrap;
@@ -258,18 +247,31 @@
   overflow: visible;
 }
 
-.ai-plain .plain-line-xwrap--scroll .plain-line-xcontent {
+/* 純算式：整行 nowrap 橫滑 */
+.ai-plain .plain-line-xwrap--scroll.plain-line-xwrap--nowrap .plain-line-xcontent {
   display: inline-block;
+  min-width: max-content;
   white-space: nowrap;
   vertical-align: top;
 }
 
-/* A calculation row has one scroll owner.  Do not leave a second scrollbar
-   inside one fraction or unit fragment; that breaks the row's alignment. */
+/* 含中文說明：可換行，寬算式片段仍在同一 scroller 內橫滑 */
+.ai-plain .plain-line-xwrap--scroll:not(.plain-line-xwrap--nowrap) .plain-line-xcontent {
+  display: block;
+  white-space: normal;
+  min-width: 0;
+}
+
 .ai-plain .plain-line-xwrap--scroll .plain-katex-nowrap,
 .ai-plain .plain-line-xwrap--scroll .math-unit-tail {
   max-width: none;
   overflow: visible;
+}
+
+.ai-plain .plain-line--has-frac .plain-line-xwrap--scroll,
+.ai-plain .choice-step:has(.mfrac) .plain-line-xwrap--scroll {
+  padding-top: 0.55em;
+  padding-bottom: 14px;
 }
 
 .ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar {
@@ -305,6 +307,15 @@
   overflow: visible;
   padding: 0;
   text-align: left;
+}
+
+/* 進階反應表：獨立成前置摘要，與後續推導保持呼吸感。 */
+.ai-plain .plain-line:has(.reaction-table-fallback) {
+  margin: 0.9rem 0 1.45rem;
+  padding: 0.75rem 1rem 0.95rem;
+  border-left: 3px solid #7d9f8d;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg, #f0f6f1 0%, rgba(240, 246, 241, 0) 88%);
 }
 
 .ai-plain .katex-display > .katex {
@@ -546,24 +557,10 @@
   overflow-wrap: anywhere;
 }
 
-/* 選項敘述必須隨中文換行，不得被計算式橫向捲動器截斷。 */
-.ai-plain .choice-body .plain-line-xwrap--scroll,
-.ai-plain .choice-body .plain-line-xcontent {
-  overflow: visible;
-  min-width: 0;
-  max-width: 100%;
-  white-space: normal;
-}
-.ai-plain .choice-body .math-block {
-  width: auto;
-  max-width: 100%;
-  overflow: visible;
-  white-space: normal;
-}
-
+/* 選項步驟間距與正文一致；分式行另由 has-frac／:has(.mfrac) 加高 */
 .ai-plain .choice-body--steps {
   display: grid;
-  gap: 0.32em;
+  gap: var(--plain-line-gap);
 }
 
 .ai-plain .choice-step,
@@ -574,6 +571,10 @@
   line-height: inherit;
 }
 
+.ai-plain .choice-step.plain-line--has-frac {
+  margin-top: 0; /* gap 已承擔間距；避免與 grid gap 雙重累加過大 */
+}
+
 .ai-plain .choice-body .math-block {
   margin: 0.1em 0 0;
 }
@@ -582,5 +583,96 @@
   .ai-plain {
     --choice-label-column: 2.25rem;
     --choice-label-gap: 0.6rem;
+  }
+}
+
+/* Stage 3 layout contract: Word-like rhythm, hanging choices, one formula scroller. */
+.board-scroll .ai-plain,
+.board-reply .ai-plain {
+  --plain-line-gap: 12px;
+  --plain-line-gap-frac: 12px;
+  --solution-leading: 1.76;
+  line-height: var(--solution-leading);
+}
+
+.ai-plain .plain-line,
+.ai-plain .choice-step {
+  line-height: var(--solution-leading, 1.76);
+}
+
+.ai-plain .choice-option-group {
+  row-gap: var(--plain-line-gap);
+}
+
+.ai-plain .choice-option {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-items: start;
+}
+
+.ai-plain .choice-label,
+.ai-plain .choice-body,
+.ai-plain .choice-body--steps {
+  min-width: 0;
+  line-height: var(--solution-leading, 1.76);
+}
+
+.ai-plain .choice-body {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* The row owns horizontal movement; nested math blocks never add a second bar. */
+.ai-plain .plain-line-xwrap--scroll .math-block {
+  width: max-content;
+  max-width: none;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.ai-plain .plain-line-inner--xscroll {
+  position: relative;
+}
+
+.ai-plain .plain-line-inner--xscroll::after {
+  content: "↔";
+  position: absolute;
+  right: 5px;
+  bottom: 3px;
+  z-index: 2;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-raised, #fff) 88%, transparent);
+  color: color-mix(in srgb, currentColor 56%, transparent);
+  font: 700 10px/16px system-ui, sans-serif;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.ai-plain .plain-line-xwrap--scroll {
+  padding-bottom: 13px;
+  scrollbar-color: color-mix(in srgb, currentColor 38%, transparent)
+    color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 999px;
+}
+
+.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, currentColor 38%, transparent);
+  border-radius: 999px;
+}
+
+.ai-plain .plain-line-xwrap--scroll:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--hero-accent, #2f6b57) 62%, transparent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 430px) {
+  .ai-plain .choice-option {
+    grid-template-columns: 2.35rem minmax(0, 1fr);
+    column-gap: 0.65rem;
   }
 }

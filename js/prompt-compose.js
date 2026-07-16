@@ -12,6 +12,7 @@
     'stoichiometry-user': 'prompts/addons/stoichiometry-user.md',
     'calc-compact-system': 'prompts/addons/calc-compact-system.md',
     'calc-compact-user': 'prompts/addons/calc-compact-user.md'
+    , 'unified-solution-pipeline': 'prompts/addons/unified-solution-pipeline.md'
   };
 
   /** fetch 失敗時備援（與 md 同步維護） */
@@ -208,7 +209,8 @@ $$\begin{array}{lccccc}
   async function composeSystem(opts) {
     const base = await getBaseSystem();
     const addons = await getSystemAddons(opts);
-    return base + addons;
+    const unified = getLayer('unified-solution-pipeline');
+    return base + '\n\n' + unified + addons;
   }
 
   global.PromptCompose = {
