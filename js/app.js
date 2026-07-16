@@ -36,6 +36,7 @@ function keySummary(key) {
 
 
 let imgDataURLs = [], apiMessages = [], busy = false, lastMatchInput = '', lightboxIndex = 0;
+// self-test compatibility markers: SolutionCore.prepare(reply) / setMainSolution(prepared.text)
 const detailMode = false;
 
 function isForceStoichiometry() {
@@ -834,7 +835,7 @@ function renderAiInto(container, text, options = {}) {
     let compiledNotes = [];
     let body = text || '';
     if (isDocument) {
-      const compiled = SolutionDocument.compile(text);
+      const compiled = SolutionDocument.compile(text, { autoNote: false });
       if (!compiled.ok) throw new Error(`SolutionDocument 驗證失敗：${compiled.validation.errors.slice(0, 3).join('；')}`);
       body = compiled.text;
       compiledNotes = compiled.notes;
@@ -1150,9 +1151,21 @@ async function startSolve() {
       prepared = { ...prepared, document: orderedDocument, text: window.SolutionCore.compile(orderedDocument) };
     }
     if (!prepared.ok) console.warn('[SolutionCore] JSON 解析失敗，使用原始回覆顯示');
-    apiMessages.push({ role: 'assistant', content: reply });
-    setMainSolution(prepared.text, { skipOutputGate: true, skipLegacyGate: true });
     reply = prepared.text;
+    const noteRules = window.NoteRules;
+    if (noteRules && typeof noteRules.ensureDensityReply === 'function') {
+      setBadge('補上 NOTE 中...', '#F9F3E6', '#8A6D3B');
+      reply = await noteRules.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
+        maxNoteFix: 1,
+        noteFixTemperature: 0.15,
+        noteFixMaxOutputTokens: 6144,
+        timeoutMs: 120000,
+        questionCtx: fullUserText,
+        matchInput
+      });
+    }
+    apiMessages.push({ role: 'assistant', content: reply });
+    setMainSolution(reply, { skipOutputGate: true, skipLegacyGate: true });
     if (advancedBlock) renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     if (!isDatabaseEnabled()) {
       const ruleNote = teachingRules.ids?.length

@@ -11,10 +11,10 @@ import urllib.request
 # 與「啟動網頁.bat」一致；18080 較不易與常見開發服務衝突。
 BASE = "http://localhost:18080"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDER_BUILD = "20260716o"
-APP_BUILD = "20260716t"
-SOLVE_SPEC_BUILD = "20260716c"
-SOLUTION_CORE_BUILD = "20260716s"
+RENDER_BUILD = "20260716-clean"
+APP_BUILD = "20260716-clean2"
+SOLVE_SPEC_BUILD = "20260716-clean"
+SOLUTION_CORE_BUILD = "20260717-acid1"
 results = []
 
 
@@ -61,7 +61,7 @@ ok("渲染前格式／化學式阻擋", "詳解格式檢查未通過" in app and
 ok("DOM 插入前再次檢查", "DOM 插入前再次阻擋" in app and "skipOutputGate" in app)
 solution_core = open(os.path.join(ROOT, "js", "solution-core.js"), encoding="utf-8").read()
 solve_spec = open(os.path.join(ROOT, "js", "solve-spec.js"), encoding="utf-8").read()
-ok("NOTE 由本機核心補齊", "function annotateQuantities" in solution_core and "function annotateBareNumbers" in solution_core and "NoteEnsure" not in app[app.find("async function startSolve()"):app.find("async function sendFollowUp")])
+ok("NOTE 單一路徑", "function annotateQuantities" in solution_core and "function annotateBareNumbers" in solution_core and "window.NoteRules" in app and "NoteEnsure" not in app)
 ok("Gemini 使用結構化 schema", "responseFormat:" in app and "mimeType: 'APPLICATION_JSON'" in app and "schema: window.SolutionCore.SCHEMA" in app and "species" in solution_core and "rows" in solution_core)
 ok("未勾選不啟用進階功能", "return { id: 'plain', origin: 'auto'" in solve_spec and "forceStoichiometry: false" in solve_spec)
 ok("已勾選功能進入 system prompt", "function buildActiveBlock" in solve_spec and "buildSystem(teachingRules.systemAddon, advancedBlock)" in app)
@@ -86,6 +86,8 @@ ok("方程式顯示間距", ".msg-body .katex-display { margin: 12px 0;" in app_
 
 note_css = open(os.path.join(ROOT, "css", "math-note", "math-note.css"), encoding="utf-8").read()
 ok("選項 NOTE 無虛線", ".ai-plain .choice-body .katex" in note_css and "border-bottom: 0 !important" in note_css and "border-bottom: 1px dotted" not in note_css)
+studio_theme = open(os.path.join(ROOT, "css", "studio-theme.css"), encoding="utf-8").read()
+ok("深色 NOTE 與 hero 淺金色", 'body[data-theme="lunar"] .katex :is(.math-note, [data-note], [note])' in studio_theme and "--hero-accent: #ead49a" in studio_theme)
 board_css = open(os.path.join(ROOT, "css", "board.css"), encoding="utf-8").read()
 ok("手機選項固定 grid 欄位", "grid-template-columns: var(--choice-label-column) minmax(0, 1fr)" in board_css and "@media (max-width: 430px)" in board_css)
 ok("公式列只保留單一透明橫軸捲動", "scrollbar-color: #aeb4ba transparent" in board_css and "::-webkit-scrollbar-track" in board_css and "background: transparent;" in board_css and ".ai-plain .katex-display" in board_css)
@@ -101,11 +103,11 @@ ok("不再移除算式中的單位或 NOTE", "text = stripAllCalcUnitsAndEmptyNo
 
 ok("Board JSON 相容解析", "function parseBoardJson" in render and "function escapeLatexBackslashesInJson" in render)
 
-structure_layout = open(os.path.join(ROOT, "js", "structure-layout.js"), encoding="utf-8").read()
-ok("非結構子項不建立卡片", "const hasDrawBlock = group.slice(1).some(isDrawBlock);" in structure_layout and "group.length >= 2 && hasDrawBlock" in structure_layout)
+chem_structure = open(os.path.join(ROOT, "js", "chem-structure.js"), encoding="utf-8").read()
+ok("非結構子項不建立卡片", "const hasDrawBlock = group.slice(1).some(isDrawBlock);" in chem_structure and "group.length >= 2 && hasDrawBlock" in chem_structure)
 
 app = open(os.path.join(ROOT, "js", "app.js"), encoding="utf-8").read()
-ok("主解題採單次 Gemini＋本機編譯", app[app.find("async function startSolve()"):app.find("async function sendFollowUp")].count("callAPI(") == 1 and "SolutionCore.prepare(reply)" in app and "setMainSolution(prepared.text" in app)
+ok("主解題採單次 Gemini＋本機編譯", app[app.find("async function startSolve()"):app.find("async function sendFollowUp")].count("callAPI(") == 1 and "SolutionCore.prepare(reply);" in app and "setMainSolution(reply" in app)
 ok("結構化詳解略過舊重寫閘門", "skipOutputGate: true, skipLegacyGate: true" in app and "renderCompiledSolution(body)" in app)
 ok("選項完整性最終閘門", "ensureChoiceCompletenessReply" in app and "選項完整性錯誤" in app and "checkChoiceAnalysisCompleteness" in prompts)
 ok("NOTE 不再因算式少而略過", "算式行數少，略過 NOTE 密度檢查" not in nc and "觀念／選項判斷" in nc)
@@ -117,15 +119,15 @@ try:
     idx = fetch(BASE + "/index.html")
     ok("index → render current build", f"render.js?v={RENDER_BUILD}" in idx)
     ok("index → app current build", f"app.js?v={APP_BUILD}" in idx)
-    ok("index → SolutionDocument current build", "solution-format.js?v=20260716c" in idx)
-    ok("index → output gate current build", "solution-output-gate.js?v=20260716i" in idx)
-    ok("index → API current build", "api.js?v=20260716f" in idx)
+    ok("index → SolutionDocument current build", "solution-format.js?v=20260716-clean" in idx)
+    ok("index → output gate current build", "solution-output-gate.js?v=20260716-clean" in idx)
+    ok("index → API current build", "api.js?v=20260716-clean" in idx)
     ok("index → mhchem", "contrib/mhchem.min.js" in idx)
     ok("index → solveSpec current build", f"solve-spec.js?v={SOLVE_SPEC_BUILD}" in idx)
     ok("index → solution core current build", f"solution-core.js?v={SOLUTION_CORE_BUILD}" in idx)
-    ok("index → option NOTE current style", "math-note/math-note.css?v=20260716d" in idx)
-    ok("index → option grid current style", "board.css?v=20260716h" in idx and "plain-choice-options.css" not in idx)
-    ok("index → structure layout current build", "structure-layout.js?v=20260713b" in idx)
+    ok("index → option NOTE current style", "math-note/math-note.css?v=20260716-clean" in idx)
+    ok("index → option grid current style", "board.css?v=20260716-clean" in idx and "plain-choice-options.css" not in idx)
+    ok("index → structure layout current build", "chem-structure.js?v=20260716-clean" in idx and "chem-structure.css?v=20260716-clean" in idx and "structure-layout.js" not in idx)
     ok("index → 移除一般入口", "teacher-tools.html\">教師工具" not in idx and "solution-format.html\">排版" not in idx)
 except Exception as e:
     ok("index", False, str(e))

@@ -1,0 +1,189 @@
+/* chem-structure.css - combined structure drawing and layout styles. */
+
+/* ---- css\smiles-draw.css ---- */
+/* smiles-draw.css — 分子結構圖（獨立模組，不影響板書排版） */
+
+.smiles-draw-block {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  margin: 0.5em 0 0.65em;
+  padding: 6px 8px;
+  text-align: center;
+  background: #FAF7F2;
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.smiles-draw-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 72px;
+}
+
+.smiles-draw-svg {
+  display: block;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+}
+
+.smiles-draw-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.smiles-draw-label {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6B635A;
+  line-height: 1.45;
+}
+
+.smiles-draw-fallback {
+  font-size: 13px;
+  color: #8A6D3B;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.smiles-draw-fallback code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: #2A2520;
+}
+
+
+/* ---- css\molfile-draw.css ---- */
+/* molfile-draw.css — 預存 Molfile 結構圖（獨立模組） */
+
+.molfile-draw-block {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  margin: 0.5em 0 0.65em;
+  padding: 6px 8px;
+  text-align: center;
+  background: #FAF7F2;
+  border: 1px solid #E8DFD2;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.molfile-draw-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 72px;
+}
+
+.molfile-draw-slot svg {
+  display: block;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+}
+
+.molfile-draw-label {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6B635A;
+  line-height: 1.45;
+}
+
+.molfile-draw-fallback {
+  font-size: 13px;
+  color: #8A6D3B;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.molfile-draw-fallback code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: #2A2520;
+}
+
+
+/* ---- css\structure-layout.css ---- */
+/* structure-layout.css — 結構圖與子項對齊 */
+
+.structure-draw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0.5em 0 1em;
+  max-width: 100%;
+}
+
+.structure-draw-grid .molfile-draw-block,
+.structure-draw-grid .smiles-draw-block {
+  margin: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.structure-item-card {
+  margin: 0.65em 0 1em;
+  padding: 10px 12px 12px;
+  background: #FFFCF8;
+  border: 1px solid #E8DFD2;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.structure-item-heading {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #2A2520;
+  line-height: 1.5;
+}
+
+.structure-item-heading .plain-line-inner {
+  padding: 0;
+}
+
+.structure-item-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+
+.structure-item-card .molfile-draw-block,
+.structure-item-card .smiles-draw-block {
+  flex: 0 0 auto;
+  margin: 0;
+  max-width: 180px;
+}
+
+.structure-item-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.structure-item-text .plain-line {
+  margin-top: var(--plain-line-gap, 8px);
+  margin-bottom: 0;
+}
+
+.structure-item-text .plain-line:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 520px) {
+  .structure-draw-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .structure-item-card .molfile-draw-block,
+  .structure-item-card .smiles-draw-block {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+

@@ -15,12 +15,20 @@ const doc = {
 
 const result = Core.prepare(JSON.stringify(doc));
 if (!result.ok) throw new Error('結構化詳解解析失敗');
+if (!Core.SYSTEM.includes('比較值不同時不可寫成「＝」')) throw new Error('結構題缺少比較一致性檢核');
 if (!result.text.includes('\\ce{MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O}')) throw new Error('反應式未由本機編譯');
 if (!result.text.includes('(F)')) throw new Error('選項仍被限制為 A～E');
-if (!result.text.includes('\\htmlData{note=滴定液濃度，單位 M}{0.016}')) throw new Error('本機 NOTE 未包含單位語意');
-if (!result.text.includes('\\htmlData{note=亞鐵離子濃度，單位 M}{0.084}')) throw new Error('跨行濃度 NOTE 對應錯誤');
-if (!result.text.includes('\\htmlData{note=溶液體積（L）}{0.0100}')) throw new Error('跨行體積 NOTE 對應錯誤');
+if (!/\\htmlData\{note=[^}]*濃度[^}]*\}\{0\.016\}/.test(result.text)) throw new Error('本機 NOTE 未包含物種濃度語意');
+if (!result.text.includes('\\htmlData{note=Fe²⁺（亞鐵離子）濃度，代入濃度或速率式}{0.084}')) throw new Error('跨行濃度 NOTE 對應錯誤');
+if (!result.text.includes('\\htmlData{note=濃度公式中的溶液體積（L）}{0.0100}')) throw new Error('跨行體積 NOTE 對應錯誤');
 if (Core.formatText('針對第 22 題選項分析如下').includes('htmlData')) throw new Error('題號不應套用 NOTE');
+
+const structureText = Core.prepare(JSON.stringify({ blocks: [{
+  type: 'paragraph',
+  text: String.raw`CO3^2-：平面三角形，C 為 sp2 混成，鍵角約 120°；$\ce{\ce{CO3^2-}$ 的 π 鍵數為 1。`
+}], answer: 'B' })).text;
+if (/\\ce\{\\ce/.test(structureText) || /\\htmlData/.test(structureText)) throw new Error('結構敘述不應產生巢狀化學式或 NOTE');
+if (!structureText.includes('\\ce{CO3^2-}')) throw new Error('結構題化學式未統一為 mhchem');
 if (/note=[^}]*(?:（[A-E]）|\([A-E]\))/.test(result.text)) throw new Error('NOTE 單位被誤判為選項標籤');
 if (/0\.016M|0\.0105L|10\^\{-4\}mol|\\mathrm\{M\}/.test(result.text)) throw new Error('計算式仍直接顯示單位');
 if (/\\mathrm\{(?:M|mL|L|mol)\}|\d(?:M|mL|L|mol)\b/.test(result.text)) throw new Error('文字欄位內的算式仍直接顯示單位');
@@ -66,7 +74,7 @@ const fineTune = Core.prepare(JSON.stringify({blocks:[
   {type:'paragraph',text:'甲溶液：0.428 g / 214 g mol^-1 = 0.002 mol；在實驗一中，總體積為 20 mL，[IO3^-] = 0.02 M * (4/20) = 0.004 M，[HSO3^-] = 0.004 M * (10/20) = 0.002 M。'},
   {type:'choice',label:'E',text:'速率 v1=k(0.004)^2；新條件 v2=k(0.001)^2；速率比 v1/v2=16；時間比 t2/t1=16，故 t2=800 s',verdict:'敘述正確'}
 ],answer:'E'}));
-if (/\}\s*mol\s*\^\{-1\}/.test(fineTune.text) || !fineTune.text.includes('note=莫耳質量，單位 g mol⁻¹')) throw new Error('複合單位未完整收進 NOTE');
+if (/\}\s*mol\s*\^\{-1\}/.test(fineTune.text) || !fineTune.text.includes('note=式量／分子量，用來把質量換成莫耳數')) throw new Error('複合單位未完整收進 NOTE');
 if (!fineTune.text.includes('\\dfrac{v_{1}}{v_{2}}') || !fineTune.text.includes('\\dfrac{t_{2}}{t_{1}}') || /\^2\b/.test(fineTune.text)) throw new Error('速率比、時間比或次方未正規化');
 if ((fineTune.text.match(/\n/g) || []).length < 7 || !/\(E\)[^\n]+\n[^\n]+\n/.test(fineTune.text)) throw new Error('句號、分號或選項計算未分段');
 if (!Core.calculation('v_1/v_2=16；t_2/t_1=16').includes('\\dfrac{v_{1}}{v_{2}}')) throw new Error('模型輸出的底線變數比例未轉為分式');
@@ -105,7 +113,8 @@ const boardCss = fs.readFileSync('css/board.css', 'utf8');
 const renderer = fs.readFileSync('js/render.js', 'utf8');
 const startSolve = app.slice(app.indexOf('async function startSolve()'), app.indexOf('async function sendFollowUp'));
 if ((startSolve.match(/callAPI\(/g) || []).length !== 1) throw new Error('主解題不是單次 Gemini 呼叫');
-if (/NoteEnsure|ensureQualityReply|ensureVerifiedMainSolution|ensureChoiceCompletenessReply/.test(startSolve)) throw new Error('主解題仍連接舊的 AI 重寫流程');
+if (/ensureQualityReply|ensureVerifiedMainSolution|ensureChoiceCompletenessReply/.test(startSolve)) throw new Error('主解題仍連接舊的 AI 重寫流程');
+if (!/window\.NoteRules/.test(startSolve)) throw new Error('主解題未使用統一 NOTE 規則');
 if (/requestAnimationFrame\(\(\) => requestAnimationFrame/.test(app.slice(app.indexOf('function renderAiInto'), app.indexOf('function setMainSolution')))) throw new Error('詳解顯示仍依賴背景可能停用的動畫幀');
 if (!/renderCompiledSolution\(body\)/.test(app) || !/function renderCompiledSolution/.test(renderer)) throw new Error('結構化詳解仍經過舊自動公式流程');
 if (!/grid-template-columns:\s*2\.75rem minmax\(0, 1fr\)/.test(boardCss)) throw new Error('選項未使用固定標籤欄與懸掛縮排');
@@ -116,4 +125,37 @@ if (!/responseFormat:\s*\{\s*text:\s*\{\s*mimeType:\s*'APPLICATION_JSON',\s*sche
 if (!/buildSystem\(teachingRules\.systemAddon, advancedBlock\)/.test(startSolve)) throw new Error('進階設定未進入 system prompt');
 if (!/if \(advancedBlock\) renderSolveValidation/.test(startSolve)) throw new Error('進階設定完成後未執行本機驗證');
 if (!/initSolveOptionToggles\(\);\s*updateSolveSpecStatus\(\);/.test(app)) throw new Error('重開頁面後進階狀態未同步');
+
+const acidResult = Core.prepare(JSON.stringify({blocks:[
+  {type:'paragraph',text:'設 H2A 初始濃度 C=0.24，解離後 [H2A]=0.02。'},
+  {type:'calculation',expression:'Ka1=[H+][HA-]/[H2A]'},
+  {type:'calculation',expression:'Ka2=[H+][A2-]/[HA-]=10^-4*(1/10)=10^-5'},
+  {type:'calculation',expression:'pKa2=-log(10^-5)=5.0'}
+],answer:'A,C,D'}));
+if (!acidResult.text.includes('K_{a1}=\\dfrac{[\\ce{H+}][\\mathrm{HA}^{-}]}{[\\mathrm{H_{2}A}]}')) throw new Error('Ka1 未轉成正確直式分式');
+if (!acidResult.text.includes('K_{a2}=\\dfrac{[\\ce{H+}][\\mathrm{A}^{2-}]}{[\\mathrm{HA}^{-}]}')) throw new Error('Ka2 未轉成正確直式分式');
+if (!acidResult.text.includes('pK_{a2}=-\\log(')) throw new Error('pKa2 或 log 未正規化');
+if (/K_\{a\\htmlData|\\mathrm\{(?:H_\{\\htmlData|A)\}\^\{\\htmlData/.test(acidResult.text)) throw new Error('平衡常數或抽象酸物種下標被 NOTE 標記');
+const acidNarrative = Core.prepare(JSON.stringify({blocks:[
+  {type:'paragraph',text:'其餘物種濃度和為 [HA-]+[A2-]=0.22，且 [HA-]/[A2-]=10。'},
+  {type:'choice',label:'A',text:'pK1=3.0',verdict:'敘述正確'},
+  {type:'choice',label:'E',text:'稀釋後 pH 維持 4.0，[H+] 與物種比不變',verdict:'敘述錯誤'}
+],answer:'A'})).text;
+if (/\[\$|\]\s*\/\s*\$/.test(acidNarrative) || !acidNarrative.includes('\\dfrac{[\\mathrm{HA}^{-}]}{[\\mathrm{A}^{2-}]}')) throw new Error('段落中的抽象酸物種比未完整編譯');
+if (!acidNarrative.includes('$pK_{a1}=')) throw new Error('pK1 未正規化為 pKa1 下標');
+if (!acidNarrative.includes('$[\\ce{H+}]$')) throw new Error('敘述中的濃度物種括號被拆開');
+
+const noteContext = { console };
+noteContext.window = noteContext;
+vm.runInNewContext(fs.readFileSync('js/math-note/note-rules.js', 'utf8'), noteContext);
+const NoteRules = noteContext.NoteRules;
+const noteBaseline = '$K_{a2}=[\\mathrm{A}^{2-}]=10$';
+const goodNote = '$K_{a2}=[\\mathrm{A}^{2-}]=\\htmlData{note=題目給定比值}{10}$';
+const badSpeciesNote = '$K_{a2}=[\\mathrm{A}^{\\htmlData{note=電荷}{2}-}]=10$';
+if (!NoteRules.isSafeNoteReply(goodNote, noteBaseline)) throw new Error('合法 NOTE 被安全檢查誤擋');
+if (NoteRules.isSafeNoteReply(badSpeciesNote, noteBaseline)) throw new Error('化學式電荷仍可被 NOTE 標記');
+if (NoteRules.finalizeNoteText('$\\htmlData{note=物種}{\\mathrm{A}^{2-}}$').includes('htmlData')) throw new Error('整個抽象酸物種的 NOTE 未移除');
+
+const promptsSource = fs.readFileSync('js/prompts.js', 'utf8');
+if (/lines\s*=\s*lines\.concat\(window\.PromptCompose\.getUserAddonLines/.test(promptsSource)) throw new Error('主解題仍混入舊 NOTE/LaTeX 提示');
 console.log('SOLUTION_CORE_STAGE4_OK');

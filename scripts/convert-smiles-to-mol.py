@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
-"""用途：將 database/*.md 的 @@SMILES 轉為可對照 structures/index.json 的 @@MOL。
-
-安全提醒：會改寫題庫 Markdown；請先檢視差異並保留可回復的版本。
-"""
+﻿# -*- coding: utf-8 -*-
+"""?券?撠?database/*.md ??@@SMILES 頧?臬???structures/index.json ??@@MOL??
+摰??嚗??孵神憿澈 Markdown嚗??炎閬榆?唬蒂靽??臬?敺拍????"""
 
 import json
 import os
@@ -14,49 +12,49 @@ DB = os.path.join(ROOT, 'database')
 
 SMILES_RE = re.compile(r'^@@SMILES:([^|\n]+)(?:\|([^\n]+))?@@\s*$', re.M)
 
-# 與 js/mol-resolver.js LABEL_HINTS 對齊
+# ??js/chem-structure.js LABEL_HINTS 撠?
 LABEL_HINTS = [
-    (re.compile(r'SO[₃3]²[⁻\-]|SO3\s*2-|亞硫酸根'), '亞硫酸根'),
-    (re.compile(r'SO[₄4]²?[⁻\-]?|硫酸根'), '硫酸根'),
-    (re.compile(r'SO[₃3](?![²2])|三氧化硫'), '三氧化硫'),
-    (re.compile(r'SO[₂2]'), '二氧化硫'),
-    (re.compile(r'BF[₃3]'), '三氟化硼'),
-    (re.compile(r'PCl[₃3]'), '三氯化磷'),
-    (re.compile(r'PF[₅5]'), '五氟化磷'),
-    (re.compile(r'SF[₆6]'), '六氟化硫'),
-    (re.compile(r'NF[₃3]'), '三氟化氮'),
-    (re.compile(r'NCl[₃3]'), '三氯化氮'),
-    (re.compile(r'CF[₄4]'), '四氟化碳'),
-    (re.compile(r'CO[₂2]'), '二氧化碳'),
-    (re.compile(r'(?<![A-Za-z])CO(?![₂2O]|₃)'), '一氧化碳'),
-    (re.compile(r'O[₃3]'), '臭氧'),
-    (re.compile(r'H[₂2]O[₂2]|過氧化氫'), '過氧化氫'),
-    (re.compile(r'OF[₂2]'), '二氟化氧'),
-    (re.compile(r'N[₂2]O[₄4]'), '四氧化二氮'),
-    (re.compile(r'N[₂2]H[₄4]|肼|聯氨'), '聯氨'),
-    (re.compile(r'NH[₄4]|銨根'), '銨根離子'),
-    (re.compile(r'NH[₃3]'), '氨'),
-    (re.compile(r'H[₃3]O|水合氫'), '水合氫離子'),
-    (re.compile(r'HCN|氰化氫'), '氰化氫'),
-    (re.compile(r'HCl|氯化氫'), '氯化氫'),
-    (re.compile(r'HF|氟化氫'), '氟化氫'),
-    (re.compile(r'HBr|溴化氫'), '溴化氫'),
-    (re.compile(r'H[₂2]O(?!₂)'), '水'),
-    (re.compile(r'NaF|氟化鈉'), '氟化鈉'),
-    (re.compile(r'KBr|溴化鉀'), '溴化鉀'),
-    (re.compile(r'BeCl'), '二氯化鈹'),
-    (re.compile(r'CCO|乙醇'), '乙醇'),
-    (re.compile(r'c1ccccc1|苯'), '苯'),
-    (re.compile(r'C#C|乙炔'), '乙炔'),
-    (re.compile(r'C=C|乙烯'), '乙烯'),
-    (re.compile(r'乙烷'), '乙烷'),
-    (re.compile(r'CH[₄4]|甲烷'), '甲烷'),
-    (re.compile(r'Cl[₂2]|氯氣'), '氯氣'),
-    (re.compile(r'F[₂2]|氟'), '氟'),
-    (re.compile(r'O[₂2]'), '氧氣'),
-    (re.compile(r'N[₂2]'), '氮氣'),
-    (re.compile(r'氫分子|氫氣|\[H\]\[H\]'), '氫氣'),
-    (re.compile(r'ClOCl|OCl'), '二氯化硫'),
+    (re.compile(r'SO[??]簡[?蓋-]|SO3\s*2-|鈭‵?豢'), '鈭‵?豢'),
+    (re.compile(r'SO[??]簡?[?蓋-]?|蝖恍??), '蝖恍??),
+    (re.compile(r'SO[??](?![簡2])|銝飢?‵'), '銝飢?‵'),
+    (re.compile(r'SO[??]'), '鈭飢?‵'),
+    (re.compile(r'BF[??]'), '銝??□'),
+    (re.compile(r'PCl[??]'), '銝偺?ㄦ'),
+    (re.compile(r'PF[??]'), '鈭??ㄦ'),
+    (re.compile(r'SF[??]'), '?剜??‵'),
+    (re.compile(r'NF[??]'), '銝??乾'),
+    (re.compile(r'NCl[??]'), '銝偺?乾'),
+    (re.compile(r'CF[??]'), '???４'),
+    (re.compile(r'CO[??]'), '鈭飢?４'),
+    (re.compile(r'(?<![A-Za-z])CO(?![??O]|??'), '銝瘞批?蝣?),
+    (re.compile(r'O[??]'), '?剜飢'),
+    (re.compile(r'H[??]O[??]|?飢?鬥'), '?飢?鬥'),
+    (re.compile(r'OF[??]'), '鈭??飢'),
+    (re.compile(r'N[??]O[??]'), '?飢??瘞?),
+    (re.compile(r'N[??]H[??]|?慝?舀馬'), '?舀馬'),
+    (re.compile(r'NH[??]|?冽'), '?冽?Ｗ?'),
+    (re.compile(r'NH[??]'), '瘞?),
+    (re.compile(r'H[??]O|瘞游?瘞?), '瘞游?瘞恍摮?),
+    (re.compile(r'HCN|瘞啣?瘞?), '瘞啣?瘞?),
+    (re.compile(r'HCl|瘞臬?瘞?), '瘞臬?瘞?),
+    (re.compile(r'HF|瘞?瘞?), '瘞?瘞?),
+    (re.compile(r'HBr|皞游?瘞?), '皞游?瘞?),
+    (re.compile(r'H[??]O(?!??'), '瘞?),
+    (re.compile(r'NaF|瘞???), '瘞???),
+    (re.compile(r'KBr|皞游??'), '皞游??'),
+    (re.compile(r'BeCl'), '鈭偺?'),
+    (re.compile(r'CCO|銋?'), '銋?'),
+    (re.compile(r'c1ccccc1|??), '??),
+    (re.compile(r'C#C|銋?'), '銋?'),
+    (re.compile(r'C=C|銋'), '銋'),
+    (re.compile(r'銋'), '銋'),
+    (re.compile(r'CH[??]|?脩'), '?脩'),
+    (re.compile(r'Cl[??]|瘞舀除'), '瘞舀除'),
+    (re.compile(r'F[??]|瘞?), '瘞?),
+    (re.compile(r'O[??]'), '瘞扳除'),
+    (re.compile(r'N[??]'), '瘞格除'),
+    (re.compile(r'瘞怠?摮瘞急除|\[H\]\[H\]'), '瘞急除'),
+    (re.compile(r'ClOCl|OCl'), '鈭偺?‵'),
 ]
 
 
@@ -87,7 +85,7 @@ def resolve_id(label, smiles, lookup, valid_ids):
             continue
         if pat.search(text) or (smi and pat.search(smi)):
             return eid
-    for c in [text, text.split('（')[0].split('(')[0].strip(), smi]:
+    for c in [text, text.split('嚗?)[0].split('(')[0].strip(), smi]:
         if not c:
             continue
         hit = lookup.get(c) or lookup.get(norm(c))
@@ -111,8 +109,8 @@ def convert_text(text, lookup, valid_ids):
         return m.group(0)
 
     out = SMILES_RE.sub(repl, text)
-    out = out.replace('@@SMILES:…@@', '@@MOL:物種id|標籤@@')
-    out = out.replace('輸出 `@@SMILES:…@@`', '輸出 `@@MOL:物種id|標籤@@`')
+    out = out.replace('@@SMILES:?共@', '@@MOL:?拍車id|璅惜@@')
+    out = out.replace('頛詨 `@@SMILES:?共@`', '頛詨 `@@MOL:?拍車id|璅惜@@`')
     return out, stats
 
 
@@ -140,14 +138,15 @@ def main():
             total['converted'] += stats['converted']
             total['kept'] += stats['kept']
             all_unmapped.extend(stats['unmapped'])
-            print(f'{fn}: MOL {stats["converted"]}, 保留 SMILES {stats["kept"]}')
+            print(f'{fn}: MOL {stats["converted"]}, 靽? SMILES {stats["kept"]}')
 
-    print(f'\n完成：{total["files"]} 檔，轉換 {total["converted"]} 行，未對應 {total["kept"]} 行')
+    print(f'\n摰?嚗total["files"]} 瑼?頧? {total["converted"]} 銵??芸???{total["kept"]} 銵?)
     if all_unmapped:
-        print('未對應範例（前 15）：')
+        print('?芸???靘???15嚗?')
         for line in all_unmapped[:15]:
             print(' ', line)
 
 
 if __name__ == '__main__':
     main()
+

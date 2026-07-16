@@ -1,67 +1,57 @@
-# 檔案狀態表
+﻿# 瑼???”
 
-盤點日期：2026-07-13  
-分類定義：
-
-| 狀態 | 定義 |
+?日??交?嚗?026-07-13  
+??摰儔嚗?
+| ???| 摰儔 |
 | --- | --- |
-| 使用中 | 目前網站或正式工具直接使用，修改須回歸測試。 |
-| 維護工具 | 用於同步、轉換、修補、發布或資料管理，不是主站執行期資產。 |
-| 測試 | 驗證程式語法、版本、渲染或建置結果。 |
-| 待封存 | 目前未列入此狀態；僅在完成替代方案與部署驗證後才能標記。 |
+| 雿輻銝?| ?桀?蝬脩??迤撘極?瑞?乩蝙?剁?靽格??甇豢葫閰艾?|
+| 蝬剛風撌亙 | ?冽?郊???耨鋆撣?鞈?蝞∠?嚗??臭蜓蝡銵?鞈??|
+| 皜祈岫 | 撽?蝔?隤????研葡??撱箇蔭蝯???|
+| 敺?摮?| ?桀??芸??交迨????摰??蹂誨?寞??蝵脤?霅??璅???|
 
-## 使用中
-
-| 路徑／群組 | 備註 |
+## 雿輻銝?
+| 頝臬?嚗黎蝯?| ?酉 |
 | --- | --- |
-| `index.html` | 主頁入口與資源載入清單。 |
-| `css/app.css`、`css/board.css` | 主頁與解題板核心樣式。 |
-| `css/plain-*.css`、`css/math-note/`、`css/*draw*.css`、`css/structure-layout.css`、`css/tool.css` | 格式、NOTE、結構式與工具頁專用樣式。 |
-| `js/app.js`、`js/api.js`、`js/solve-spec.js` | 主頁控制、章節類型／作答格式規格與 API 連線。 |
-| `js/render.js`、`js/latex-sanitize.js` | AI 回覆處理與 LaTeX 安全修復。 |
-| `js/prompt-compose.js`、`js/prompts.js`、`prompts/` | 提示詞組合與來源片段。 |
-| `js/database.js`、`js/db-parse.js`、`js/db-meta.js`、`js/db-rules.js`、`js/board-formats.js` | 題庫載入、解析、規則與版型。 |
-| `js/database-bundle.js`、`database/` | 部署 bundle 與其來源資料；兩者皆保留。 |
-| `data/reference/`、`js/reference-store.js` | 新 reference 資料格式與最多三筆的本機檢索器；目前作為相容遷移層，不影響一般解題。 |
-| `js/plain-reaction-table.js`、`js/plain-choice-options.js`、`js/solution-format.js` | 解題格式元件。 |
-| `js/math-note/` | NOTE 規則、預設、檢查、補足與顯示。 |
-| `js/mol-resolver.js`、`js/molfile-draw.js`、`js/smiles-draw.js`、`js/structure-layout.js` | 化學結構解析與顯示。 |
-| `js/structures-bundle.js`、`structures/` | 部署 bundle 與 `.mol`／索引來源資料；兩者皆保留。 |
-| `knowledge/`、`js/knowledge-store.js`、`js/knowledge-tools.js` | 教師知識庫 schema、儲存與工具。 |
-| `teacher-tools.html`、`knowledge-studio.html`、`method-library.html`、`problem-analyzer.html`、`answer-audit.html`、`evaluation-lab.html`、`solution-format.html`、`chemistry-workbench.html` | 正式教師／輔助功能頁。 |
+| `index.html` | 銝駁??亙??皞??交??柴?|
+| `css/app.css`?css/board.css` | 銝駁??圾憿?詨?璅????|
+| `css/plain-*.css`、`css/math-note/`、`css/chem-structure.css` | NOTE、反應表與結構式顯示樣式。 |
+| `js/app.js`?js/api.js`?js/solve-spec.js` | 銝駁??批??蝭憿?嚗?蝑撘??潸? API ?????|
+| `js/render.js`?js/latex-sanitize.js` | AI ??????LaTeX 摰靽桀儔??|
+| `js/prompt-compose.js`?js/prompts.js`?prompts/` | ?內閰???靘??挾??|
+| `js/database.js`?js/db-parse.js`?js/db-meta.js`?js/db-rules.js`?js/board-formats.js` | 憿澈頛?圾????????|
+| `js/database-bundle.js`?database/` | ?函蔡 bundle ?靘?鞈?嚗??靽???|
+| `js/plain-reaction-table.js`?js/plain-choice-options.js`?js/solution-format.js` | 閫???澆??辣??|
+| `js/math-note/` | NOTE 閬???閮准炎?乓?頞唾?憿舐內??|
+| `js/chem-structure.js` | 結構式解析、Molfile/SMILES 繪圖與排版合併模組。 |
+| `js/structures-bundle.js`?structures/` | ?函蔡 bundle ??`.mol`嚗揣撘?皞????抵?靽???|
 
-## 維護工具
+## 蝬剛風撌亙
 
-| 路徑／群組 | 備註 |
+| 頝臬?嚗黎蝯?| ?酉 |
 | --- | --- |
-| `db-import.html` | 題庫匯入與本機驗證。 |
-| `molfile-preview.html` | `.mol` 檔預覽。 |
-| `scripts/sync-database.py`、`同步資料庫.bat` | 題庫同步；批次檔保留為根目錄捷徑。 |
-| `scripts/sync-structures.py`、`scripts/rebuild-structures-bundle.py` | 結構資料同步與 bundle 重建。 |
-| `scripts/fetch-missing-structures.py`、`scripts/convert-smiles-to-mol.py` | 結構資料補齊與轉換。 |
-| `scripts/rebuild-prompt-fallback.py` | 提示詞 fallback 重建。 |
-| `scripts/patch-match-kghs113.py` | 特定資料修補。 |
-| `scripts/import-legacy-database.py` | 舊版型資料預覽／匯入；預設唯讀，`--apply` 才寫入新資料層。 |
-| `啟動網頁.bat` | 本機啟動捷徑。 |
-| `清理舊題庫MD.bat` | 舊題庫 Markdown 清理工具；執行前須確認目標資料。 |
-| `發布到GitHub/` | GitHub Pages 發布流程與說明。 |
-| `IMPLEMENTATION_PLAN.md`、`NEXT_CHAT_HANDOFF_PLAN.md`、`docs/` | 規劃、交接與維護文件；提示詞規則見 `docs/PROMPT_PRIORITY.md`。 |
+| `scripts/sync-database.py`??郊鞈?摨?bat` | 憿澈?郊嚗甈⊥?靽??箸?桅??瑕???|
+| `scripts/sync-structures.py`?scripts/rebuild-structures-bundle.py` | 蝯?鞈??郊??bundle ?遣??|
+| `scripts/fetch-missing-structures.py`?scripts/convert-smiles-to-mol.py` | 蝯?鞈?鋆?????|
+| `scripts/rebuild-prompt-fallback.py` | ?內閰?fallback ?遣??|
+| `scripts/patch-match-kghs113.py` | ?孵?鞈?靽株???|
+| `scripts/import-legacy-database.py` | ??????閬踝??臬嚗?閮剖霈嚗--apply` ?神?交鞈?撅扎?|
+| `??蝬脤?.bat` | ?祆????瑕???|
+| `皜???摨俑D.bat` | ??摨?Markdown 皜?撌亙嚗銵??Ⅱ隤璅???|
+| `?澆??蚣itHub/` | GitHub Pages ?澆?瘚??牧??|
+| `IMPLEMENTATION_PLAN.md`?NEXT_CHAT_HANDOFF_PLAN.md`?docs/` | 閬??漱?亥?蝬剛風?辣嚗?蝷箄?閬?閬?`docs/PROMPT_PRIORITY.md`??|
 
-## 測試
+## 皜祈岫
 
-| 路徑／群組 | 備註 |
+| 頝臬?嚗黎蝯?| ?酉 |
 | --- | --- |
-| `tests/run-self-test.py` | 本機 HTTP、版本與核心功能冒煙測試。 |
-| `tests/check-js-syntax.py` | JavaScript 語法檢查。 |
-| `tests/test-board-compile.html` | Board 編譯流程測試。 |
-| `tests/test-katex-pipeline.html` | KaTeX／數學渲染流程測試。 |
-| `tests/test-pipeline.html` | 解題管線測試。 |
-| `tests/verify-build.html` | 建置版號驗證頁。 |
+| `tests/run-self-test.py` | ?祆? HTTP???祈??詨????皜祈岫??|
+| `tests/check-js-syntax.py` | JavaScript 隤?瑼Ｘ??|
+| `tests/test-board-compile.html` | Board 蝺刻陌瘚?皜祈岫??|
+| `tests/test-katex-pipeline.html` | KaTeX嚗摮豢葡??蝔葫閰艾?|
+| `tests/test-pipeline.html` | 閫??蝞∠?皜祈岫??|
+| `tests/verify-build.html` | 撱箇蔭??撽???|
 
-## 待封存
+## 敺?摮?
+?桀??⊥?獢?閮敺?摮legacy/README.md` 撌脰??甈∠暺?撠??瑼鳴??桀???撌亙????????鈭文????嚗?隞?”?暹?瑼?撌脣撠???
+## ??恣????
 
-目前無檔案標記為待封存。`legacy/README.md` 已記錄本次盤點與封存門檻；目前所有候選工具頁仍有有效入口或交叉連結，不代表現有檔案已可封存。
-
-## 非產品管理資料
-
-`.git/`、`.agents/`、`.cursor/` 屬於版本控制或本機工具設定，不列入上述產品生命週期狀態。修改或清理前應先確認其工具用途。

@@ -2,7 +2,7 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20260716o';
+window.__RENDER_BUILD = '20260716-clean';
 window.__RENDER_PIPELINE_DEFAULT = 'legacy';
 
 const BOARD_LAYOUT_ENABLED = false;
@@ -2270,10 +2270,10 @@ function markAndSpaceNestedFractions(root) {
     const linePart = parts[lineIdx];
     return {
       vlist,
-      numPart: parts[lineIdx - 1] || null,
+      numPart: parts[lineIdx + 1] || null,
       linePart,
       fracLine: linePart.querySelector('.frac-line'),
-      denPart: parts[lineIdx + 1] || null,
+      denPart: parts[lineIdx - 1] || null,
     };
   };
 
@@ -2294,8 +2294,8 @@ function markAndSpaceNestedFractions(root) {
       el.style.transform = el.getAttribute(ATTR_BAR_ALIGN) || '';
       el.removeAttribute(ATTR_BAR_ALIGN);
     });
-    root.querySelectorAll('.mfrac-has-nested, .mfrac-has-note, .mfrac-inner-in-num, .mfrac-inner-in-den').forEach((mfrac) => {
-      mfrac.classList.remove('mfrac-has-nested', 'mfrac-has-note', 'mfrac-inner-in-num', 'mfrac-inner-in-den');
+    root.querySelectorAll('.mfrac-has-nested, .mfrac-has-note, .mfrac-inner-in-num, .mfrac-inner-in-den, .mfrac-inner-native').forEach((mfrac) => {
+      mfrac.classList.remove('mfrac-has-nested', 'mfrac-has-note', 'mfrac-inner-in-num', 'mfrac-inner-in-den', 'mfrac-inner-native');
       if (!mfrac.hasAttribute(ATTR_BAR_ALIGN)) {
         mfrac.style.transform = '';
         mfrac.style.verticalAlign = '';
@@ -2394,8 +2394,7 @@ function markAndSpaceNestedFractions(root) {
       const vh = hasNote ? INNER_VH_NOTE_EM : INNER_VH_EM;
 
       if (zone === 'numerator') {
-        nudgeTopEm(innerLayout.denPart, -spread);
-        nudgeTopEm(innerLayout.numPart, -spread * NUM_NUMPART_LIFT / INNER_SPREAD_EM);
+        inner.classList.add('mfrac-inner-native');
       } else {
         nudgeTopEm(innerLayout.numPart, spread);
       }
@@ -2406,6 +2405,7 @@ function markAndSpaceNestedFractions(root) {
       const zone = getInnerZone(outer, inner);
       const innerLayout = parseVlistT2(inner);
       if (!zone || !innerLayout || !outerLayout.fracLine) return;
+      if (zone === 'numerator') return;
       const line = outerLayout.fracLine.getBoundingClientRect();
       const hasNote = partHasNote(innerLayout.numPart) || partHasNote(innerLayout.denPart);
       const target = hasNote ? GAP_NOTE_PX : GAP_PX;

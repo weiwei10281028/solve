@@ -1,5 +1,5 @@
 /**
- * js/math-note/note-check.js — NOTE 密度驗收（配合 note-ensure.js 可觸發自動重寫）
+ * js/math-note/note-check.js — NOTE 密度驗收（供 note-rules.js 的第二階段流程使用）
  */
 (function (global) {
   'use strict';
@@ -113,7 +113,7 @@
     return issues;
   }
 
-  /** 平衡 $K_c$ 代入行（表後單行分式）：不算 n/V 裸分式，避免 NoteEnsure 逼 AI 嵌套 htmlData */
+  /** 平衡 $K_c$ 代入行（表後單行分式）：不算 n/V 裸分式，避免 NOTE 修正階段逼 AI 嵌套 htmlData */
   function isEquilibriumKcSubstLine(line) {
     const t = String(line || '');
     if (!/K[_c]|K_c|平衡常數/.test(t)) return false;

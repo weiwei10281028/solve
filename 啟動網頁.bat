@@ -1,14 +1,13 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
 echo.
-echo  化學解題工具 — 本機伺服器
+echo  ?飛閫??撌亙 ???祆?隡箸???
 echo  ================================
-echo  啟動後請開啟瀏覽器：
+echo  ??敺????汗?剁?
 echo  http://localhost:18080/index.html
-echo  http://localhost:18080/molfile-preview.html
 echo.
-echo  關閉此視窗即停止伺服器
+echo  ??甇方?蝒?迫隡箸???
 echo  ================================
 echo.
 python dev-server.py

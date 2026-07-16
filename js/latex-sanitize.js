@@ -97,13 +97,23 @@
       .replace(/\\htmlData\s*/g, '');
   }
 
+  function normalizeNestedMhchem(raw) {
+    let text = String(raw || '');
+    for (let i = 0; i < 3; i += 1) {
+      const next = text.replace(/\\ce\s*\{\s*\\ce\s*\{([^{}]+)\}\s*\}?/g, '\\ce{$1}');
+      if (next === text) break;
+      text = next;
+    }
+    return text;
+  }
+
   function repairMath(raw, validate) {
     // Some model responses JSON-escape mhchem commands a second time.  In a
     // math segment, `\\\\ce{...}` is not a literal escape: it is intended to
     // be mhchem's `\\ce{...}` command.  Normalize only that command before
     // validation so a valid formula never falls through to readableMath(),
     // which would expose `ce` and lose its chemical formatting.
-    const original = String(raw || '').trim().replace(/\\\\ce(?=\{)/g, '\\ce');
+    const original = normalizeNestedMhchem(String(raw || '').trim().replace(/\\\\ce(?=\{)/g, '\\ce'));
     if (!original) return { ok: false, latex: '' };
     const candidates = [];
     const add = (v) => { if (v && !candidates.includes(v)) candidates.push(v); };

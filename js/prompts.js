@@ -1,6 +1,6 @@
 /**
  * js/prompts.js - 2024 教學引導強化版
- * 主 System／按鈕附加層見 prompts/*.md，由 js/prompt-compose.js 載入。
+ * 主解題 System 由 solution-core.js 管理；prompts/*.md 僅供追問與舊相容流程使用。
  */
 
 // 1. AI 系統提示詞（主架構已移至 prompts/base/system-chem.md）
@@ -26,7 +26,7 @@ var IMAGE_MULTI_QUESTION_USER_BLOCK = [
     '   例：頂端第10題殘段（無題號或缺選項），第11、12題完整 → 只解第11題。',
     '3. **題組例外**：只有圖片明確寫出「第6～7題為題組」「下列第6、7題為題組」等連結範圍時，才將該題組的兩題一起解；不可只因題號相鄰就併解。題組兩題以「【第 6 題】」「【第 7 題】」分段，不可用「第1題／第2題」當計算步驟。',
     '4. 不完整不解：題幹或選項缺漏、附圖數據看不清 → 不得猜；除非【使用者補充】已補齊缺漏，則與圖併讀。',
-    '5. 無完整題且無法補齊 → @@ANSWER@@「題目資訊不足」。'
+    '5. 無完整題且無法補齊 → JSON 的 answer 欄位填「題目資訊不足」，blocks 說明缺少哪些資料。'
 ].join('\n');
 
 function parseRequestedSolveScope(inputText) {
@@ -197,7 +197,7 @@ function buildScopeLockUserBlock(intent, opts) {
         lines.push('選項：僅 (' + intent.options.join(')(') + ')；禁寫其他選項評析與其他題。');
     }
 
-    lines.push('板書／NOTE／反應表等格式仍須遵守 System；參考答案若有則 @@ANSWER@@ 須一致。');
+    lines.push('內容與題型要求須遵守 System；參考答案若有則 JSON 的 answer 欄位與逐項判斷須一致。');
     return lines.join('\n');
 }
 
@@ -247,14 +247,11 @@ function buildQuestionStyleBlocks(opts, questionText) {
         if (selectedOptions.length) {
             lines.push('【書寫｜指定選項】只分析 (' + selectedOptions.join(')(') + ')；不可列出、提及或判斷其他選項。');
         } else {
-            lines.push('【書寫｜選擇題】須「各選項分析如下」逐項 (A)～(E)；須追蹤物種量時先寫配平反應式。');
-            lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 @@ANSWER@@ 一致；題目列出 A–E 時，所有選項都要完整分析。');
+            lines.push('【書寫｜選擇題】須「各選項分析如下」逐項 (A)～(E)；共用計算先完成，再逐項對照。');
+            lines.push('【選擇題】敘述多選須 (A)～(E) 全寫，每項結尾寫「敘述正確／錯誤」；判斷集合須與 JSON 的 answer 欄位一致；題目列出 A–E 時，所有選項都要完整分析。');
         }
     } else {
         lines.push('【書寫】本題非選擇題：依題目問法作答（問答直答、計算列式、子題 (一)(二) 或 1.2.3. 分段）；**禁止虛構 (A)～(E)**。');
-    }
-    if (typeof window.PromptCompose !== 'undefined' && window.PromptCompose.getUserAddonLines) {
-        lines = lines.concat(window.PromptCompose.getUserAddonLines(opts));
     }
     return lines;
 }
@@ -344,12 +341,12 @@ function buildReferenceAnswerUserBlock(ref) {
     var r = String(ref || '').trim();
     if (!r) return '';
     var multi = parseMultiQuestionRefAnswer(r);
-    var lines = ['【已核對參考答案】' + r + '（先回到題目逐項找出支持答案的條件與推導，再寫詳解；不可先判某選項錯誤、最後只改成正確。@@ANSWER@@ 須與之一致；禁止寫「依參考答案選…」）'];
+    var lines = ['【已核對參考答案】' + r + '（先回到題目逐項找出支持答案的條件與推導，再寫詳解；不可先判某選項錯誤、最後只改成正確。JSON 的 answer 欄位須與之一致；禁止寫「依參考答案選…」）'];
     if (multi.length >= 2) {
         lines.push('【參考答案對照】' + multi.map(function (e) {
             return '第' + e.num + '題→' + e.choices;
         }).join('；'));
-        lines.push('使用者指定解題範圍內，各題 @@ANSWER@@ 須與上表對應（可分行：第3題：(A)、第5題：(C)(D)）。');
+        lines.push('使用者指定解題範圍內，各題 JSON answer 須與上表對應（例如第3題 A、第5題 C,D）。');
     } else if (multi.length === 1 && /[,，、\s].*\d/.test(r)) {
         lines.push('【參考答案對照】第' + multi[0].num + '題→' + multi[0].choices);
     }

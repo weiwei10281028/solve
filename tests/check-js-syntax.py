@@ -14,12 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 JS = ROOT / "js"
 FILES = [
-    "reference-store.js", "solve-spec.js", "prompts.js", "prompt-compose.js", "app.js", "plain-reaction-table.js",
+    "solve-spec.js", "prompts.js", "prompt-compose.js", "app.js", "plain-reaction-table.js",
     "board-formats.js", "db-parse.js", "render.js",
-    "latex-sanitize.js", "solution-format.js", "solution-output-gate.js", "solution-core.js", "structure-layout.js", "reaction-workbench.js", "math-note/math-note.js", "math-note/note-check.js", "math-note/note-ensure.js",
+    "latex-sanitize.js", "solution-format.js", "solution-output-gate.js", "solution-core.js", "chem-structure.js", "math-note/math-note.js", "math-note/note-rules.js", "math-note/note-check.js",
 ]
 REQUIRED = {
-    "reference-store.js": ["global.ReferenceStore", "function search"],
     "solve-spec.js": ["global.SolveSpec", "function buildUserBlock", "function checkReply"],
     "prompts.js": [
         "window.buildSolveUserText",
@@ -33,7 +32,7 @@ REQUIRED = {
     "solution-output-gate.js": ["global.SolutionOutputGate", "function chemicalIssues", "function check"],
     "solution-format.js": ["global.SolutionDocument", "function validateDocument", "function compileDocument"],
     "solution-core.js": ["global.SolutionCore", "function prepare", "const SCHEMA"],
-    "reaction-workbench.js": ["function balanceReaction", "function balanceRedoxHalfReaction", "function reactionHtml"],
+    "chem-structure.js": ["global.MolResolver", "global.MolfileDraw", "global.StructureLayout", "global.SmilesDraw"],
 }
 
 

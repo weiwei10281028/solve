@@ -18,8 +18,7 @@
       ? global.normalizeBareCeTokens(raw)
       : raw;
     const formatted = global.SolutionFormat.format(repaired);
-    const noteFixed = formatted.report?.ok ? injectFallbackNotes(formatted.text) : formatted.text;
-    return { text: noteFixed, formatReport: formatted.report };
+    return { text: formatted.text, formatReport: formatted.report };
   }
 
   function toCheckText(text) {
@@ -32,41 +31,6 @@
 
   function outsideMath(text) {
     return String(text || '').replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$/g, ' ');
-  }
-
-  function injectFallbackNotes(text) {
-    const raw = String(text || '');
-    const notes = raw.match(/\\htmlData\{[^{}]*\}\{[^{}]*\}/g) || [];
-    let target = 20;
-    try { target = Math.max(1, Number(global.NoteCheck?.check(raw)?.densityFloor || 20)); } catch (_) {}
-    let need = Math.max(0, target - notes.length);
-    if (!need) return raw;
-    const stash = [];
-    let masked = raw.replace(/\\htmlData\{[^{}]*\}\{[^{}]*\}/g, (m) => {
-      const key = String.fromCharCode(0xE100 + stash.length);
-      stash.push([key, m]);
-      return key;
-    });
-    masked = masked.replace(/\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$/g, (whole, display, inline) => {
-      if (!need) return whole;
-      const body = String(display == null ? inline : display);
-      if (/\\ce\{/.test(body)) {
-        const fixedChem = body.replace(/(\\ce\{[^{}]*\})/, (chem) => {
-          if (!need) return chem;
-          need -= 1;
-          return '\\htmlData{note=化學式與反應物}{' + chem + '}';
-        });
-        return display == null ? '$' + fixedChem + '$' : '$$' + fixedChem + '$$';
-      }
-      const fixed = body.replace(/(\d+(?:\.\d+)?)/g, (num) => {
-        if (!need) return num;
-        need -= 1;
-        return '\\htmlData{note=解題中的關鍵數值}{' + num + '}';
-      });
-      return display == null ? '$' + fixed + '$' : '$$' + fixed + '$$';
-    });
-    stash.forEach(([key, value]) => { masked = masked.split(key).join(value); });
-    return masked;
   }
 
   function chemicalIssues(text) {
@@ -134,5 +98,5 @@
     return lines.join('\n');
   }
 
-  global.SolutionOutputGate = { check, normalize, chemicalIssues, injectFallbackNotes, buildFixUserText };
+  global.SolutionOutputGate = { check, normalize, chemicalIssues, buildFixUserText };
 })(typeof window !== 'undefined' ? window : globalThis);

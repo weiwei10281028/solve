@@ -48,7 +48,7 @@ body[data-theme="lunar"] {
   --accent-hover: #ffffff;
   --accent-soft: #2b2e38;
   --copper: #c6c8d4;
-  --hero-accent: #8fc7b1;
+  --hero-accent: #ead49a;
   --copper-soft: #483a2b;
   --danger: #f0a9ad;
   --danger-soft: #3a252a;
@@ -110,6 +110,29 @@ body[data-theme="lunar"] .btn-primary, body[data-theme="lunar"] .btn-send { colo
 
 /* 解題 NOTE 在淺、深色模式的底色、文字與浮層均隨主題切換。 */
 .math-note.active, .katex :is(.math-note, [data-note], [note]).active:not(.math-note--whole):not(.math-note--frac-part), .math-note--whole.active, .katex .math-note--whole.active, .katex [data-note].math-note--whole.active { background: var(--copper-soft) !important; color: var(--ink) !important; }
+body[data-theme="lunar"] .katex :is(.math-note, [data-note], [note]),
+body[data-theme="lunar"] .katex .math-note--sci,
+body[data-theme="lunar"] .katex .math-note--frac-part,
+body[data-theme="lunar"] .katex [data-note].math-note--whole,
+body[data-theme="lunar"] .katex .math-note--whole,
+body[data-theme="lunar"] .katex [data-note][data-note-scope="whole"],
+body[data-theme="lunar"] .solution-note,
+body[data-theme="lunar"] .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+  background: #4b3a2d !important;
+  color: #f4f4f1 !important;
+  box-shadow: none !important;
+}
+body[data-theme="lunar"] .katex :is(.math-note, [data-note], [note]).active,
+body[data-theme="lunar"] .katex .math-note--sci.active,
+body[data-theme="lunar"] .math-note.active,
+body[data-theme="lunar"] .math-note--whole.active,
+body[data-theme="lunar"] .katex .math-note--whole.active,
+body[data-theme="lunar"] .katex [data-note].math-note--whole.active,
+body[data-theme="lunar"] .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+  background: #6a4f36 !important;
+  color: #fff7e6 !important;
+  box-shadow: 0 0 0 1.5px #ead49a !important;
+}
 .math-note-popover { background: var(--ink); color: var(--surface); border: 1px solid color-mix(in srgb, var(--surface) 18%, transparent); box-shadow: 0 14px 34px rgba(0,0,0,.24); }
 .anno-badge { background: var(--bg-accent); border-color: var(--border); color: var(--ink); }.anno-badge.active { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 body[data-theme="lunar"] .anno-badge.active { color: #17191d; }
