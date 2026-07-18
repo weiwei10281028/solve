@@ -11,8 +11,8 @@ import urllib.request
 # 與「啟動網頁.bat」一致；18080 較不易與常見開發服務衝突。
 BASE = os.environ.get("AI_SOLVE_TEST_BASE", "http://localhost:18080")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDER_BUILD = "20260719-markdown-unified"
-APP_BUILD = "20260719-markdown-unified"
+RENDER_BUILD = "20260719-answer-gate"
+APP_BUILD = "20260719-answer-notice"
 SOLVE_SPEC_BUILD = "20260716-clean"
 SOLUTION_CORE_BUILD = "20260719-editorial"
 results = []
@@ -47,7 +47,7 @@ app = open(os.path.join(ROOT, "js", "app.js"), encoding="utf-8").read()
 ok("__LAST_RENDER_PIPELINE", "__LAST_RENDER_PIPELINE" in app)
 ok("solveSpec integration", "solveSpec" in app and "getSolveSpec" in app and "formatRoute" in app)
 ok("setting validation", "function renderSolveValidation" in app and "getCalcCompactValidation" in app)
-ok("參考答案不觸發第二次改寫", "refAnswerGuided" in app and "ensureReferenceAnswerReply" not in app)
+ok("指定答案具修正與提示機制", "buildSolveResponseSchema" in app and "buildAnswerCorrectionText" in app and "與指定答案不完全符合" in app)
 
 prompts = open(os.path.join(ROOT, "js", "prompts.js"), encoding="utf-8").read()
 ok("單一解題提示入口", "window.buildSolveUserText" in prompts and "window.getSystemPromptForSolve" in prompts)
@@ -58,7 +58,7 @@ ok("Renderer 不阻擋正常顯示", "renderAiInto(el, text, options);" in app)
 solution_core = open(os.path.join(ROOT, "js", "solution-core.js"), encoding="utf-8").read()
 solve_spec = open(os.path.join(ROOT, "js", "solve-spec.js"), encoding="utf-8").read()
 ok("原始詳解格式編譯器可用", "global.SolutionCore" in solution_core and "function prepare" in solution_core and "window.SolutionCore.prepare(reply)" in app)
-ok("Gemini 使用既有結構化 schema", "schema: window.SolutionCore.SCHEMA" in app and "const systemText = window.SolutionCore.buildSystem();" in app)
+ok("Gemini 使用指定答案結構化 schema", "schema: responseSchema" in app and "const systemText = window.SolutionCore.buildSystem();" in app)
 ok("未勾選不啟用進階功能", "return { id: 'plain', origin: 'auto'" in solve_spec and "forceStoichiometry: false" in solve_spec)
 ok("主解題只加入手動進階規格", "const fullUserText = [userText, advancedBlock].filter(Boolean).join" in app and "teachingRulesSystemAddon" not in app)
 ok("主流程直接呼叫 Gemini", "function callGemini" in api_js and "generativelanguage.googleapis.com" in api_js)
@@ -100,7 +100,7 @@ ok("非結構子項不建立卡片", "const hasDrawBlock = group.slice(1).some(i
 
 app = open(os.path.join(ROOT, "js", "app.js"), encoding="utf-8").read()
 solve_body = app[app.find("async function startSolve()"):app.find("async function sendFollowUp")]
-ok("主解題採單次 Gemini＋本機編譯", solve_body.count("callAPI(") == 1 and "SolutionCore.prepare(reply);" in app and "setMainSolution(reply" in app)
+ok("主解題採硬性答案閘門＋本機編譯", solve_body.count("callAPI(") == 2 and "SolutionCore.prepare(reply);" in app and "setMainSolution(reply" in app and "window.answersMatch(reply, solveOpts.refAnswer)" in app)
 ok("詳解統一走 Markdown Renderer", "renderMarkdownSolution(body)" in app and "renderCompiledSolution(body)" not in app)
 ok("選項提示不再鎖定 A～E", "不預設選項數量、標籤或順序" in solution_core)
 ok("僅載入既有詳解鏈", "solution-document-v2.js" not in open(os.path.join(ROOT, "index.html"), encoding="utf-8").read() and "block-renderer-v2.js" not in open(os.path.join(ROOT, "index.html"), encoding="utf-8").read())

@@ -16,7 +16,7 @@ window.buildSolveUserText = function (scopeInput, refAnswer, opts = {}) {
   const question = String(opts.questionBody || scopeInput || '').trim();
   let text = `【題目】\n${question}`;
   if (scope.mode === 'partial') text += `\n\n【範圍】只解第 ${scope.numbers.join('、')} 題。`;
-  if (refAnswer) text += `\n\n【已核對正確答案】${String(refAnswer).trim()}\n此答案是本題的最終判斷約束。先依題目計算關鍵量，再逐項驗證；若初步推導與此答案不符，必須回查公式、物種濃度、單位與選項判斷，修正後再輸出。逐項判斷的正確／錯誤集合與最終答案必須完全符合此答案。完成詳解後，逐一比對每個選項的判斷與最終答案集合；只有兩者完全一致時才可輸出，若不一致，停止輸出並重新檢查推導與選項判斷。不得提及答案來源，也不得為了湊答案省略推導。`;
+  if (refAnswer) text += `\n\n【指定正確答案｜不可違反】${String(refAnswer).trim()}\n此答案是本題唯一允許輸出的最終答案。先依題目計算關鍵量，再逐項驗證；若初步推導不符，必須回查公式、物種濃度、單位與選項判斷後修正。每個選項的正確／錯誤判定集合、推導結論與 answer 欄必須完全符合指定答案。輸出前逐一核對；任何一處不一致都不得輸出，必須重做。不得提及答案來源，也不得為了湊答案省略推導。`;
   return text;
 };
 

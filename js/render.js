@@ -2,7 +2,7 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20260719-markdown-unified';
+window.__RENDER_BUILD = '20260719-answer-gate';
 window.__RENDER_PIPELINE_DEFAULT = 'markdown';
 
 const BOARD_LAYOUT_ENABLED = false;
@@ -1151,12 +1151,50 @@ function cleanAnswerDisplay(raw) {
 }
 
 function extractChoiceLetters(text) {
-  const letters = [];
-  for (const m of String(text).matchAll(/\(([A-E])\)/g)) {
-    if (!letters.includes(m[1])) letters.push(m[1]);
+  const groups = extractChoiceGroups(text);
+  return groups.map(group => group.letters.map(letter => `(${letter})`).join('')).join('');
+}
+
+function extractChoiceGroups(text) {
+  const raw = cleanAnswerDisplay(text).toUpperCase();
+  const groups = [];
+  const pattern = /(?:第\s*(\d+)\s*[.．、:：]?\s*)?[（(]?([A-E]{1,5})[）)]?/g;
+  let match;
+  while ((match = pattern.exec(raw))) {
+    const letters = [...new Set(match[2].split(''))].sort();
+    const index = match[1] || '';
+    const previous = groups.find(group => group.index === index);
+    if (previous) previous.letters = [...new Set([...previous.letters, ...letters])].sort();
+    else groups.push({ index, letters });
   }
-  if (!letters.length) return '';
-  return letters.map(l => `(${l})`).join('');
+  const residue = raw
+    .replace(/第\s*\d+\s*[.．、:：]?\s*[（(]?[A-E]{1,5}[）)]?/g, '')
+    .replace(/[（()）、，,\sA-E]/g, '');
+  return residue ? [] : groups;
+}
+
+function normalizeAnswerUnit(unit) {
+  return String(unit || '').toLowerCase().replace(/[·.\s]/g, '').replace(/μ/g, 'u');
+}
+
+window.answersMatch = function(reply, reference) {
+  const actual = window.extractAnswerFromReply(reply);
+  const expected = window.parseReferenceAnswerInput(reference);
+  const expectedChoices = extractChoiceGroups(expected.raw);
+  const actualChoices = extractChoiceGroups(actual.raw);
+  if (expectedChoices.length) {
+    if (expectedChoices.length !== actualChoices.length) return false;
+    return expectedChoices.every((group, index) => group.index === actualChoices[index].index
+      && group.letters.join('') === actualChoices[index].letters.join(''));
+  }
+  if (expected.numeric) {
+    if (!actual.numeric) return false;
+    const scale = Math.max(1, Math.abs(expected.numeric.value), Math.abs(actual.numeric.value));
+    if (Math.abs(expected.numeric.value - actual.numeric.value) > scale * 1e-8) return false;
+    return !expected.numeric.unit || normalizeAnswerUnit(expected.numeric.unit) === normalizeAnswerUnit(actual.numeric.unit);
+  }
+  const normalize = value => cleanAnswerDisplay(value).toUpperCase().replace(/[\s，,、；;]/g, '');
+  return !!expected.raw && normalize(expected.raw) === normalize(actual.raw);
 }
 
 function briefAnswerPayload(text) {

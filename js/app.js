@@ -47,6 +47,17 @@ function isCalcCompact() {
   return !!document.getElementById('calcCompactToggle')?.checked;
 }
 
+function buildSolveResponseSchema(refAnswer) {
+  const schema = JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA));
+  const answer = String(refAnswer || '').trim();
+  if (answer) schema.properties.answer = { type: 'string', enum: [answer] };
+  return schema;
+}
+
+function buildAnswerCorrectionText(refAnswer) {
+  return `上一份詳解的 answer 欄與指定答案不一致，不能採用。請保留正確的題目推導邏輯並重新檢查所有選項，重寫完整 JSON 詳解。最終 answer 欄只能是：${String(refAnswer).trim()}。任何選項判定與此不一致都必須修正；不得輸出其他答案。`;
+}
+
 function getSolveSpec() {
   return typeof window.SolveSpec !== 'undefined' && window.SolveSpec.fromInputs
     ? window.SolveSpec.fromInputs(document)
@@ -321,7 +332,6 @@ function clearAll() {
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('answerInput').value = '';
-  document.getElementById('answerGuidedToggle').checked = false;
   document.getElementById('chatInput').value = '';
   resetStoichiometryToggle();
   resetCalcCompactToggle();
@@ -422,9 +432,9 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
     lines.push(ok ? '題型規格：符合本機檢查' : '題型規格：待補 ' + issues.slice(0, 2).join('；'));
     warning = warning || !ok;
   }
-  if (refAnswer && !solveOpts?.refAnswerSkipped && typeof window.answersMatch === 'function') {
+  if (refAnswer && typeof window.answersMatch === 'function') {
     const ok = window.answersMatch(reply, refAnswer);
-    lines.push(ok ? '參考答案：一致' : '參考答案：不一致，請複核（未自動改寫）');
+    lines.push(ok ? '指定答案：一致' : '指定答案：不一致（結果已拒絕顯示）');
     warning = warning || !ok;
   }
   if (typeof window.FormulaTools?.auditReply === 'function') {
@@ -540,7 +550,6 @@ async function startSolve() {
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
-  const refAnswerGuided = document.getElementById('answerGuidedToggle').checked && !!refAnswer;
   const hasImage = imgDataURLs.length > 0;
   const molPreview = typeof MolfileDraw !== 'undefined' && MolfileDraw.parseRequest
     ? MolfileDraw.parseRequest(textQuestion)
@@ -602,13 +611,6 @@ async function startSolve() {
       })
       : { id: 'plain', origin: 'auto', solveSpec: getSolveSpec(), forceStoichiometry: isForceStoichiometry(), forceCalcCompact: isCalcCompact() };
     const solveSpec = formatRoute.solveSpec;
-    const refConflict = (refAnswer && typeof window.checkObviousRefAnswerConflict === 'function')
-      ? window.checkObviousRefAnswerConflict(textQuestion, refAnswer)
-      : { conflict: false };
-    if (refConflict.conflict) {
-      console.warn('[參考答案]', refConflict.reason || '與題意明顯不符');
-      toast(refConflict.reason || '參考答案與題意可能不符，已改依題目推導');
-    }
     const solveOpts = {
       textOnly,
       questionBody: textQuestion,
@@ -617,9 +619,7 @@ async function startSolve() {
       imageCount: imgDataURLs.length,
       detailed: detailMode,
       scopeInput,
-      refAnswer: refConflict.conflict ? '' : refAnswer,
-      refAnswerGuided: refAnswerGuided && !refConflict.conflict,
-      refAnswerSkipped: !!refConflict.conflict,
+      refAnswer,
       forceStoichiometry: formatRoute.forceStoichiometry,
       forceCalcCompact: formatRoute.forceCalcCompact,
       solveSpec,
@@ -632,7 +632,7 @@ async function startSolve() {
     }
     const userText = window.buildSolveUserText(
       scopeInput,
-      solveOpts.refAnswerGuided ? solveOpts.refAnswer : '',
+      solveOpts.refAnswer,
       solveOpts
     );
     const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
@@ -660,21 +660,42 @@ async function startSolve() {
       }];
     }
 
+    const responseSchema = buildSolveResponseSchema(solveOpts.refAnswer);
     let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
       temperature: 0.25,
       maxOutputTokens: 6144,
       timeoutMs: 120000,
       maxContinue: 0,
       responseFormat: {
-        text: { mimeType: 'APPLICATION_JSON', schema: window.SolutionCore.SCHEMA }
+        text: { mimeType: 'APPLICATION_JSON', schema: responseSchema }
       }
     });
-    const prepared = window.SolutionCore.prepare(reply);
+    let prepared = window.SolutionCore.prepare(reply);
     if (!prepared.ok) throw new Error('AI 詳解格式不完整，請重新作答。');
     reply = prepared.text;
+    if (solveOpts.refAnswer && !window.answersMatch(reply, solveOpts.refAnswer)) {
+      const retryMessages = [...apiMessages,
+        { role: 'assistant', content: reply },
+        { role: 'user', content: buildAnswerCorrectionText(solveOpts.refAnswer) }
+      ];
+      const retry = await callAPI(cfg, retryMessages, systemText, {
+        temperature: 0,
+        maxOutputTokens: 6144,
+        timeoutMs: 120000,
+        maxContinue: 0,
+        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: responseSchema } }
+      });
+      truncated = truncated || retry.truncated;
+      prepared = window.SolutionCore.prepare(retry.text);
+      if (!prepared.ok) throw new Error('指定答案修正後的詳解格式不完整，請重新作答。');
+      reply = prepared.text;
+      if (!window.answersMatch(reply, solveOpts.refAnswer)) {
+        toast('AI 詳解已顯示，但與指定答案不完全符合，請複核。');
+      }
+    }
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
-    if (advancedBlock) renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
+    renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     setBadge('詳解完成', '#EAF2ED', '#3D6B52');
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
   } catch (err) {

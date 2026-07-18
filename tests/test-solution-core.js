@@ -126,18 +126,19 @@ const app = fs.readFileSync('js/app.js', 'utf8');
 const boardCss = fs.readFileSync('css/board.css', 'utf8');
 const renderer = fs.readFileSync('js/render.js', 'utf8');
 const startSolve = app.slice(app.indexOf('async function startSolve()'), app.indexOf('async function sendFollowUp'));
-if ((startSolve.match(/callAPI\(/g) || []).length !== 1) throw new Error('主解題不是單次 Gemini 呼叫');
+if ((startSolve.match(/callAPI\(/g) || []).length !== 2) throw new Error('指定答案不一致時未進行一次修正呼叫');
 if (/ensureQualityReply|ensureVerifiedMainSolution|ensureChoiceCompletenessReply/.test(startSolve)) throw new Error('主解題仍連接舊的 AI 重寫流程');
-if (/ensureDensityReply/.test(startSolve)) throw new Error('主解題不應再讓第二次 AI 重寫完整詳解');
+if (/ensureDensityReply/.test(startSolve)) throw new Error('主解題不應再讓舊的密度 AI 重寫流程介入');
 if (/requestAnimationFrame\(\(\) => requestAnimationFrame/.test(app.slice(app.indexOf('function renderAiInto'), app.indexOf('function setMainSolution')))) throw new Error('詳解顯示仍依賴背景可能停用的動畫幀');
 if (!/renderMarkdownSolution\(body\)/.test(app) || !/function renderMarkdownSolution/.test(renderer)) throw new Error('詳解未統一使用 Markdown 渲染');
 if (!/grid-template-columns:\s*2rem minmax\(0, 1fr\)/.test(boardCss)) throw new Error('選項未使用固定標籤欄與懸掛縮排');
 if (!/plain-line-inner--xscroll::after/.test(boardCss) || !/可左右滑動查看完整公式/.test(renderer)) throw new Error('長公式缺少橫向滑動提示');
 if (!/measureLineOverflow/.test(renderer) || !/\.markdown-choice-body/.test(renderer)) throw new Error('Markdown 長列未依實際寬度判定橫滑');
 if (!/lineScrollResizeBound/.test(renderer)) throw new Error('視窗尺寸改變後不會更新公式橫滑');
-if (!/responseFormat:\s*\{\s*text:\s*\{\s*mimeType:\s*'APPLICATION_JSON',\s*schema:\s*window\.SolutionCore\.SCHEMA/.test(startSolve)) throw new Error('Gemini 呼叫未使用官方結構化輸出格式');
+if (!/schema:\s*responseSchema/.test(startSolve) || !/buildSolveResponseSchema/.test(app)) throw new Error('Gemini 呼叫未使用指定答案結構化閘門');
 if (!/buildSystem\(\)/.test(startSolve)) throw new Error('主解題未使用唯一 system prompt');
-if (!/if \(advancedBlock\) renderSolveValidation/.test(startSolve)) throw new Error('進階設定完成後未執行本機驗證');
+if (!/renderSolveValidation\(reply, solveOpts, solveOpts\.refAnswer\)/.test(startSolve)) throw new Error('完成後未執行本機驗證');
+if (!/window\.answersMatch\(reply, solveOpts\.refAnswer\)/.test(startSolve) || !/與指定答案不完全符合/.test(startSolve)) throw new Error('指定答案不一致時未清楚提示');
 if (!/initSolveOptionToggles\(\);\s*updateSolveSpecStatus\(\);/.test(app)) throw new Error('重開頁面後進階狀態未同步');
 
 const acidResult = Core.prepare(JSON.stringify({blocks:[
