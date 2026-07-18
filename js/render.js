@@ -2,8 +2,8 @@
  * js/render.js — plain-line 渲染、簡答欄、KaTeX 後處理
  * BUILD: 20250705p4b (修正 \\circC → °C)
  */
-window.__RENDER_BUILD = '20260716-clean';
-window.__RENDER_PIPELINE_DEFAULT = 'legacy';
+window.__RENDER_BUILD = '20260719-markdown-unified';
+window.__RENDER_PIPELINE_DEFAULT = 'markdown';
 
 const BOARD_LAYOUT_ENABLED = false;
 const ANSWER_MARKER = '@@ANSWER@@';
@@ -1270,13 +1270,13 @@ function buildAnswerHtml(answerText, opts) {
     lines = lines.map(l => l.replace(/^第\s*[\d一二三四五六七八九十]+\s*題\s*[：:]\s*/, ''));
   }
   if (!lines.length) {
-    return '<div class="answer-box answer-box--final">答：—</div>';
+    return '<div class="answer-box answer-box--final"><span class="answer-box-label">答案</span><span class="answer-box-value">—</span></div>';
   }
   if (lines.length === 1) {
-    return `<div class="answer-box answer-box--final">答：${formatAnswerInner(lines[0])}</div>`;
+    return `<div class="answer-box answer-box--final"><span class="answer-box-label">答案</span><span class="answer-box-value">${formatAnswerInner(lines[0])}</span></div>`;
   }
   const items = lines.map(l => `<div class="answer-box-item">${formatAnswerInner(l)}</div>`).join('');
-  return `<div class="answer-box answer-box--final answer-box--multi"><span class="answer-box-prefix">答</span><div class="answer-box-items">${items}</div></div>`;
+  return `<div class="answer-box answer-box--final answer-box--multi"><span class="answer-box-label">答案</span><div class="answer-box-items">${items}</div></div>`;
 }
 
 function findInlineMathEnd(s, start) {
@@ -1437,14 +1437,67 @@ function render(rawText) {
   return assemblePlainHtml(preprocessed, answerText);
 }
 
-/* SolutionCore 已完成公式與 NOTE 編譯；只沿用既有行列排版，避免舊自動公式流程重複改寫。 */
-function renderCompiledSolution(rawText) {
-  if (!rawText) return `<div class="ai-plain">${buildAnswerHtml('—')}</div>`;
-  const { body, answerText } = splitBodyAndAnswer(String(rawText).trim());
-  return assemblePlainHtml(body, answerText);
+function compiledSolutionToMarkdown(rawText) {
+  const { body, answerText } = splitBodyAndAnswer(String(rawText || '').trim());
+  const lines = body.split(/\r?\n/).map((source) => String(source || '').trim()).filter(Boolean);
+  const blocks = [];
+  const choiceRe = /^(?:\(|（)([A-Z甲乙丙丁戊己庚辛壬癸])(?:\)|）)\s*(.*)$/;
+  const headingRe = /^【(.+)】$|^(選項判斷|選項分析|已知條件|解題步驟|結論)$/;
+  const finish = (parts) => parts.join(' ')
+    .replace(/\s+([，。；：！？、])/g, '$1')
+    .replace(/([，。；：！？、])\s+(?=[\u4e00-\u9fff])/g, '$1')
+    .replace(/([（(])\s+/g, '$1')
+    .trim();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const heading = line.match(headingRe);
+    if (heading) {
+      blocks.push(`## ${heading[1] || heading[2]}`);
+      continue;
+    }
+
+    const choice = line.match(choiceRe);
+    if (choice) {
+      const parts = [choice[2]];
+      while (i + 1 < lines.length && !choiceRe.test(lines[i + 1]) && !headingRe.test(lines[i + 1])) {
+        parts.push(lines[++i]);
+      }
+      blocks.push(`- **(${choice[1]})** <span class="markdown-choice-body">${finish(parts)}</span>`);
+      continue;
+    }
+
+    const parts = [line];
+    while (
+      i + 1 < lines.length
+      && !/[。．！？；;]$/.test(finish(parts))
+      && !choiceRe.test(lines[i + 1])
+      && !headingRe.test(lines[i + 1])
+    ) {
+      parts.push(lines[++i]);
+    }
+    const paragraph = finish(parts);
+    const display = paragraph.match(/^\$(\\begin\{(?:array|cases|aligned|matrix|pmatrix|bmatrix)\}[\s\S]+)\$$/);
+    blocks.push(display ? `$$\n${display[1]}\n$$` : paragraph);
+  }
+  const markdown = blocks.join('\n\n').replace(/<\/span>\n\n(?=- \*\*\()/g, '</span>\n');
+  return { markdown, answerText };
 }
 
-window.renderCompiledSolution = renderCompiledSolution;
+function renderMarkdownSolution(rawText) {
+  if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+    throw new Error('Markdown renderer 未載入');
+  }
+  const { markdown, answerText } = compiledSolutionToMarkdown(rawText);
+  const html = marked.parse(markdown, { gfm: true, breaks: false });
+  const safeHtml = DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'input', 'svg', 'math'],
+    FORBID_ATTR: ['style']
+  });
+  return `<article class="markdown-body chem-markdown">${safeHtml}${buildAnswerHtml(answerText, { singleQuestion: true })}</article>`;
+}
+
+window.renderMarkdownSolution = renderMarkdownSolution;
 
 const BOARD_MARKER_START = '@@BOARD@@';
 const BOARD_MARKER_END = '@@END@@';
@@ -1915,23 +1968,13 @@ function measureLineOverflow(inner, content) {
     || inner.parentElement?.clientWidth
     || 0;
   if (avail <= 0) return false;
+  const previousWhiteSpace = content.style.whiteSpace;
+  content.style.whiteSpace = 'nowrap';
   content.classList.add('plain-line-xcontent--measure');
   const needX = content.scrollWidth > avail + 1;
   content.classList.remove('plain-line-xcontent--measure');
+  content.style.whiteSpace = previousWhiteSpace;
   return needX;
-}
-
-function measureAtomicFormulaOverflow(inner, content) {
-  if (!inner || !content) return false;
-  const avail = inner.clientWidth || inner.getBoundingClientRect().width || 0;
-  if (avail <= 0) return false;
-  const formulas = content.querySelectorAll('.math-block, .plain-katex-nowrap, .katex-display');
-  return [...formulas].some((formula) => {
-    const target = formula.matches('.katex-display')
-      ? (formula.querySelector(':scope > .katex') || formula)
-      : formula;
-    return Math.max(target.scrollWidth || 0, target.getBoundingClientRect().width || 0) > avail + 1;
-  });
 }
 
 function lineHasLeakedLatex(el) {
@@ -1952,27 +1995,6 @@ function lineHasLeakedLatex(el) {
     return false;
   };
   return walk(el);
-}
-
-/**
- * 有算式就候選；是否橫滑只看出是否溢出。
- * 中文多寡只決定「整行鎖 nowrap」或「說明可換行、寬算式仍可橫滑」。
- */
-function isFormulaScrollCandidate(content) {
-  if (!content) return false;
-  return !!(
-    content.querySelector('.math-block, .katex-display, .plain-katex-nowrap')
-    || content.querySelector('.katex .mfrac, .katex .mrel, .katex .mbin')
-  );
-}
-
-function countDirectChinese(content) {
-  if (!content) return 0;
-  return ([...content.childNodes]
-    .filter((node) => node.nodeType === Node.TEXT_NODE)
-    .map((node) => node.textContent || '')
-    .join('')
-    .match(/[\u4e00-\u9fff]/g) || []).length;
 }
 
 function clearLineHorizontalScroll(inner, wrap, content) {
@@ -1996,17 +2018,14 @@ function applyLineHorizontalScroll(inner, wrap, content) {
     requestAnimationFrame(() => applyLineHorizontalScroll(inner, wrap, content));
     return;
   }
-  if (lineHasLeakedLatex(content) || !isFormulaScrollCandidate(content)) {
+  if (lineHasLeakedLatex(content)) {
     clearLineHorizontalScroll(inner, wrap, content);
     return;
   }
-  const sparseText = countDirectChinese(content) < 8;
-  const needX = sparseText
-    ? measureLineOverflow(inner, content)
-    : measureAtomicFormulaOverflow(inner, content);
+  const needX = measureLineOverflow(inner, content);
   wrap.classList.toggle('plain-line-xwrap--scroll', needX);
-  // 純算式：整行不換行橫滑；含說明：中文可換行，溢出算式仍靠同一 scroller 橫滑
-  wrap.classList.toggle('plain-line-xwrap--nowrap', needX && sparseText);
+  // 含算式的整句只要超寬，就由同一行承接，避免等號、答案與句點分離。
+  wrap.classList.toggle('plain-line-xwrap--nowrap', needX);
   inner.classList.toggle('plain-line-inner--xscroll', needX);
   if (needX) {
     wrap.setAttribute('role', 'region');
@@ -2017,7 +2036,7 @@ function applyLineHorizontalScroll(inner, wrap, content) {
     wrap.removeAttribute('tabindex');
     wrap.removeAttribute('aria-label');
   }
-  if (!needX) content.style.whiteSpace = 'normal';
+  content.style.whiteSpace = needX ? '' : 'normal';
   inner.classList.remove('plain-line--hscroll', 'plain-line--hscroll-math');
   inner.style.whiteSpace = 'normal';
 }
@@ -2038,13 +2057,9 @@ function setupHorizontalLineScroll(root) {
       });
     }, 0), { passive: true });
   }
-  const rows = root.querySelectorAll('.plain-line-inner');
+  const rows = root.querySelectorAll('.chem-markdown p, .chem-markdown .markdown-choice-body');
   rows.forEach((inner) => {
-    // Choice rendering already gives each option a .plain-line-inner.  Do not
-    // wrap its parent a second time: that made token-rich prose look like one
-    // unbreakable calculation line on narrow screens.
-    if (inner.classList.contains('choice-body') && inner.querySelector('.plain-line-inner')) return;
-    if (!inner.querySelector('.katex, .math-block, .math-unit-tail')) return;
+    if (!inner.classList.contains('markdown-choice-body') && !inner.querySelector('.katex, .math-block, .math-unit-tail')) return;
 
     inner.style.overflow = 'visible';
     inner.style.overflowX = '';
@@ -2164,7 +2179,7 @@ const LEAKED_LATEX_SNIPPET_RE = /\\(?:text|mathrm)\{[^{}]+\}(?:_\{?[^{}$]+\}?|\^
 
 function recoverLeakedLatexInDom(root) {
   if (!root) return;
-  root.querySelectorAll('.plain-line-inner, .choice-body').forEach((inner) => {
+  root.querySelectorAll('.chem-markdown p, .markdown-choice-body').forEach((inner) => {
     [...inner.childNodes].forEach((node) => {
       if (node.nodeType !== Node.TEXT_NODE) return;
       const t = node.textContent || '';
@@ -2189,7 +2204,7 @@ function recoverLeakedLatexInDom(root) {
 
 function recoverLeakedStashCases(root) {
   if (!root) return;
-  root.querySelectorAll('.plain-line-inner, .choice-body').forEach((inner) => {
+  root.querySelectorAll('.chem-markdown p, .markdown-choice-body').forEach((inner) => {
     inner.childNodes.forEach((node) => {
       if (node.nodeType !== Node.TEXT_NODE) return;
       const t = node.textContent || '';
@@ -2548,22 +2563,22 @@ function normalizePlainLineGaps(root) {
 
 const BOARD_KEEP_TEXT = /^(起始|變化|結果|移至左|移至右|完全反應|完全移至|完全向左|完全向右|再向左|再向右|後來體積|原來體積|初|平|平衡|右|左|初始)$/;
 
-function collectBoardPlainScopes(root) {
+function collectMarkdownScopes(root) {
   const scope = new Set();
   if (!root) return [];
   const tryAdd = (el) => {
-    if (el?.classList?.contains('ai-plain') && el.closest('.board, .board-reply, .followup-reply')) {
+    if (el?.classList?.contains('chem-markdown') && el.closest('.board, .board-reply, .followup-reply')) {
       scope.add(el);
     }
   };
   tryAdd(root);
-  root.querySelectorAll?.('.ai-plain').forEach(tryAdd);
+  root.querySelectorAll?.('.chem-markdown').forEach(tryAdd);
   return [...scope];
 }
 
 /** KaTeX 前：\mathrm{Cl}、\text{M} → 數學斜體字母；\text{起始} 等中文標籤保留 */
-function normalizeChemLatexInPlain(root) {
-  const scopes = collectBoardPlainScopes(root);
+function normalizeChemLatexInMarkdown(root) {
+  const scopes = collectMarkdownScopes(root);
   scopes.forEach((plain) => {
     const textNodes = [];
     const walker = document.createTreeWalker(plain, NodeFilter.SHOW_TEXT);
@@ -2589,7 +2604,7 @@ function normalizeChemLatexInPlain(root) {
 /** 中文與英數片段之間補齊一致空白，避免忽遠忽近 */
 function normalizeCjkLatinSpacing(root) {
   if (!root || typeof document === 'undefined') return;
-  const scopes = collectBoardPlainScopes(root);
+  const scopes = collectMarkdownScopes(root);
   const addBoundarySpace = (s) => String(s || '')
     .replace(/([\u4e00-\u9fff])([A-Za-z0-9]+(?:[./^_-][A-Za-z0-9]+)*)/g, '$1 $2')
     .replace(/([A-Za-z0-9]+(?:[./^_-][A-Za-z0-9]+)*)([\u4e00-\u9fff])/g, '$1 $2')
@@ -2612,24 +2627,14 @@ function normalizeCjkLatinSpacing(root) {
   });
 }
 
-function postProcessPlainBoard(root) {
+function postProcessMarkdownBoard(root) {
   if (!root) return;
-  if (typeof wrapKatexNowrap === 'function') wrapKatexNowrap(root);
-  if (typeof bindKatexNumericUnits === 'function') bindKatexNumericUnits(root);
-  if (typeof keepMathUnitTails === 'function') keepMathUnitTails(root);
-  if (typeof adjustPlainReactionTables === 'function') adjustPlainReactionTables(root);
   hideKatexErrors(root);
   recoverBareMhchemInDom(root);
   recoverLeakedLatexInDom(root);
   recoverLeakedStashCases(root);
   if (typeof MathNote !== 'undefined') MathNote.postProcessBoard(root);
   markAndSpaceNestedFractions(root);
-  normalizePlainLineGaps(root);
-  requestAnimationFrame(() => {
-    normalizePlainLineGaps(root);
-    requestAnimationFrame(() => normalizePlainLineGaps(root));
-  });
-  if (typeof stripStrayDollarsInPlain === 'function') stripStrayDollarsInPlain(root);
   normalizeCjkLatinSpacing(root);
   // This must run after KaTeX and NOTE post-processing: only the completed
   // inline structure can tell whether a whole calculation row needs one
@@ -2639,7 +2644,7 @@ function postProcessPlainBoard(root) {
 
 function doKaTeX(element) {
   if (!element || typeof renderMathInElement !== 'function') return;
-  normalizeChemLatexInPlain(element);
+  normalizeChemLatexInMarkdown(element);
   const { trust, macros } = getKatexOpts();
   const katexOpts = {
     throwOnError: false,
@@ -2657,5 +2662,5 @@ function doKaTeX(element) {
     ],
     ...katexOpts
   });
-  postProcessPlainBoard(element);
+  postProcessMarkdownBoard(element);
 }

@@ -644,29 +644,40 @@ body.is-lightbox-open {
 .answer-box {
   display: block;
   width: 100%;
-  margin-top: 12px;
-  padding: 10px 14px;
+  margin-top: 22px;
+  padding: 15px 16px;
   background: #EAF4FF;
-  border-left: 4px solid #3A7BD5;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-weight: 700;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-left: 3px solid #3A7BD5;
+  border-radius: 0 8px 8px 0;
   color: #1453B8;
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.65;
   text-align: left;
 }
 .answer-box--final {
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
+.answer-box-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  line-height: 1.35;
+}
+.answer-box-value { font-weight: 700; }
 .answer-box--multi {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 14px;
 }
-.answer-box-prefix {
+.answer-box-prefix,
+.answer-box--multi .answer-box-label {
   flex: 0 0 auto;
   font-weight: 700;
 }
+.answer-box--multi .answer-box-label { margin: 3px 0 0; }
 .answer-box-items {
   flex: 1 1 auto;
   min-width: 0;

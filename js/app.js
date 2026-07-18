@@ -35,7 +35,7 @@ function keySummary(key) {
 }
 
 
-let imgDataURLs = [], apiMessages = [], busy = false, lastMatchInput = '', lightboxIndex = 0;
+let imgDataURLs = [], apiMessages = [], busy = false, lightboxIndex = 0;
 // self-test compatibility markers: SolutionCore.prepare(reply) / setMainSolution(prepared.text)
 const detailMode = false;
 
@@ -104,24 +104,6 @@ function resetStoichiometryToggle() {
 function resetCalcCompactToggle() {
   const el = document.getElementById('calcCompactToggle');
   if (el) el.checked = false;
-}
-
-function appendPromptTags(qctx) {
-  let s = String(qctx || '').trim();
-  const addTag = (name) => {
-    const tag = (typeof PromptCompose !== 'undefined' && PromptCompose.getTag)
-      ? PromptCompose.getTag(name)
-      : '';
-    if (!tag) return;
-    s = s ? `${tag}\n${s}` : tag;
-  };
-  if (isForceStoichiometry()) addTag('stoichiometry');
-  if (isCalcCompact()) addTag('calc-compact');
-  return s;
-}
-
-function appendStoichiometryTag(qctx) {
-  return appendPromptTags(qctx);
 }
 
 function initSolveOptionToggles() {
@@ -291,7 +273,6 @@ function removeImage(index) {
   if (i < 0 || i >= imgDataURLs.length) return;
   imgDataURLs.splice(i, 1);
   apiMessages = [];
-  lastMatchInput = '';
   refreshPreviewUI();
   clearThreads();
   document.getElementById('chatInputWrap')?.classList.remove('show');
@@ -336,7 +317,7 @@ function addImage(file) {
 }
 
 function clearAll() {
-  imgDataURLs = []; apiMessages = []; lastMatchInput = '';
+  imgDataURLs = []; apiMessages = [];
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('answerInput').value = '';
@@ -389,18 +370,6 @@ function scrollBoard(el) {
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
 
-/**
- * 將所有需 AI 判斷的品質問題合併成一次修正，避免 NOTE、板書、答案彼此
- * 接力重寫而增加 token、延遲與內容漂移。本地可安全修正的 LaTeX 不會進來。
- */
-function getQualityCheckText(reply) {
-  const raw = String(reply || '');
-  if (/@@BOARD@@/.test(raw) && typeof boardDocToCheckText === 'function') {
-    return boardDocToCheckText(raw) || raw;
-  }
-  return raw;
-}
-
 function clearSolveValidation() {
   const el = document.getElementById('solveValidation');
   if (!el) return;
@@ -447,13 +416,6 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
     lines.push('計算精簡：' + calc.note);
     warning = warning || calc.ok === false;
   }
-  if (!autoFallback && typeof window.NoteCheck?.check === 'function') {
-    const noteReport = window.NoteCheck.check(getQualityCheckText(reply));
-    lines.push(noteReport.ok
-      ? `NOTE：${noteReport.htmlDataCount} 處` 
-      : `NOTE：待補 ${noteReport.issues.slice(0, 2).join('；')}`);
-    warning = warning || !noteReport.ok;
-  }
   if (solveOpts?.solveSpec?.enabled && typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply) {
     const issues = window.SolveSpec.checkReply(solveOpts.solveSpec, reply);
     const ok = !issues.length;
@@ -480,352 +442,11 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   el.classList.toggle('is-warning', warning);
 }
 
-function collectQualityReport(reply, refAnswer, genOpts = {}) {
-  const questionCtx = String(genOpts.questionCtx || '');
-  const raw = String(reply || '');
-  const autoFallback = genOpts.formatRoute?.origin === 'auto'
-    && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(raw);
-  const check = window.checkSolutionBoardStyle;
-  let styleIssues = typeof check === 'function'
-    ? check(raw, typeof getLastDatabaseRefSolution === 'function' ? getLastDatabaseRefSolution() : '', questionCtx)
-    : [];
-  const forceStoich = (isForceStoichiometry() || !!genOpts.forceStoichiometry)
-    || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(questionCtx));
-  if (forceStoich && !autoFallback && typeof window.checkStoichiometryTableRequired === 'function') {
-    styleIssues = styleIssues.concat(window.checkStoichiometryTableRequired(raw, '', questionCtx));
-  }
-  styleIssues = [...new Set(styleIssues)].slice(0, 6);
-  const noteReport = !autoFallback && typeof NoteCheck !== 'undefined' && NoteCheck.check
-    ? NoteCheck.check(getQualityCheckText(raw))
-    : null;
-  const referenceMismatch = !!(refAnswer && !genOpts.refAnswerSkipped
-    && typeof window.answersMatch === 'function' && !window.answersMatch(raw, refAnswer));
-  const solveSpecIssues = !autoFallback && typeof window.SolveSpec !== 'undefined' && window.SolveSpec.checkReply
-    ? window.SolveSpec.checkReply(genOpts.solveSpec, raw).slice(0, 6)
-    : [];
-  return { styleIssues, noteReport, referenceMismatch, solveSpecIssues };
-}
-
-function buildQualityFixUserText(report, refAnswer) {
-  const lines = [
-    '【單次局部修正】只補列出的明確缺漏；不可重新推導、改答案、變更題目範圍或改寫其他段落。輸出可直接替換的完整版本，但未點名段落須保持原文。',
-    '一律輸出傳統 LaTeX 詳解；禁止 @@BOARD@@、@@END@@、JSON 與 BoardDoc 欄位。所有 `$` 必須成對，公式內容須為完整 LaTeX。',
-  ];
-  if (report.styleIssues.length) lines.push('【板書／LaTeX】' + report.styleIssues.join('；'));
-  if (report.noteReport && !report.noteReport.ok && !report.noteReport.skipped) {
-    lines.push('【NOTE】' + report.noteReport.issues.join('；')
-      + '。只補題目給定量、第一次中間量、換算因子與分式／乘積的不同語意因子；note 必須具體，勿改答案。');
-  }
-  if (report.solveSpecIssues?.length) {
-    lines.push('【已啟用題型規格】' + report.solveSpecIssues.join('；') + ' 請補齊指定步驟，其餘正確內容保持不變。');
-  }
-  return lines.join('\n');
-}
-
-async function ensureQualityReply(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
-  const report = collectQualityReport(reply, refAnswer, genOpts);
-  const needsNote = report.noteReport && !report.noteReport.ok && !report.noteReport.skipped;
-  const hasTargetedOmission = needsNote || report.solveSpecIssues?.length
-    || report.styleIssues.some((issue) => /缺少|缺漏|未寫|未顯示|未使用|須補/.test(String(issue)));
-  if (!hasTargetedOmission) return reply;
-  console.warn('[品質檢查] 單次修正：', report);
-  try {
-    const { text: fixed } = await callAPI(cfg, [
-      ...apiMessages,
-      { role: 'assistant', content: reply },
-      { role: 'user', content: buildQualityFixUserText(report, refAnswer) }
-    ], systemText, {
-      ...genOpts,
-      maxOutputTokens: Math.min(Number(genOpts.maxOutputTokens) || 4096, 4096),
-      maxContinue: 0,
-      temperature: 0.2,
-      _qualityFixed: 1
-    });
-    if (fixed) return fixed;
-  } catch (err) {
-    console.warn('[品質檢查] 單次修正失敗', err);
-  }
-  return reply;
-}
-
-/**
- * 主詳解的最後一道閘門：每一份修正版都重新驗證。若兩次修正後仍不合格，
- * 呼叫端只能顯示檢查失敗訊息，不能把原始詳解放進畫面。
- */
-function collectFinalOutputReport(reply, refAnswer, genOpts = {}) {
-  const autoFallback = genOpts.formatRoute?.origin === 'auto'
-    && /題目資訊不足|資料不足|圖片.*(?:不清|模糊)|無法辨識/.test(String(reply || ''));
-  const gate = typeof window.SolutionOutputGate?.check === 'function'
-    ? window.SolutionOutputGate.check(reply, {
-      requireRenderer: true,
-      requireNotes: !autoFallback
-    })
-    : {
-      ok: false,
-      text: String(reply || ''),
-      issues: ['輸出檢查器未載入，不能輸出詳解。']
-    };
-  const quality = collectQualityReport(gate.text, refAnswer, genOpts);
-  const criticalStyleIssues = quality.styleIssues.filter((issue) =>
-    /回覆末尾需要|化學式|LaTeX|公式格式|未包在/.test(String(issue))
-  );
-  const issues = [...new Set([
-    ...(gate.issues || []),
-    ...criticalStyleIssues,
-    ...(quality.solveSpecIssues || [])
-  ])];
-  return {
-    ok: issues.length === 0,
-    text: gate.text,
-    issues,
-    gate,
-    quality
-  };
-}
-
-function buildFinalOutputFixText(report, refAnswer) {
-  const gateText = typeof window.SolutionOutputGate?.buildFixUserText === 'function'
-    ? window.SolutionOutputGate.buildFixUserText(report)
-    : '【輸出前檢查未通過】請修正所有公式與 NOTE 缺漏。';
-  const qualityText = buildQualityFixUserText(report.quality || {
-    styleIssues: [],
-    noteReport: report.gate?.noteReport || null,
-    solveSpecIssues: []
-  }, refAnswer);
-  return gateText + '\n\n' + qualityText;
-}
-
-async function ensureVerifiedMainSolution(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
-  let current = String(reply || '');
-  let report = collectFinalOutputReport(current, refAnswer, genOpts);
-  const maxFix = 2;
-  for (let attempt = 0; attempt <= maxFix; attempt += 1) {
-    if (report.ok) return { ok: true, text: report.text, report, attempts: attempt };
-    if (attempt === maxFix) break;
-    console.warn('[輸出閘門] 詳解未通過，要求完整修正：', report.issues);
-    try {
-      const { text: fixed } = await callAPI(cfg, [
-        ...apiMessages,
-        { role: 'assistant', content: current },
-        { role: 'user', content: buildFinalOutputFixText(report, refAnswer) }
-      ], systemText, {
-        ...genOpts,
-        maxOutputTokens: Math.min(Number(genOpts.maxOutputTokens) || 4096, 4096),
-        maxContinue: 0,
-        temperature: 0.15,
-        _outputGateFix: attempt + 1
-      });
-      if (!fixed) break;
-      current = fixed;
-      report = collectFinalOutputReport(current, refAnswer, genOpts);
-    } catch (err) {
-      console.warn('[輸出閘門] 修正重試失敗', err);
-      break;
-    }
-  }
-  // 公式／化學式／NOTE 已通過時，題型規格的非關鍵提示不應阻擋正常詳解。
-  // 直接採用最後一次已正規化內容，避免畫面顯示「未通過檢查」假錯誤。
-  const criticalStyleIssues = (report.quality?.styleIssues || [])
-    .filter((issue) => /回覆末尾需要|化學式|LaTeX|公式格式|未包在/.test(String(issue)));
-  if (report.gate?.ok && criticalStyleIssues.length === 0) {
-    return { ok: true, text: report.gate.text, report, attempts: maxFix };
-  }
-  return { ok: false, text: '', report, attempts: maxFix };
-}
-
-function buildOutputGateFailureMessage(report) {
-  const details = (report?.issues || []).slice(0, 3).join('；') || '格式、化學式或 NOTE 檢查未通過';
-  return '【詳解未輸出】\n系統已阻擋未通過檢查的內容，請重新作答。\n檢查項目：' + details + '\n@@ANSWER@@請重新作答';
-}
-
-function getChoiceCompletenessIssues(reply, questionCtx) {
-  if (typeof window.checkChoiceAnalysisCompleteness !== 'function') return [];
-  return window.checkChoiceAnalysisCompleteness(reply, questionCtx);
-}
-
-function attachChoiceCompletenessError(reply, issues) {
-  const detail = (issues || []).join('；');
-  return `【選項完整性錯誤】${detail}\n系統未補寫未知的選項內容；請提供完整題目或重新辨識後再解。\n\n${String(reply || '')}`;
-}
-
-/** One targeted retry, then surface an explicit integrity error instead of inventing a missing option. */
-async function ensureChoiceCompletenessReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
-  const questionCtx = String(genOpts.questionCtx || '');
-  const issues = getChoiceCompletenessIssues(reply, questionCtx);
-  if (!issues.length) return reply;
-  if (genOpts._choiceCompletenessFixed) return attachChoiceCompletenessError(reply, issues);
-  try {
-    const { text: fixed } = await callAPI(cfg, [
-      ...apiMessages,
-      { role: 'assistant', content: reply },
-      { role: 'user', content: [
-        '【修正｜選項完整性】' + issues.join('；'),
-        '只能依原題已辨識的選項補齊遺漏的逐項分析；不可猜測、杜撰或改寫未知選項內容。',
-        '題目確有 (A)～(E) 時，每項必須獨立一行，並使 @@ANSWER@@ 的每個選項都能對應到該行判斷。',
-        '若原題選項本身看不清，請明確寫「選項資訊不足，無法完成逐項分析」，不要假造內容。保留其他正確推導與 @@ANSWER@@。'
-      ].join('\n') }
-    ], systemText, {
-      ...genOpts,
-      maxContinue: 0,
-      temperature: 0.15,
-      _choiceCompletenessFixed: true
-    });
-    if (fixed && !getChoiceCompletenessIssues(fixed, questionCtx).length) return fixed;
-    return attachChoiceCompletenessError(fixed || reply, getChoiceCompletenessIssues(fixed || reply, questionCtx));
-  } catch (err) {
-    console.warn('[選項完整性] 修正失敗', err);
-    return attachChoiceCompletenessError(reply, issues);
-  }
-}
-
-/** 化學計量表強制：參考答案／H₂O 修正後再檢，缺表則 API 重寫 */
-async function ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
-  const questionCtx = String(genOpts.questionCtx || '');
-  const forceStoich = !!genOpts.forceStoichiometry || isForceStoichiometry()
-    || (typeof window.isForceStoichiometryContext === 'function' && window.isForceStoichiometryContext(questionCtx));
-  if (!forceStoich) return reply;
-
-  const check = typeof window.checkStoichiometryTableRequired === 'function'
-    ? window.checkStoichiometryTableRequired
-    : null;
-  const buildFix = typeof window.buildStoichiometryTableFixUserText === 'function'
-    ? window.buildStoichiometryTableFixUserText
-    : typeof window.buildBoardStyleFixUserText === 'function'
-      ? window.buildBoardStyleFixUserText
-      : null;
-  if (!check || !buildFix) return reply;
-
-  const refText = typeof getLastDatabaseRefSolution === 'function'
-    ? getLastDatabaseRefSolution()
-    : '';
-  let issues = check(reply, refText, questionCtx);
-  if (!issues.length) return reply;
-
-  if (genOpts._stoichTableFixed) {
-    toast('化學計量表可能未完全符合');
-    return reply;
-  }
-
-  console.warn('[化學計量表] 缺變化表：', issues);
-  const fixMessages = [
-    ...apiMessages,
-    { role: 'assistant', content: reply },
-    { role: 'user', content: buildFix(issues, questionCtx) }
-  ];
-  try {
-    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-      ...genOpts,
-      maxContinue: 0,
-      temperature: 0.3,
-      _stoichTableFixed: 1
-    });
-    if (fixed && !check(fixed, refText, questionCtx).length) return fixed;
-    if (fixed) {
-      if (check(fixed, refText, questionCtx).length) toast('化學計量表可能未完全符合');
-      return fixed;
-    }
-  } catch (err) {
-    console.warn('[化學計量表] 修正失敗', err);
-  }
-  toast('化學計量表可能未完全符合');
-  return reply;
-}
-
-/** 參考答案／NOTE 修正後，再檢 (A) H₂O mL；必要時 API 重寫或本地 patch */
-async function ensureLiquidWaterOptionReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
-  const check = typeof window.checkLiquidWaterOptionConsistency === 'function'
-    ? window.checkLiquidWaterOptionConsistency
-    : null;
-  const buildFix = typeof window.buildBoardStyleFixUserText === 'function'
-    ? window.buildBoardStyleFixUserText
-    : null;
-  const patch = typeof window.patchLiquidWaterOptionA === 'function'
-    ? window.patchLiquidWaterOptionA
-    : null;
-  if (!check) return reply;
-
-  const questionCtx = String(genOpts.questionCtx || '');
-  let issues = check(reply, questionCtx);
-  if (!issues.length) return reply;
-
-  if (!genOpts._liquidWaterFixed && buildFix) {
-    const fixMessages = [
-      ...apiMessages,
-      { role: 'assistant', content: reply },
-      { role: 'user', content: buildFix(issues) }
-    ];
-    try {
-      const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-        ...genOpts,
-        maxContinue: 0,
-        temperature: 0.3,
-        _liquidWaterFixed: 1
-      });
-      if (fixed && !check(fixed, questionCtx).length) return fixed;
-      if (fixed) reply = fixed;
-    } catch (err) {
-      console.warn('[H₂O選項] API 修正失敗', err);
-    }
-  }
-
-  if (patch && check(reply, questionCtx).length) {
-    console.warn('[H₂O選項] 本地 patch (A)');
-    reply = patch(reply, questionCtx);
-  }
-  return reply;
-}
-
-/** 參考答案僅作本機複核，不可用它自動重寫完整詳解。 */
-async function ensureReferenceAnswerReply(cfg, apiMessages, systemText, reply, refAnswer, genOpts = {}) {
-  if (refAnswer && !genOpts.refAnswerSkipped && typeof window.answersMatch === 'function'
-    && !window.answersMatch(reply, refAnswer)) {
-    console.warn('[參考答案] 與 AI 答案不一致，保留原詳解供人工複核');
-  }
-  return reply;
-}
-
-async function ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, genOpts = {}) {
-  const check = typeof window.checkFollowUpBoardStyle === 'function'
-    ? window.checkFollowUpBoardStyle
-    : null;
-  const buildFix = typeof window.buildFollowUpStyleFixUserText === 'function'
-    ? window.buildFollowUpStyleFixUserText
-    : null;
-  if (!check || !buildFix || genOpts._followUpStyleFixed) return reply;
-
-  const questionCtx = String(genOpts.questionCtx || genOpts.followText || '');
-  const issues = check(reply, questionCtx);
-  if (!issues.length) return reply;
-
-  const fixMessages = [
-    ...apiMessages,
-    { role: 'assistant', content: reply },
-    { role: 'user', content: buildFix(issues) }
-  ];
-  try {
-    const { text: fixed } = await callAPI(cfg, fixMessages, systemText, {
-      ...genOpts,
-      maxContinue: 0,
-      _followUpStyleFixed: true
-    });
-    if (fixed && !check(fixed, questionCtx).length) return fixed;
-    if (fixed) return fixed;
-  } catch (err) {
-    console.warn('追問板書修正重試失敗', err);
-  }
-  toast('追問可能未符合板書或混成規定');
-  return reply;
-}
-
-function updateDatabaseStatusLine() {
-  /* 頂部狀態列已移除 */
-}
-
 function renderAiInto(container, text, options = {}) {
   const previousVisibility = container?.style?.visibility || '';
   if (container?.style) container.style.visibility = 'hidden';
   try {
-    if (typeof render !== 'function' || typeof doKaTeX !== 'function') {
+    if (typeof renderMarkdownSolution !== 'function' || typeof doKaTeX !== 'function') {
       throw new Error('render.js 未載入，請強制重新整理頁面');
     }
     if (typeof window.__RENDER_BUILD === 'undefined') {
@@ -839,38 +460,15 @@ function renderAiInto(container, text, options = {}) {
       if (!compiled.ok) throw new Error(`SolutionDocument 驗證失敗：${compiled.validation.errors.slice(0, 3).join('；')}`);
       body = compiled.text;
       compiledNotes = compiled.notes;
-    } else if (!options.skipLegacyGate && typeof SolutionFormat !== 'undefined' && SolutionFormat.format) {
-      const formatted = SolutionFormat.format(body);
-      body = formatted.text;
-      if (!formatted.report.ok) {
-        throw new Error('詳解格式檢查未通過：' + (formatted.report.errors || []).slice(0, 3).join('；'));
-      }
-      const chemicalIssues = typeof window.SolutionOutputGate?.chemicalIssues === 'function'
-        ? window.SolutionOutputGate.chemicalIssues(body)
-        : [];
-      if (chemicalIssues.length) {
-        throw new Error('化學式檢查未通過：' + chemicalIssues.slice(0, 3).join('；'));
-      }
     }
-    if (!options.skipLegacyGate && typeof normalizeBareCeTokens === 'function') body = normalizeBareCeTokens(body);
     if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
     if (typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
       body = SmilesDraw.preprocess(body);
     }
-    const board = typeof tryRenderBoardDoc === 'function' ? tryRenderBoardDoc(body) : null;
-    if (board?.html) {
-      window.__LAST_RENDER_PIPELINE = 'board';
-      if (!board.validation.ok) {
-        console.warn('[BoardDoc] 部分驗證警告，仍編譯顯示', board.validation.errors);
-      }
-      container.innerHTML = board.html;
-    } else {
-      const coreReady = options.skipLegacyGate && typeof renderCompiledSolution === 'function';
-      window.__LAST_RENDER_PIPELINE = coreReady ? 'core' : 'legacy';
-      container.innerHTML = coreReady ? renderCompiledSolution(body) : render(body);
-    }
+    window.__LAST_RENDER_PIPELINE = 'markdown';
+    container.innerHTML = renderMarkdownSolution(body);
     doKaTeX(container);
     if (container?.style) container.style.visibility = previousVisibility;
     if (compiledNotes.length && typeof SolutionDocument !== 'undefined') {
@@ -900,29 +498,13 @@ function renderAiInto(container, text, options = {}) {
   } catch (err) {
     if (container?.style) container.style.visibility = previousVisibility;
     console.error('詳解渲染失敗', err);
-    container.innerHTML = `<div class="ai-plain"><div class="plain-line"><div class="plain-line-inner" style="color:#a33">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</div></div></div>`;
+    container.innerHTML = `<article class="markdown-body chem-markdown"><p class="solution-render-error">詳解渲染失敗：${esc(String(err.message || err))}。請 Ctrl+F5 重新整理後再試。</p></article>`;
   }
 }
 
 function setMainSolution(text, options = {}) {
   const el = document.getElementById('mainSolution');
-  let output = text;
-  const raw = String(text || '').trim();
-  const isError = !raw || raw.startsWith('❌') || raw.startsWith('【詳解未輸出】');
-  // Keep a synchronous guard at the last caller before DOM insertion. The
-  // async output gate above is authoritative for retries; this guard covers
-  // stale callers and prevents a malformed fallback from ever being painted.
-  if (!options.skipOutputGate && !isError && typeof window.SolutionOutputGate?.check === 'function') {
-    const report = window.SolutionOutputGate.check(text, {
-      requireRenderer: true,
-      requireNotes: false
-    });
-    if (!report.ok) {
-      console.error('[輸出閘門] DOM 插入前再次阻擋：', report.issues || []);
-      output = buildOutputGateFailureMessage(report);
-    }
-  }
-  renderAiInto(el, output, options);
+  renderAiInto(el, text, options);
   scrollBoard(el);
 }
 
@@ -1004,27 +586,9 @@ async function startSolve() {
   clearSolveValidation();
   setBusy(true);
 
-  let autoHints = '';
-  let matchInput = '';
-
   try {
-    if (textOnly) {
-      matchInput = textQuestion;
-      lastMatchInput = matchInput;
-      if (isDatabaseEnabled()) {
-        setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
-        await resolveDatabaseMatch(matchInput, { force: true });
-      }
-    } else {
+    if (!textOnly) {
       setBadge('準備題目中…', '#F9F3E6', '#8A6D3B');
-      // 圖片直接交給同一次解題請求，不先額外呼叫 Gemini 做題眼辨識。
-      matchInput = textQuestion;
-      lastMatchInput = matchInput;
-
-      if (isDatabaseEnabled() && matchInput) {
-        setBadge('配對資料庫中…', '#F9F3E6', '#8A6D3B');
-        await resolveDatabaseMatch(matchInput, { force: true });
-      }
     }
 
     setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
@@ -1032,14 +596,14 @@ async function startSolve() {
       ? extractExplicitScopePhrase(textQuestion)
       : '';
     const formatRoute = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.route
-      ? window.SolveSpec.route(getSolveSpec(), matchInput || textQuestion, {
+      ? window.SolveSpec.route(getSolveSpec(), textQuestion, {
         forceStoichiometry: isForceStoichiometry(),
         forceCalcCompact: isCalcCompact()
       })
       : { id: 'plain', origin: 'auto', solveSpec: getSolveSpec(), forceStoichiometry: isForceStoichiometry(), forceCalcCompact: isCalcCompact() };
     const solveSpec = formatRoute.solveSpec;
     const refConflict = (refAnswer && typeof window.checkObviousRefAnswerConflict === 'function')
-      ? window.checkObviousRefAnswerConflict(matchInput || textQuestion, refAnswer)
+      ? window.checkObviousRefAnswerConflict(textQuestion, refAnswer)
       : { conflict: false };
     if (refConflict.conflict) {
       console.warn('[參考答案]', refConflict.reason || '與題意明顯不符');
@@ -1071,26 +635,11 @@ async function startSolve() {
       solveOpts.refAnswerGuided ? solveOpts.refAnswer : '',
       solveOpts
     );
-    const qctxRules = [matchInput, textQuestion, autoHints].filter(Boolean).join(' ');
-    let teachingRules = { userBlock: '', systemAddon: '', ids: [] };
-    if (typeof resolveTeachingRulesForSolve === 'function') {
-      try {
-        teachingRules = await resolveTeachingRulesForSolve(qctxRules);
-      } catch (err) {
-        console.warn('教學規定載入失敗', err);
-      }
-    }
-    const dbUserBlock = await buildDatabaseUserBlock(matchInput);
-    const dbMatch = typeof getLastDatabaseMatch === 'function' ? getLastDatabaseMatch() : null;
-    if (dbMatch && teachingRules.ids?.length) {
-      dbMatch.teachingRuleIds = teachingRules.ids;
-    }
     const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
       ? window.SolveSpec.buildActiveBlock(formatRoute) : '';
-    const fullUserText = [userText, teachingRules.userBlock, dbUserBlock]
-      .filter(Boolean).join('\n\n');
+    const fullUserText = [userText, advancedBlock].filter(Boolean).join('\n\n');
     if (typeof window.SolutionCore === 'undefined') throw new Error('solution-core.js 未載入');
-    const systemText = window.SolutionCore.buildSystem(teachingRules.systemAddon, advancedBlock);
+    const systemText = window.SolutionCore.buildSystem();
 
     if (textOnly) {
       apiMessages = [{
@@ -1120,100 +669,13 @@ async function startSolve() {
         text: { mimeType: 'APPLICATION_JSON', schema: window.SolutionCore.SCHEMA }
       }
     });
-    let prepared = window.SolutionCore.prepare(reply);
-    const tableIssues = solveOpts.forceStoichiometry && typeof window.checkStoichiometryTableRequired === 'function'
-      ? window.checkStoichiometryTableRequired(prepared.text, '', fullUserText)
-      : [];
-    if (tableIssues.length) {
-      const fixed = await ensureStoichiometryTableReply(cfg, apiMessages, systemText, reply, {
-        forceStoichiometry: true,
-        questionCtx: fullUserText,
-        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: window.SolutionCore.SCHEMA } }
-      });
-      const fixedPrepared = window.SolutionCore.prepare(fixed);
-      const tableBlocks = fixedPrepared.document?.blocks?.filter((block) => block.type === 'chemical_equation' || block.type === 'reaction_table') || [];
-      if (fixedPrepared.ok && prepared.document && tableBlocks.some((block) => block.type === 'reaction_table')) {
-        const mergedDocument = {
-          ...prepared.document,
-          blocks: [
-            ...tableBlocks,
-            ...prepared.document.blocks.filter((block) => block.type !== 'chemical_equation' && block.type !== 'reaction_table')
-          ]
-        };
-        prepared = { ...prepared, document: mergedDocument, text: window.SolutionCore.compile(mergedDocument) };
-      }
-    }
-    if (solveOpts.forceStoichiometry && prepared.document?.blocks?.some((block) => block.type === 'reaction_table')) {
-      const blocks = prepared.document.blocks;
-      const tableBlocks = blocks.filter((block) => block.type === 'chemical_equation' || block.type === 'reaction_table');
-      const detailBlocks = blocks.filter((block) => block.type !== 'chemical_equation' && block.type !== 'reaction_table');
-      const orderedDocument = { ...prepared.document, blocks: [...tableBlocks, ...detailBlocks] };
-      prepared = { ...prepared, document: orderedDocument, text: window.SolutionCore.compile(orderedDocument) };
-    }
-    if (!prepared.ok) console.warn('[SolutionCore] JSON 解析失敗，使用原始回覆顯示');
+    const prepared = window.SolutionCore.prepare(reply);
+    if (!prepared.ok) throw new Error('AI 詳解格式不完整，請重新作答。');
     reply = prepared.text;
-    const noteRules = window.NoteRules;
-    if (noteRules && typeof noteRules.ensureDensityReply === 'function') {
-      setBadge('補上 NOTE 中...', '#F9F3E6', '#8A6D3B');
-      reply = await noteRules.ensureDensityReply(callAPI, cfg, apiMessages, systemText, reply, {
-        maxNoteFix: 1,
-        noteFixTemperature: 0.15,
-        noteFixMaxOutputTokens: 6144,
-        timeoutMs: 120000,
-        questionCtx: fullUserText,
-        matchInput
-      });
-    }
     apiMessages.push({ role: 'assistant', content: reply });
-    setMainSolution(reply, { skipOutputGate: true, skipLegacyGate: true });
+    setMainSolution(reply);
     if (advancedBlock) renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
-    if (!isDatabaseEnabled()) {
-      const ruleNote = teachingRules.ids?.length
-        ? teachingRules.ids.join('、')
-        : (typeof getTeachingRuleIdsFromLastMatch === 'function' ? getTeachingRuleIdsFromLastMatch().join('、') : '');
-      setBadge(ruleNote ? `詳解完成（規定：${ruleNote}）` : '詳解完成（純提示詞）', '#EAF2ED', '#3D6B52');
-    } else {
-      const noteBadgeSuffix = '';
-      const match = getLastDatabaseMatch();
-      if (match?.tier && match.tier < 3) {
-        const verify = verifyAnswerLocally(reply, match.answerKey);
-        let badgeNote = (match.isChapterRoutine || match.isChapterSo) && match.soLabel
-          ? `章節套路：${match.soLabel}`
-          : (match.solutionOnly
-            ? `純詳解命中：${match.entryId}`
-            : `${match.tierLabel}：${match.entryId}`);
-        if (verify.note) badgeNote += verify.ok === false ? `（${verify.note}）` : '';
-        if (match?.teachingRuleIds?.length) {
-          badgeNote += `（規定：${match.teachingRuleIds.join('、')}）`;
-        }
-        setBadge(appendSolveModeTag(badgeNote + noteBadgeSuffix), match.tier === 1 ? '#E8F0FA' : '#F9F3E6', match.tier === 1 ? '#2E5C8A' : '#8A6D3B');
-        if (verify.ok === false) toast(verify.note);
-        else if (match.tier === 1) {
-          toast(match.isChapterRoutine && match.soLabel
-            ? `已命中章節套路：${match.soLabel}`
-            : (match.solutionOnly
-              ? `已命中純詳解範例：${match.entryId}`
-              : `已命中資料庫：${match.entryId}`));
-        }
-      }
-      if (!match?.tier || match.tier >= 3) {
-        const conceptNote = match?.conceptLabels?.length
-          ? `（概念參考：${match.conceptLabels.slice(0, 3).join('、')}）`
-          : '';
-        const styleNote = match?.styleEntryIds?.length
-          ? `（風格參考：${match.styleEntryIds.join('、')}）`
-          : '';
-        const ruleNote = match?.teachingRuleIds?.length
-          ? `（規定：${match.teachingRuleIds.join('、')}）`
-          : '';
-        setBadge(appendSolveModeTag(`未命中資料庫${styleNote}${conceptNote}${ruleNote}${noteBadgeSuffix}`), '#F9EDED', '#9B4444');
-        toast(autoHints
-          ? `未命中精準配對（已辨識：${autoHints.slice(0, 40)}…）${conceptNote}`
-          : (conceptNote || '未命中資料庫：請確認題目已登記並執行同步資料庫'));
-      } else if (autoHints && !textQuestion) {
-        toast(`已自動配對：${autoHints.slice(0, 50)}${autoHints.length > 50 ? '…' : ''}`);
-      }
-    }
+    setBadge('詳解完成', '#EAF2ED', '#3D6B52');
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
   } catch (err) {
     console.error('解題失敗', err);
@@ -1234,75 +696,24 @@ async function sendFollowUp() {
   setBusy(true);
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   try {
-    const supplementHint = document.getElementById('textQuestionInput')?.value.trim() || '';
-    const explicitScope = typeof extractExplicitScopePhrase === 'function'
-      ? extractExplicitScopePhrase(text)
-      : '';
-    const scopeInput = explicitScope
-      ? [supplementHint, text].filter(Boolean).join(' ')
-      : supplementHint;
-    const combinedInput = [lastMatchInput, supplementHint, text].filter(Boolean).join(' ');
-    updateSolveHeadingMode(scopeInput);
-    const followOpts = {
-      scopeInput,
-      textOnly: !imgDataURLs.length,
-      hasImage: !!imgDataURLs.length,
-      detailed: detailMode,
-      followUp: true,
-      forceStoichiometry: isForceStoichiometry(),
-      forceCalcCompact: isCalcCompact()
-    };
-
-    let rulesBlock = '';
-    let teachingRulesSystemAddon = '';
-    const needsChemRules = /混成|VSEPR|sp[\^²³]?|共振|價電子|路易斯|八隅體|結構式|畫.*結構/.test(text);
-    if (needsChemRules && typeof resolveTeachingRulesForSolve === 'function') {
-      try {
-        const mainSolution = typeof getMainSolution === 'function' ? getMainSolution() : '';
-        const resolved = await resolveTeachingRulesForSolve(combinedInput, {
-          mainSolution,
-          includeMainSolution: true
-        });
-        rulesBlock = resolved.userBlock;
-        teachingRulesSystemAddon = resolved.systemAddon;
-      } catch (err) {
-        console.warn('追問教學規定載入失敗', err);
-      }
-    } else if (needsChemRules && typeof buildTeachingRulesUserBlock === 'function') {
-      try {
-        rulesBlock = await buildTeachingRulesUserBlock(combinedInput, { includeMainSolution: true });
-      } catch (err) {
-        console.warn('追問教學規定載入失敗', err);
-      }
-    }
     const followUserText = typeof window.buildFollowUpUserText === 'function'
-      ? window.buildFollowUpUserText(text, {
-        rulesBlock,
-        detailed: detailMode
-      })
+      ? window.buildFollowUpUserText(text)
       : text;
 
     apiMessages.push({ role: 'user', content: followUserText });
     const systemText = typeof window.getSystemPromptForFollowUp === 'function'
-      ? await window.getSystemPromptForFollowUp(text, { teachingRulesAddon: teachingRulesSystemAddon })
-      : await getSystemPromptForSolve(combinedInput, {
-        ...followOpts,
-        teachingRulesAddon: teachingRulesSystemAddon
-      });
+      ? await window.getSystemPromptForFollowUp(text)
+      : await getSystemPromptForSolve(text);
     const genOpts = {
       temperature: 0.25,
       maxOutputTokens: 4096,
       timeoutMs: 90000,
       maxContinue: 1
     };
-    let { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
-    reply = await ensureFollowUpBoardStyleReply(cfg, apiMessages, systemText, reply, { ...genOpts, questionCtx: text, followText: text });
+    const { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
     apiMessages.push({ role: 'assistant', content: reply });
     fillFollowupReply(block, reply);
-    const ruleNote = typeof getLastTeachingRuleMatch === 'function'
-      ? (getLastTeachingRuleMatch() || []).map(r => r.id).join('、')
-      : '';
-    setBadge(appendSolveModeTag(ruleNote ? `追問完成（規定：${ruleNote}）` : '追問完成'), '#EAF2ED', '#3D6B52');
+    setBadge('追問完成', '#EAF2ED', '#3D6B52');
   } catch (err) {
     apiMessages.pop();
     fillFollowupReply(block, `❌ ${formatError(err.message)}`);
@@ -1339,25 +750,4 @@ updateSolveButtonState();
 initSolveOptionToggles();
 updateSolveSpecStatus();
 if (!cfg.key) setTimeout(openModal, 400);
-if (typeof PromptCompose !== 'undefined' && PromptCompose.preload) {
-  PromptCompose.preload().catch((err) => console.warn('[PromptCompose] preload', err));
-}
-
-(async () => {
-  const st = await getDatabaseStatus();
-  updateDatabaseStatusLine(st);
-  if (st.ok) {
-    console.log(`題庫：${st.loaded}/${st.total} 則，風格參考 ${st.styleRefs || 0} 則，含 meta ${st.withMeta || 0} 則`);
-    const errs = (st.formatIssues || []).filter(f => f.level === 'error');
-    if (errs.length) {
-      console.warn('題庫格式錯誤：', errs);
-      toast(`題庫有 ${errs.length} 檔格式錯誤，請修正 YAML 後重新同步`);
-    }
-  } else if (st.reason === 'fetch_failed') {
-    toast('題庫讀取失敗，已用內建備援');
-  }
-  if (typeof PLAIN_LAYOUT_BUILD !== 'undefined') {
-    console.info('[化學解題] 版面版本', PLAIN_LAYOUT_BUILD);
-  }
-})();
 

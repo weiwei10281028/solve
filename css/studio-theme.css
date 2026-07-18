@@ -104,7 +104,8 @@ body[data-theme="lunar"] .btn-primary, body[data-theme="lunar"] .btn-send { colo
 .board { --board-bg: var(--surface-raised); background: var(--board-bg); border-color: var(--border); color: var(--ink); border-radius: 12px; }
 .board-scroll .ai-plain, .ai-plain { color: var(--ink); }
 .solve-section-title { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
-.answer-box { background: var(--copper-soft); border-left-color: var(--copper); color: var(--ink); }
+.ai-plain .editorial-section-title { color: var(--accent); }
+.answer-box { background: color-mix(in srgb, var(--surface) 72%, var(--copper-soft)); border-left-color: var(--copper); color: var(--ink); }
 .status-badge { color: var(--ok); background: var(--ok-soft); }.msg-user { background: var(--copper-soft); border-color: var(--border); color: var(--ink); }
 .followup-area { background: var(--bg-accent); border-color: var(--border); }.followup-block + .followup-block { border-color: var(--border); }.followup-user { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); color: var(--ink); }.followup-tag { background: var(--accent-soft); color: var(--accent); }.followup-reply { background: var(--surface-raised); border-color: var(--border); }
 

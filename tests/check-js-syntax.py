@@ -14,9 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 JS = ROOT / "js"
 FILES = [
-    "solve-spec.js", "prompts.js", "prompt-compose.js", "app.js", "plain-reaction-table.js",
-    "board-formats.js", "db-parse.js", "render.js",
-    "latex-sanitize.js", "solution-format.js", "solution-output-gate.js", "solution-core.js", "chem-structure.js", "math-note/math-note.js", "math-note/note-rules.js", "math-note/note-check.js",
+    "solve-spec.js", "prompts.js", "app.js",
+    "render.js",
+    "latex-sanitize.js", "solution-format.js", "solution-core.js", "chem-structure.js", "math-note/math-note.js",
 ]
 REQUIRED = {
     "solve-spec.js": ["global.SolveSpec", "function buildUserBlock", "function checkReply"],
@@ -29,7 +29,6 @@ REQUIRED = {
     "app.js": ["window.SolutionCore.prepare", "responseFormat:"],
     "math-note/math-note.js": ["function positionActivePopover", "function renderNoteContent"],
     "latex-sanitize.js": ["function sanitizeText", "function repairMath"],
-    "solution-output-gate.js": ["global.SolutionOutputGate", "function chemicalIssues", "function check"],
     "solution-format.js": ["global.SolutionDocument", "function validateDocument", "function compileDocument"],
     "solution-core.js": ["global.SolutionCore", "function prepare", "const SCHEMA"],
     "chem-structure.js": ["global.MolResolver", "global.MolfileDraw", "global.StructureLayout", "global.SmilesDraw"],

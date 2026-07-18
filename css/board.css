@@ -24,7 +24,84 @@
 .board,
 .board-reply {
   font-family: 'Noto Sans TC', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
 }
+
+/* Markdown 主詳解：GitHub 文件節奏為基底，化學公式與選項維持固定閱讀規則。 */
+.board .chem-markdown,
+.board-reply .chem-markdown {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.chem-markdown > :first-child { margin-top: 0; }
+.chem-markdown > :last-child { margin-bottom: 0; }
+.chem-markdown p {
+  min-width: 0;
+  margin: 0 0 0.9rem;
+}
+.chem-markdown h2 {
+  margin: 1.5rem 0 0.7rem;
+  padding: 0 0 0.38rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  color: inherit;
+  font-size: 1.08rem;
+  line-height: 1.45;
+}
+.chem-markdown ul {
+  margin: 0.95rem 0;
+  padding: 0;
+  list-style: none;
+}
+.chem-markdown li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+  align-items: start;
+  margin: 0.78rem 0;
+  padding: 0;
+  text-indent: 0;
+}
+.chem-markdown li > strong:first-child {
+  grid-column: 1;
+  display: block;
+  width: auto;
+  text-indent: 0;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-weight: 700;
+}
+.chem-markdown .markdown-choice-body {
+  grid-column: 2;
+  display: block;
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.chem-markdown .katex-display {
+  max-width: 100%;
+  margin: 0.85rem 0;
+  overflow: visible;
+  text-align: left;
+  scrollbar-width: thin;
+}
+.chem-markdown .katex-display > .katex {
+  display: inline-block;
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+}
+.chem-markdown .katex { color: inherit; font-size: 1em; }
+.chem-markdown .answer-box { margin-top: 1.25rem; }
 
 /* 純文字英文字母：與正文同字重，避免過細斜體 */
 .board-latin {
@@ -48,7 +125,7 @@
   font-weight: 600;
 }
 
-/* 數學變數與數值使用 KaTeX 字型；只有 \text{} 內的中文沿用正文。 */
+/* 數學變數固定斜體；數字、單位、化學式與文字固定正體。 */
 .board .ai-plain .katex :is(.mathnormal, .mord.mathnormal),
 .board-reply .ai-plain .katex :is(.mathnormal, .mord.mathnormal) {
   font-family: 'BoardKaTeXMath', KaTeX_Math, serif;
@@ -57,10 +134,11 @@
   letter-spacing: 0;
 }
 
-.board .ai-plain .katex .mord.text,
-.board-reply .ai-plain .katex .mord.text {
-  font-family: 'Noto Sans TC', KaTeX_Main, sans-serif;
+.board .ai-plain .katex :is(.mord:not(.mathnormal), .mord.text),
+.board-reply .ai-plain .katex :is(.mord:not(.mathnormal), .mord.text) {
+  font-family: KaTeX_Main, 'Noto Sans TC', serif;
   font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 .board {
@@ -89,13 +167,14 @@
 /* 正文：左對齊、固定行間格 */
 .board-scroll .ai-plain,
 .ai-plain {
-  --plain-line-gap: 12px;
-  --plain-line-gap-frac: 16px;
+  --plain-line-gap: 14px;
+  --plain-line-gap-frac: 18px;
   --plain-inline-math-gap: 0.38em;
-  width: min(100%, 76ch);
-  margin-inline: auto;
+  --solution-leading: 1.84;
+  width: 100%;
+  margin-inline: 0;
   font-size: 16px;
-  line-height: 1.78;
+  line-height: var(--solution-leading);
   color: #2A2520;
   text-align: left;
   max-width: 100%;
@@ -127,6 +206,7 @@
   display: flow-root;
   margin-top: var(--plain-line-gap);
   margin-bottom: 0;
+  line-height: var(--solution-leading);
   max-width: 100%;
   min-width: 0;
   overflow: visible;
@@ -144,6 +224,41 @@
 .ai-plain .plain-line--choice-heading .plain-line-inner {
   font-size: 1.05em;
   font-weight: 700;
+}
+
+/* Editorial hierarchy: a section label changes reading mode without turning
+   the solution into a stack of dashboard cards. */
+.ai-plain .plain-line--editorial-heading {
+  margin-top: clamp(1.55rem, 3.1vw, 2.2rem);
+  padding-top: 0.82rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.ai-plain > .plain-line:first-child.plain-line--editorial-heading {
+  margin-top: 0;
+}
+
+.ai-plain .editorial-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.68rem;
+  margin: 0;
+  color: currentColor;
+  font-family: var(--font-display, 'Noto Serif TC', serif);
+  font-size: clamp(1.02rem, 1.2vw, 1.14rem);
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  line-height: 1.42;
+}
+
+.ai-plain .editorial-section-title::before {
+  content: '';
+  width: 1.65rem;
+  height: 2px;
+  flex: 0 0 auto;
+  background: currentColor;
+  opacity: 0.68;
+  transform: translateY(-0.08em);
 }
 
 .ai-plain .plain-line--step {
@@ -201,22 +316,22 @@
   margin-top: 0;
 }
 
-.ai-plain .plain-line-inner.plain-line-inner--xscroll {
+.chem-markdown .plain-line-inner--xscroll {
   padding-bottom: 0;
 }
 
-.ai-plain .plain-line-xwrap {
+.chem-markdown .plain-line-xwrap {
   display: block;
   max-width: 100%;
   min-width: 0;
 }
 
-.ai-plain .plain-line-xwrap:not(.plain-line-xwrap--scroll) {
+.chem-markdown .plain-line-xwrap:not(.plain-line-xwrap--scroll) {
   overflow: visible;
 }
 
 /* 唯一橫滑容器：選項／一般行共用 */
-.ai-plain .plain-line-xwrap--scroll {
+.chem-markdown .plain-line-xwrap--scroll {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -233,7 +348,7 @@
   isolation: isolate;
 }
 
-.ai-plain .plain-line-xcontent--measure {
+.chem-markdown .plain-line-xcontent--measure {
   display: inline-block;
   white-space: nowrap;
   vertical-align: top;
@@ -241,14 +356,14 @@
   max-width: none;
 }
 
-.ai-plain .plain-line-xcontent {
+.chem-markdown .plain-line-xcontent {
   display: block;
   min-width: min-content;
   overflow: visible;
 }
 
-/* 純算式：整行 nowrap 橫滑 */
-.ai-plain .plain-line-xwrap--scroll.plain-line-xwrap--nowrap .plain-line-xcontent {
+/* 含算式且整句超寬：保持同一行橫滑 */
+.chem-markdown .plain-line-xwrap--scroll.plain-line-xwrap--nowrap .plain-line-xcontent {
   display: inline-block;
   min-width: max-content;
   white-space: nowrap;
@@ -256,33 +371,27 @@
 }
 
 /* 含中文說明：可換行，寬算式片段仍在同一 scroller 內橫滑 */
-.ai-plain .plain-line-xwrap--scroll:not(.plain-line-xwrap--nowrap) .plain-line-xcontent {
+.chem-markdown .plain-line-xwrap--scroll:not(.plain-line-xwrap--nowrap) .plain-line-xcontent {
   display: block;
   white-space: normal;
   min-width: 0;
 }
 
-.ai-plain .plain-line-xwrap--scroll .plain-katex-nowrap,
-.ai-plain .plain-line-xwrap--scroll .math-unit-tail {
+.chem-markdown .plain-line-xwrap--scroll .plain-katex-nowrap,
+.chem-markdown .plain-line-xwrap--scroll .math-unit-tail {
   max-width: none;
   overflow: visible;
 }
 
-.ai-plain .plain-line--has-frac .plain-line-xwrap--scroll,
-.ai-plain .choice-step:has(.mfrac) .plain-line-xwrap--scroll {
-  padding-top: 0.55em;
-  padding-bottom: 14px;
-}
-
-.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar {
+.chem-markdown .plain-line-xwrap--scroll::-webkit-scrollbar {
   height: 6px;
 }
 
-.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
+.chem-markdown .plain-line-xwrap--scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
+.chem-markdown .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
   background: #aeb4ba;
   border-radius: 4px;
 }
@@ -291,7 +400,7 @@
 @media (min-width: 768px) {
   .board-scroll .ai-plain,
   .ai-plain {
-    width: min(100%, 90ch);
+    width: 100%;
   }
 }
 
@@ -327,19 +436,19 @@
   margin-right: auto;
 }
 
-/* cases 大括號：靠左對齊，避免整塊被 KaTeX 預設置中 */
-.board-scroll .katex-display,
-.board-scroll .katex-display > .katex {
+/* 反應表與長公式橫滑時維持靠左，避免捲動起點落在中間。 */
+.board-scroll .math-block--array .katex-display,
+.board-scroll .math-block--array .katex-display > .katex {
   text-align: left;
 }
 
-.board-scroll .katex-display > .katex {
+.board-scroll .plain-line-xwrap--scroll .katex-display > .katex {
   margin-left: 0;
   margin-right: auto;
 }
 
-.ai-plain .plain-line-xcontent .katex-display,
-.ai-plain .plain-line-xcontent .katex-display > .katex {
+.chem-markdown .plain-line-xwrap--scroll .plain-line-xcontent .katex-display,
+.chem-markdown .plain-line-xwrap--scroll .plain-line-xcontent .katex-display > .katex {
   text-align: left;
   margin-left: 0;
   margin-right: auto;
@@ -368,9 +477,9 @@
 .ai-plain .plain-line-inner > .katex,
 .ai-plain .plain-line-inner > .plain-katex-nowrap,
 .ai-plain .plain-line-inner > .math-unit-tail,
-.ai-plain .plain-line-xcontent > .katex,
-.ai-plain .plain-line-xcontent > .plain-katex-nowrap,
-.ai-plain .plain-line-xcontent > .math-unit-tail,
+.chem-markdown .plain-line-xcontent > .katex,
+.chem-markdown .plain-line-xcontent > .plain-katex-nowrap,
+.chem-markdown .plain-line-xcontent > .math-unit-tail,
 .ai-plain .choice-step .plain-line-inner > .katex,
 .ai-plain .choice-step .plain-line-inner > .plain-katex-nowrap,
 .ai-plain .choice-step .plain-line-inner > .math-unit-tail {
@@ -515,9 +624,8 @@
 /* One structural layout for (A)–(E). Labels never borrow the previous
    option's indent; wrapped continuation lines remain in their own body cell. */
 .ai-plain {
-  --choice-label-column: 2.5rem;
-  --choice-label-gap: 1rem;
-  --choice-row-gap: 0.72rem;
+  --choice-label-column: 2rem;
+  --choice-label-gap: 0.5rem;
 }
 
 .ai-plain .plain-line--choice {
@@ -526,7 +634,7 @@
 
 .ai-plain .choice-option-group {
   display: grid;
-  gap: var(--choice-row-gap);
+  row-gap: var(--plain-line-gap);
 }
 
 .ai-plain .choice-option {
@@ -546,21 +654,24 @@
   font-size: inherit;
   font-style: normal;
   font-weight: 700;
-  line-height: inherit;
+  line-height: var(--solution-leading);
   white-space: nowrap;
 }
 
 .ai-plain .choice-body {
   grid-column: 2;
   min-width: 0;
-  line-height: inherit;
-  overflow-wrap: anywhere;
+  line-height: var(--solution-leading);
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* 選項步驟間距與正文一致；分式行另由 has-frac／:has(.mfrac) 加高 */
 .ai-plain .choice-body--steps {
   display: grid;
   gap: var(--plain-line-gap);
+  min-width: 0;
+  line-height: var(--solution-leading);
 }
 
 .ai-plain .choice-step,
@@ -568,7 +679,7 @@
 .ai-plain .choice-body > .plain-line-inner {
   display: block;
   min-width: 0;
-  line-height: inherit;
+  line-height: var(--solution-leading);
 }
 
 .ai-plain .choice-step.plain-line--has-frac {
@@ -579,62 +690,19 @@
   margin: 0.1em 0 0;
 }
 
-@media (max-width: 430px) {
-  .ai-plain {
-    --choice-label-column: 2.25rem;
-    --choice-label-gap: 0.6rem;
-  }
-}
-
-/* Stage 3 layout contract: Word-like rhythm, hanging choices, one formula scroller. */
-.board-scroll .ai-plain,
-.board-reply .ai-plain {
-  --plain-line-gap: 12px;
-  --plain-line-gap-frac: 12px;
-  --solution-leading: 1.76;
-  line-height: var(--solution-leading);
-}
-
-.ai-plain .plain-line,
-.ai-plain .choice-step {
-  line-height: var(--solution-leading, 1.76);
-}
-
-.ai-plain .choice-option-group {
-  row-gap: var(--plain-line-gap);
-}
-
-.ai-plain .choice-option {
-  grid-template-columns: 2.75rem minmax(0, 1fr);
-  column-gap: 0.75rem;
-  align-items: start;
-}
-
-.ai-plain .choice-label,
-.ai-plain .choice-body,
-.ai-plain .choice-body--steps {
-  min-width: 0;
-  line-height: var(--solution-leading, 1.76);
-}
-
-.ai-plain .choice-body {
-  overflow-wrap: break-word;
-  word-break: normal;
-}
-
 /* The row owns horizontal movement; nested math blocks never add a second bar. */
-.ai-plain .plain-line-xwrap--scroll .math-block {
+.chem-markdown .plain-line-xwrap--scroll .math-block {
   width: max-content;
   max-width: none;
   overflow: visible;
   padding-bottom: 0;
 }
 
-.ai-plain .plain-line-inner--xscroll {
+.chem-markdown .plain-line-inner--xscroll {
   position: relative;
 }
 
-.ai-plain .plain-line-inner--xscroll::after {
+.chem-markdown .plain-line-inner--xscroll::after {
   content: "↔";
   position: absolute;
   right: 5px;
@@ -649,30 +717,23 @@
   pointer-events: none;
 }
 
-.ai-plain .plain-line-xwrap--scroll {
+.chem-markdown .plain-line-xwrap--scroll {
   padding-bottom: 13px;
   scrollbar-color: color-mix(in srgb, currentColor 38%, transparent)
     color-mix(in srgb, currentColor 8%, transparent);
 }
 
-.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-track {
+.chem-markdown .plain-line-xwrap--scroll::-webkit-scrollbar-track {
   background: color-mix(in srgb, currentColor 8%, transparent);
   border-radius: 999px;
 }
 
-.ai-plain .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
+.chem-markdown .plain-line-xwrap--scroll::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, currentColor 38%, transparent);
   border-radius: 999px;
 }
 
-.ai-plain .plain-line-xwrap--scroll:focus-visible {
+.chem-markdown .plain-line-xwrap--scroll:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--hero-accent, #2f6b57) 62%, transparent);
   outline-offset: 3px;
-}
-
-@media (max-width: 430px) {
-  .ai-plain .choice-option {
-    grid-template-columns: 2.35rem minmax(0, 1fr);
-    column-gap: 0.65rem;
-  }
 }

@@ -382,21 +382,12 @@ async function getDatabaseStatus() {
     }
   }
 
-  let teachingRules = { loaded: 0, ids: [] };
-  if (typeof getTeachingRulesStatus === 'function') {
-    try {
-      teachingRules = await getTeachingRulesStatus();
-    } catch { /* ignore */ }
-  }
-
   return {
     ok: entries.length > 0,
     loaded: entries.length,
     total: entries.length,
     withMeta,
     styleRefs,
-    teachingRules: teachingRules.loaded,
-    teachingRuleIds: teachingRules.ids || [],
     ids: entries.map(e => e.id),
     formatIssues,
     reason: entries.length > 0 ? 'ok' : 'empty'
@@ -410,7 +401,6 @@ function invalidateDatabaseCache() {
   lastDatabaseMatch = null;
   lastDatabaseInject = '';
   lastResolveInput = '';
-  if (typeof clearTeachingRulesCache === 'function') clearTeachingRulesCache();
 }
 
 function clearDatabaseCache() {

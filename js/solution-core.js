@@ -24,30 +24,12 @@
     }
   };
 
-  const SYSTEM = `你是台灣高中化學解題老師，只負責正確推理與詳解內容，使用繁體中文與台灣用語。
-只依題目作答；資料不足要明說，不猜測。化學式、電荷、係數、單位、有效數字與選項判斷必須正確。
-回傳符合指定 schema 的 JSON，不輸出 Markdown、HTML、NOTE、htmlData、$、\\ce、排版指令或檢查報告。
-多質子酸題先由解離度求未解離酸 C(1-α) 與其餘物種總和 Cα，再配合物種比逐級代入 Ka；Ka_i=[H+][去質子化物種]/[前一級酸物種]，pKa_i=pH-log([去質子化物種]/[前一級酸物種])。不得在 Ka 尚未求得前自行引入 10 的 pKa 次方。
-若題目指定稀釋後 pH 保持不變，須用固定的 [H+] 與 Ka 重新檢查物種比，不可直接套用一般「稀釋使解離度增加」。
-遇到路易斯結構、VSEPR、混成軌域、鍵角、共振、孤對電子或 π 鍵比較時，先核對價電子總數與共振後的鍵級；比較值不同時不可寫成「＝」。
-blocks 依閱讀順序排列：
-- heading：只有使用者啟用的進階格式要求步驟小標時才用，text 放短標題；一般模式不要自行加模板標題。
-- paragraph：中文說明放 text。
-- chemical_equation：text 只放配平反應式，如 MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O，不加 \\ce。
-- calculation：text 只放一條完整等號鏈，可使用基礎 LaTeX，但不得加 $；說明另用 paragraph。
-- reaction_table：只有進階規則明確要求反應變化表時才用，text 固定寫成「物種：A｜B｜C；起始：…｜…｜…；變化：…｜…｜…；結果：…｜…｜…」。一般模式禁止使用。
-- choice：text 固定寫成「A｜完整理由｜敘述正確」；題目有幾個選項就輸出幾個，不限 A～E。
-共同計算先放在選項前，不在每個選項重複。answer 只放最終答案，例如 A,B,C 或 0.084 M。
-固定外形：{"blocks":[{"type":"paragraph","text":"..."},{"type":"choice","label":"A","text":"...","verdict":"敘述正確"}],"answer":"A"}。`;
+  const SYSTEM = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
+只回傳指定 JSON；不得輸出 Markdown、HTML、NOTE、\\htmlData、$ 或排版指令。
+blocks 依閱讀順序排列：heading 用於短小的閱讀段落標題；paragraph 是說明；calculation 是一條完整算式；chemical_equation 是反應式；choice 是逐項分析文字。詳解較長時，以 heading 分成「已知條件」、「計算過程」、「選項判斷」等必要段落；不要為了湊段落重複題意，也不要限制說明字數。
+選擇題先寫共同計算，再逐項分析題目實際出現的每個選項。每個 choice 的 text 自行保留題目原有標籤並寫正確／錯誤與關鍵理由；不預設選項數量、標籤或順序。逐項分析不得重算共同計算，每項至多兩句。每個 block 必須完整自足，不得將公式、單位、數字或 LaTeX 拆到其他 block 或換行。answer 只寫最終答案。`;
 
-  function buildSystem(extra, advanced) {
-    const rules = String(extra || '').trim();
-    const controls = String(advanced || '').trim();
-    return [SYSTEM,
-      rules ? `【本題化學規則】\n${rules}\n規則中的 NOTE 與顯示語法由本機處理；只採用化學內容。` : '',
-      controls ? `【已啟用進階功能】\n${controls}\n必須反映於 blocks 結構與推理內容；仍不得輸出 NOTE、HTML 或 $。` : ''
-    ].filter(Boolean).join('\n\n');
-  }
+  function buildSystem() { return SYSTEM; }
 
   function parse(raw) {
     if (raw && typeof raw === 'object') return raw;
@@ -343,11 +325,11 @@ blocks 依閱讀順序排列：
           ? `原 ${species} 溶液濃度`
           : `混合後 ${species} 濃度`;
       }
-      if (species) return `${species}濃度，代入濃度或速率式`;
-      if (/[KQ]_(?:c|p)|平衡|ICE|解離|Ka|Kb|pH/i.test(ctx)) return '平衡或解離計算中的濃度';
-      if (/稀釋|混合|總體積|配成|定容/.test(ctx)) return '混合後溶液濃度';
-      if (/速率|rate|v[_\d]?|級數|反應時間/.test(ctx)) return '速率式中的反應物濃度';
-      return state.mCount === 1 ? '溶液濃度，單位 M' : '另一溶液或物種的濃度';
+      if (species) return `${species}濃度（M）`;
+      if (/[KQ]_(?:c|p)|平衡|ICE|解離|Ka|Kb|pH/i.test(ctx)) return '平衡濃度（M）';
+      if (/稀釋|混合|總體積|配成|定容/.test(ctx)) return '混合後濃度（M）';
+      if (/速率|rate|v[_\d]?|級數|反應時間/.test(ctx)) return '速率式濃度（M）';
+      return '溶液濃度（M）';
     }
     if (/^(?:mL|L)$/i.test(unit)) {
       const speciesForDilution = dilutionSpecies(state, source, offset);
@@ -357,33 +339,33 @@ blocks 依閱讀順序排列：
       if (isDilutionExpression(source, state) && /\\dfrac\{[^{}]*\}\{[^{}]*$/.test(String(source || '').slice(0, offset))) {
         return `混合後總體積（${unit}）`;
       }
-      if (/總體積|混合後|配成|定容|稀釋/.test(ctx)) return `混合後總體積，濃度計算要用 ${unit}`;
+      if (/總體積|混合後|配成|定容|稀釋/.test(ctx)) return `混合後總體積（${unit}）`;
       if (/加入|取|量取|移取|滴加/.test(ctx)) return `題目給的溶液體積（${unit}）`;
       if (/\/|\\dfrac|V/.test(ctx)) return `濃度公式中的溶液體積（${unit}）`;
       return `溶液體積（${unit}）`;
     }
     if (unit === 'mol') {
-      if (species) return `${species}的物質的量（莫耳數）`;
-      if (/限量|過量|剩餘|消耗|生成/.test(ctx)) return '反應中追蹤的莫耳數';
-      return '物質的量，單位 mol';
+      if (species) return `${species}物質的量（mol）`;
+      if (/限量|過量|剩餘|消耗|生成/.test(ctx)) return '反應物質的量（mol）';
+      return '物質的量（mol）';
     }
     if (unit === 'g mol⁻¹') return '式量／分子量，用來把質量換成莫耳數';
     if (/g$/i.test(unit)) {
-      if (/樣品|溶質|秤|取|質量/.test(ctx)) return '溶質質量，先換成莫耳數';
-      return `質量，單位 ${unit}`;
+      if (/樣品|溶質|秤|取|質量/.test(ctx)) return `樣品質量（${unit}）`;
+      return `質量（${unit}）`;
     }
     if (/^(?:s|min|h)$/i.test(unit)) {
-      if (/速率|反應時間|秒|時間/.test(ctx)) return '反應時間；時間越短，平均速率越快';
-      return `時間，單位 ${unit}`;
+      if (/速率|反應時間|秒|時間/.test(ctx)) return `反應時間（${unit}）`;
+      return `時間（${unit}）`;
     }
     if (/^(?:atm|kPa|Pa)$/i.test(unit)) {
       if (/分壓|Kp|氣體|壓力/.test(ctx)) return `氣體壓力或分壓，單位 ${unit}`;
       return `壓力，單位 ${unit}`;
     }
-    if (unit === 'A') return '電流，計算電量 Q=It';
-    if (unit === 'C') return '電量，單位庫侖 C';
-    if (unit === 'K') return '絕對溫度，氣體或平衡計算須用 K';
-    return `已知量，單位 ${unit}`;
+    if (unit === 'A') return '電流（A）';
+    if (unit === 'C') return '電量（C）';
+    if (unit === 'K') return '絕對溫度（K）';
+    return `物理量（${unit}）`;
   }
 
   function annotateQuantities(source, state = {}) {
@@ -482,6 +464,12 @@ blocks 依閱讀順序排列：
       body = body.replace(`\uE300${'x'.repeat(index + 1)}\uE301`, value);
     });
     return body;
+  }
+
+  /** Explicit reference markers are the only standalone NOTE markers. */
+  function isExplicitNoteMarker(value) {
+    const marker = String(value || '').trim();
+    return /^(?:\[\d+\]|\(\d+\)|註\s*\d+|note\s*\d+|[①②③④⑤⑥⑦⑧⑨⑩])$/i.test(marker);
   }
 
   function protectLatexCommandGroups(source, commandRe, transform) {
@@ -628,7 +616,8 @@ blocks 依閱讀順序排列：
     ));
     if (autoNote) body = annotateQuantities(body, state);
     if (autoNote) body = body.replace(/=\s*(\d+)\s*\\times(?=\s*n_)/g, '=\\htmlData{note=反應係數比}{$1}\\times');
-    if (autoNote) body = annotateBareNumbers(body, state);
+    // Bare numbers are not safe NOTE targets: they may be formula subscripts,
+    // charges, exponents, coefficients, or an unlabelled calculation result.
     body = preferDisplayFractions(body);
     body = normalizeDisplayFractions(body);
     return body.replace(/[=＝]\s*$/, '').trim();
@@ -639,19 +628,6 @@ blocks 依閱讀順序排列：
     return /^[A-Z](?:\s*[,，、]\s*[A-Z])+$/.test(answer)
       ? answer.split(/\s*[,，、]\s*/).join('、')
       : fullwidth(value);
-  }
-
-  function expandEmbeddedChoices(blocks) {
-    const out = [];
-    blocks.forEach((block) => {
-      if (block?.type !== 'choice') { out.push(block); return; }
-      const parts = clean(block.text).split(/\s+\(([A-Z])\)\s+/);
-      out.push({ ...block, text: parts[0] });
-      for (let i = 1; i < parts.length; i += 2) {
-        out.push({ type: 'choice', label: parts[i], text: parts[i + 1] || '', verdict: '' });
-      }
-    });
-    return out;
   }
 
   function reactionTable(block, fallbackEquation = '', opts = {}) {
@@ -721,7 +697,7 @@ blocks 依閱讀順序排列：
     if (!doc || !Array.isArray(doc.blocks)) return '';
     const lines = [];
     let latestEquation = '';
-    const blocks = expandEmbeddedChoices(doc.blocks);
+    const blocks = doc.blocks;
     blocks.forEach((block, index) => {
       if (!BLOCK_TYPES.includes(block?.type)) return;
       const expression = clean(block.expression);
@@ -753,17 +729,7 @@ blocks 依閱讀順序排列：
         }
       } else {
         const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
-        const choiceParts = clean(block.text).split(/[｜|]/).map(clean);
-        const label = clean(block.label || choiceParts.shift()).replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        const verdict = fullwidth(block.verdict || choiceParts.pop()).replace(/[，。；：]+$/, '');
-        const parts = formatNarrative(choiceParts.join('｜') || block.text, noteState);
-        if (!label) return;
-        if (expression) parts.push(math(calculation(expression, noteState)));
-        if (!parts.length) parts.push('');
-        const last = parts.length - 1;
-        const body = parts[last].replace(/[，。；：]+$/, '');
-        parts[last] = verdict ? `${body}${body.endsWith(verdict) ? '。' : `，${verdict}。`}` : parts[last];
-        lines.push(`(${label}) ${parts[0]}`, ...parts.slice(1));
+        lines.push(...formatNarrative(block.text, noteState));
       }
     });
     const answer = answerText(doc.answer);
@@ -779,6 +745,6 @@ blocks 依閱讀順序排列：
       : { ok: false, text: String(raw || '').trim(), document: null, fallback: true };
   }
 
-  global.SolutionCore = Object.freeze({ SCHEMA, SYSTEM, buildSystem, parse, normalizeDocument, fullwidth, formatText, calculation, compile, prepare });
+  global.SolutionCore = Object.freeze({ SCHEMA, SYSTEM, buildSystem, parse, normalizeDocument, fullwidth, formatText, calculation, compile, prepare, isExplicitNoteMarker });
   if (typeof module !== 'undefined' && module.exports) module.exports = global.SolutionCore;
 })(typeof window !== 'undefined' ? window : globalThis);
