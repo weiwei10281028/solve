@@ -1,4 +1,0 @@
-interface:
-  display_name: "Chemistry Solution Layout"
-  short_description: "統一化學詳解的內容、公式、NOTE、排版與渲染驗證"
-  default_prompt: "請依 Chemistry Solution Layout Skill 整理這份化學詳解，維持內容正確、公式專業、NOTE 可互動、選項二欄對齊且行距固定。"

@@ -1,26 +1,34 @@
-<!DOCTYPE html>
-<!-- 測試頁：解題渲染管線；請經由 /tests/ 路徑使用。 -->
-<html><head><meta charset="utf-8"><title id="t">x</title>
+<!doctype html>
+<html lang="zh-TW">
+<meta charset="utf-8">
+<title>現行詳解管線測試</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="../css/board.css?v=20260719-single-pipeline">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@18.0.6/lib/marked.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
-<script src="../js/math-note/math-note.js"></script>
-<script src="../js/render.js"></script>
-</head><body><div id="box"></div>
-<script>
-const broken = '$$K_c = \\dfrac{[Cu^{2+}]}{[Cu^+]^2} = \\dfrac{0.2-x}{(2x)^2 = 2 \\times 10^7$$';
-const sample = '由平衡常數 $K_c$ 的定義，代入平衡濃度：\n' + broken + '\n因 $K_c$ 極大\n@@ANSWER@@ $1.0 \\times 10^{-4}$ M';
-document.getElementById('box').innerHTML = renderMarkdownSolution(sample);
-doKaTeX(document.getElementById('box'));
-function walk(n) {
-  if (n.nodeType === 3) return n.textContent || '';
-  if (n.nodeType === 1 && n.classList && n.classList.contains('katex')) return '';
-  let s = '';
-  for (const c of n.childNodes) s += walk(c);
-  return s;
-}
-const plain = walk(document.getElementById('box'));
-document.getElementById('t').textContent = 'raw$$=' + plain.includes('$$') + ',rawDfrac=' + /\\dfrac\{/.test(plain) + ',disp=' + !!document.querySelector('.katex-display');
-</script></body></html>
+<script src="../js/render.js?v=20260719-single-pipeline"></script>
+<body>
+  <div class="board" style="max-width:375px"><div class="board-scroll" id="fixture"></div></div>
+  <script>
+    const sample = String.raw`【選項分析】
+@@CHOICE[甲]@@ 正確，$\ce{MnO4^-}$ 的係數與電子守恆相符。
+@@CHOICE[J]@@ 錯誤，這段一般文字應自然換行，不應因為含有短公式 $n=CV$ 就整段鎖成單行。
+@@CHOICE[⑥]@@ $\dfrac{0.016\times10.5\times5}{10.0}=0.084$
+@@ANSWER@@甲、⑥`;
+    const fixture = document.getElementById('fixture');
+    fixture.innerHTML = renderMarkdownSolution(sample);
+    doKaTeX(fixture);
+    requestAnimationFrame(() => {
+      const labels = [...fixture.querySelectorAll('.markdown-choice-label')].map(el => el.textContent.trim());
+      const prose = fixture.querySelectorAll('.markdown-choice-body')[1];
+      const ok = labels.join('|') === '（甲）|（J）|（⑥）'
+        && !prose.classList.contains('plain-line-inner--xscroll')
+        && !fixture.textContent.includes('↔');
+      document.title = ok ? 'PASS' : 'FAIL';
+    });
+  </script>
+</body>
+</html>

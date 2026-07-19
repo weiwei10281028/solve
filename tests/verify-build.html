@@ -1,17 +1,17 @@
-<!DOCTYPE html>
-<!-- 測試頁：目前 render.js 建置版號；請經由 /tests/ 路徑使用。 -->
-<html lang="zh-TW"><head><meta charset="utf-8"><title>版本驗證</title>
-<style>body{font-family:sans-serif;padding:2rem;background:#FAF7F2}
-.ok{color:#0a6}.bad{color:#c00}.box{margin:1rem 0;padding:1rem;background:#fff;border-radius:8px}</style>
-<script src="../js/render.js?v=20260716o"></script>
-</head><body>
-<h1>render.js 載入驗證</h1>
-<div class="box" id="out">檢查中…</div>
-<p>請用 <strong>http://localhost:18080/tests/verify-build.html</strong> 開啟（不要用 file://）</p>
-<script>
-const b = window.__RENDER_BUILD;
-const ok = b === '20260713j';
-document.getElementById('out').innerHTML = ok
-  ? '<span class="ok">✓ 正常：__RENDER_BUILD = ' + b + '</span>'
-  : '<span class="bad">✗ 異常：' + (b === undefined ? 'undefined（render.js 未載入）' : b) + '</span>';
-</script></body></html>
+<!doctype html>
+<html lang="zh-TW">
+<meta charset="utf-8">
+<title>詳解渲染版本驗證</title>
+<script src="../js/render.js?v=20260719-single-pipeline"></script>
+<body>
+  <p id="result">檢查中……</p>
+  <script>
+    const expected = '20260719-single-pipeline';
+    const ok = window.__RENDER_BUILD === expected;
+    document.getElementById('result').textContent = ok
+      ? `PASS：${expected}`
+      : `FAIL：讀到 ${String(window.__RENDER_BUILD)}`;
+    document.title = ok ? 'PASS' : 'FAIL';
+  </script>
+</body>
+</html>

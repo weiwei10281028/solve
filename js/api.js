@@ -5,7 +5,7 @@ function parseDataURL(url) {
 
 function formatError(msg) {
   if (/Gemini 沒有回傳文字/i.test(msg)) {
-    return `${msg}\n\n請檢查圖片清晰度，或改用 Gemini 3.1 Pro 後再試。`;
+    return `${msg}\n\n請檢查圖片清晰度，或改用清單中的其他免費 Flash 後再試。`;
   }
   if (/Failed to fetch|Load failed|NetworkError/i.test(msg)) {
     return '無法直接連到 Google Gemini API。\n\n請確認目前網路可連線，並重新整理後再試。';
@@ -72,18 +72,6 @@ function looksIncomplete(text, finishReason) {
   if (!t || finishReason === 'MAX_TOKENS') return true;
   if (/\*\*答[:：]/.test(t)) return false;
   return /故僅能$|如下$|因此$|可得$|無法$|不能$/.test(t);
-}
-
-const IMAGE_HINT_SYSTEM = `你是化學題目辨識器。只看圖片，輸出一行「配對用關鍵字」供題庫搜尋，禁止解題。
-格式：條件:關鍵數據與概念（濃度、pH、mL體積、解離度、比例、弱酸、電解、並聯、氣體反應、同溫同壓等）
-禁止輸出題號。只輸出一行，繁體中文。`;
-
-async function extractImageMatchHints(cfg, imgDataURL, catalogLine = '') {
-  const urls = (Array.isArray(imgDataURL) ? imgDataURL : [imgDataURL]).filter(Boolean);
-  if (!urls.length) return '';
-  const userText = (catalogLine ? `【題庫索引】${catalogLine}\n` : '') + (urls.length > 1 ? `共 ${urls.length} 張圖，依序閱讀後合併擷取能對上索引的化學條件關鍵字（不要題號）。` : '請從圖片擷取能對上索引的化學條件關鍵字（不要題號）。');
-  const { text } = await callAPI(cfg, [{ role: 'user', content: [...urls.map(url => ({ type: 'image_url', image_url: { url, detail: 'high' } })), { type: 'text', text: userText }] }], IMAGE_HINT_SYSTEM, { temperature: 0, maxOutputTokens: 256, maxContinue: 0, timeoutMs: 45000 });
-  return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
 async function callAPI(cfg, apiMessages, systemText, genOpts = {}) {

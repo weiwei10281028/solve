@@ -5,19 +5,23 @@ function parseRequestedSolveScope(input) {
   return numbers.length ? { mode: 'partial', numbers } : { mode: 'default', numbers: [] };
 }
 
-function parseSolveIntent(input) {
-  const scope = parseRequestedSolveScope(input);
-  return { questionMode: scope.mode, numbers: scope.numbers, optionMode: 'all', options: [] };
-}
-
-window.parseSolveIntent = parseSolveIntent;
-window.buildSolveUserText = function (scopeInput, refAnswer, opts = {}) {
+window.buildSolveUserText = function (scopeInput, _refAnswer, opts = {}) {
   const scope = parseRequestedSolveScope(scopeInput || opts.questionBody);
   const question = String(opts.questionBody || scopeInput || '').trim();
   let text = `【題目】\n${question}`;
   if (scope.mode === 'partial') text += `\n\n【範圍】只解第 ${scope.numbers.join('、')} 題。`;
-  if (refAnswer) text += `\n\n【指定正確答案｜不可違反】${String(refAnswer).trim()}\n此答案是本題唯一允許輸出的最終答案。先依題目計算關鍵量，再逐項驗證；若初步推導不符，必須回查公式、物種濃度、單位與選項判斷後修正。每個選項的正確／錯誤判定集合、推導結論與 answer 欄必須完全符合指定答案。輸出前逐一核對；任何一處不一致都不得輸出，必須重做。不得提及答案來源，也不得為了湊答案省略推導。`;
   return text;
+};
+
+window.buildAnswerVerificationUserText = function (scopeInput, refAnswer, opts = {}, advancedBlock = '') {
+  const question = String(opts.questionBody || scopeInput || '').trim();
+  const parts = [
+    `【題目】\n${question}`,
+    `【待驗證參考答案】${String(refAnswer || '').trim()}`,
+    '請完全重新計算，不預設參考答案正確。先由題目獨立得到關鍵數值、守恆關係、物種分配、單位與選項判斷，再比較參考答案；若資料不足、計算矛盾或選項不符，consistent 必須為 false。這是內部檢查，禁止撰寫給學生看的詳解。'
+  ];
+  if (advancedBlock) parts.push(`【使用者選取的章節思考規格】\n${advancedBlock}`);
+  return parts.join('\n\n');
 };
 
 window.buildFollowUpUserText = function (followText) {
@@ -32,9 +36,7 @@ window.getSystemPromptForFollowUp = async function () {
   return '你是台灣高中化學老師。使用繁體中文，直接回答追問；公式用 $...$，不要輸出 HTML 或 NOTE 語法。';
 };
 
-window.checkSolutionBoardStyle = function () { return []; };
-window.checkChoiceAnalysisCompleteness = function () { return []; };
-
 var buildSolveUserText = window.buildSolveUserText;
+var buildAnswerVerificationUserText = window.buildAnswerVerificationUserText;
 var buildFollowUpUserText = window.buildFollowUpUserText;
 var getSystemPromptForSolve = window.getSystemPromptForSolve;

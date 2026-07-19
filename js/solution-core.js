@@ -8,12 +8,14 @@
   const STRUCTURE_NARRATIVE = /混成|鍵角|孤對電子|π\s*鍵|共振|路易斯|價電子|VSEPR|分子形狀|平面三角|直線型|四面體|三角錐/;
   const SCHEMA = {
     type: 'object',
+    additionalProperties: false,
     required: ['blocks', 'answer'],
     properties: {
       blocks: {
         type: 'array', minItems: 1, maxItems: 48,
         items: {
           type: 'object', required: ['type', 'text'],
+          additionalProperties: false,
           properties: {
             type: { type: 'string', enum: BLOCK_TYPES },
             text: { type: 'string' }
@@ -26,8 +28,9 @@
 
   const SYSTEM = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
 只回傳指定 JSON；不得輸出 Markdown、HTML、NOTE、\\htmlData、$ 或排版指令。
-blocks 依閱讀順序排列：heading 用於短小的閱讀段落標題；paragraph 是說明；calculation 是一條完整算式；chemical_equation 是反應式；choice 是逐項分析文字。詳解較長時，以 heading 分成「已知條件」、「計算過程」、「選項判斷」等必要段落；不要為了湊段落重複題意，也不要限制說明字數。
-選擇題先寫共同計算，再逐項分析題目實際出現的每個選項。每個 choice 的 text 自行保留題目原有標籤並寫正確／錯誤與關鍵理由；不預設選項數量、標籤或順序。逐項分析不得重算共同計算，每項至多兩句。每個 block 必須完整自足，不得將公式、單位、數字或 LaTeX 拆到其他 block 或換行。answer 只寫最終答案。`;
+每個 block 只有 type 與 text。blocks 依閱讀順序排列：heading 用於必要的短標題；paragraph 的 text 是有完整標點的說明文字；chemical_equation 的 text 是完整反應式；calculation 的 text 是一條完整算式；reaction_table 的 text 依序寫物種、起始、變化、結果；choice 的 text 以題目原標籤開頭，再寫理由與正確／錯誤結論。不要為了湊段落重複題意；說明長度依題目需要決定，不設固定字數或句數。
+一般敘述須使用正常中文標點。文字與短公式可在同一段；只有較長的反應式、連續等號或分式才獨立使用 calculation／chemical_equation，不得把整段說明硬塞成一條算式。
+選擇題先完成共同推理或計算，最後逐項分析題目實際出現的每個選項。每個 choice 的 text 必須以題目原標籤開頭，例如「（甲）……」或「（J）……」，接著寫足以判斷的關鍵理由與正確／錯誤結論；不預設選項數量、標籤形式或順序，也不得漏掉或增加選項。逐項分析引用前面的共同計算，不重複整段推導。answer 只寫最終答案。`;
 
   function buildSystem() { return SYSTEM; }
 
@@ -213,6 +216,26 @@ blocks 依閱讀順序排列：heading 用於短小的閱讀段落標題；parag
 
   function formatNarrative(value, state) {
     return splitNarrative(value).map((line) => formatNarrativeLine(line, state)).filter(Boolean);
+  }
+
+  function normalizeChoice(block) {
+    let label = clean(block?.label);
+    let text = clean(block?.text);
+    if (!label) {
+      const prefixed = text.match(/^\s*(?:\(([^()\s]{1,16})\)|（([^（）\s]{1,16})）|\[([^\[\]\s]{1,16})\])\s*(.*)$/);
+      if (prefixed) {
+        label = clean(prefixed[1] || prefixed[2] || prefixed[3]);
+        text = clean(prefixed[4]);
+      }
+    }
+    if (!label || !text) return null;
+    const verdict = clean(block?.verdict);
+    if (verdict && !text.includes(verdict)) text = `${text.replace(/[，,；;：:]\s*$/, '')}，${verdict}`;
+    return { label, text };
+  }
+
+  function choiceMarker(label, text) {
+    return `@@CHOICE[${String(label).replace(/[\]\r\n]/g, '')}]@@ ${text}`;
   }
 
   function normalizeDocument(value) {
@@ -727,9 +750,15 @@ blocks 依閱讀順序排列：heading 用於短小的閱讀段落標題；parag
           const text = formatText(block.text, { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false });
           if (text) lines.push(text);
         }
-      } else {
+      } else if (block.type === 'choice') {
+        const choice = normalizeChoice(block);
+        if (!choice) return;
         const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
-        lines.push(...formatNarrative(block.text, noteState));
+        const choiceLines = formatNarrative(choice.text, noteState);
+        if (choiceLines.length) {
+          lines.push(choiceMarker(choice.label, choiceLines[0]));
+          lines.push(...choiceLines.slice(1));
+        }
       }
     });
     const answer = answerText(doc.answer);

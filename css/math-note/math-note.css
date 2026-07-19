@@ -13,7 +13,7 @@
   overflow: visible;
 }
 
-/* SolutionDocument 的文字 NOTE：觀念題與選項也要有明確、但不搶眼的可點擊提示。 */
+/* 文字 NOTE：觀念題與選項也要有明確、但不搶眼的可點擊提示。 */
 .solution-note {
   border-bottom: 0;
   background: rgba(184, 112, 42, 0.06);
@@ -43,7 +43,7 @@
 }
 
 /* 選項內的 NOTE 維持與手機一致的可辨識底色，桌機也能一眼看出可點選處。 */
-.ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+.markdown-choice-body .katex :is(.math-note, [data-note], [note]) {
   background: rgba(184, 112, 42, 0.2) !important;
   padding: 0.08em 0.12em !important;
   margin: 0 0.02em !important;
@@ -52,7 +52,7 @@
   box-shadow: none !important;
 }
 
-.ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+.markdown-choice-body .katex :is(.math-note, [data-note], [note]).active {
   background: #F5D79E !important;
   border-bottom-color: var(--copper, #A67C52) !important;
   box-shadow: 0 0 0 1.5px var(--copper, #A67C52) !important;
@@ -222,7 +222,7 @@
 
 /* Choice notes need a visible passive state on a touch screen, not only when active. */
 @media (max-width: 760px) {
-  .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+  .markdown-choice-body .katex :is(.math-note, [data-note], [note]) {
     background: rgba(184, 112, 42, 0.2) !important;
     padding: 0.08em 0.12em !important;
     margin: 0 0.02em !important;
@@ -231,7 +231,7 @@
     box-shadow: none !important;
   }
 
-  .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+  .markdown-choice-body .katex :is(.math-note, [data-note], [note]).active {
     background: #F5D79E !important;
     box-shadow: 0 0 0 1.5px var(--copper, #A67C52) !important;
   }

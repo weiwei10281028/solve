@@ -102,9 +102,8 @@ body[data-theme="lunar"] .option-toggle input:checked + .option-toggle-ui { box-
 body[data-theme="lunar"] .btn-primary, body[data-theme="lunar"] .btn-send { color: #17191d; }.btn-ghost { color: var(--ink-muted); border-color: var(--border); }.btn-ghost:hover { color: var(--ink); background: var(--bg-accent); }
 
 .board { --board-bg: var(--surface-raised); background: var(--board-bg); border-color: var(--border); color: var(--ink); border-radius: 12px; }
-.board-scroll .ai-plain, .ai-plain { color: var(--ink); }
+.board-scroll .chem-markdown, .chem-markdown { color: var(--ink); }
 .solve-section-title { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
-.ai-plain .editorial-section-title { color: var(--accent); }
 .answer-box { background: color-mix(in srgb, var(--surface) 72%, var(--copper-soft)); border-left-color: var(--copper); color: var(--ink); }
 .status-badge { color: var(--ok); background: var(--ok-soft); }.msg-user { background: var(--copper-soft); border-color: var(--border); color: var(--ink); }
 .followup-area { background: var(--bg-accent); border-color: var(--border); }.followup-block + .followup-block { border-color: var(--border); }.followup-user { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); color: var(--ink); }.followup-tag { background: var(--accent-soft); color: var(--accent); }.followup-reply { background: var(--surface-raised); border-color: var(--border); }
@@ -118,7 +117,7 @@ body[data-theme="lunar"] .katex [data-note].math-note--whole,
 body[data-theme="lunar"] .katex .math-note--whole,
 body[data-theme="lunar"] .katex [data-note][data-note-scope="whole"],
 body[data-theme="lunar"] .solution-note,
-body[data-theme="lunar"] .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]) {
+body[data-theme="lunar"] .markdown-choice-body .katex :is(.math-note, [data-note], [note]) {
   background: #4b3a2d !important;
   color: #f4f4f1 !important;
   box-shadow: none !important;
@@ -129,7 +128,7 @@ body[data-theme="lunar"] .math-note.active,
 body[data-theme="lunar"] .math-note--whole.active,
 body[data-theme="lunar"] .katex .math-note--whole.active,
 body[data-theme="lunar"] .katex [data-note].math-note--whole.active,
-body[data-theme="lunar"] .ai-plain .choice-body .katex :is(.math-note, [data-note], [note]).active {
+body[data-theme="lunar"] .markdown-choice-body .katex :is(.math-note, [data-note], [note]).active {
   background: #6a4f36 !important;
   color: #fff7e6 !important;
   box-shadow: 0 0 0 1.5px #ead49a !important;

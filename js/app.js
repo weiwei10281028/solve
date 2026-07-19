@@ -4,24 +4,13 @@ const PROVIDERS = {
     keyPlaceholder: 'AIza...',
     keyUrl: 'https://aistudio.google.com/apikey',
     models: [
-      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite（推薦，一般解題）' },
-      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash（較強推理）' },
-      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro（進階推理）' }
+      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash（推薦，最強免費 Flash）' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash（穩定推理／獨立驗算）' },
+      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite（快速模式）' },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite（省資源備援）' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview（預覽版）' }
     ]
   }
-};
-
-const DEPRECATED = {
-  'gemini-1.5-flash': 'gemini-3.1-flash-lite',
-  'gemini-1.5-flash-002': 'gemini-3.1-flash-lite',
-  'gemini-2.0-flash': 'gemini-3.1-flash-lite',
-  'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
-  'gemini-2.5-flash': 'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
-  'gemini-2.5-pro': 'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite-preview': 'gemini-3.1-flash-lite',
-  'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview': 'gemini-3.5-flash'
 };
 
 function loadSetting(name, fallback = '') {
@@ -47,16 +36,99 @@ function isCalcCompact() {
   return !!document.getElementById('calcCompactToggle')?.checked;
 }
 
-function buildSolveResponseSchema(refAnswer) {
-  const schema = JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA));
-  const answer = String(refAnswer || '').trim();
-  if (answer) schema.properties.answer = { type: 'string', enum: [answer] };
-  return schema;
+function buildSolveResponseSchema() {
+  return JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA));
 }
 
-function buildAnswerCorrectionText(refAnswer) {
-  return `上一份詳解的 answer 欄與指定答案不一致，不能採用。請保留正確的題目推導邏輯並重新檢查所有選項，重寫完整 JSON 詳解。最終 answer 欄只能是：${String(refAnswer).trim()}。任何選項判定與此不一致都必須修正；不得輸出其他答案。`;
+const ANSWER_VERIFICATION_SYSTEM = `你是獨立的化學答案驗證者。只回傳 JSON，不寫學生詳解。參考答案只是待驗證命題，不保證正確；禁止為了迎合參考答案反向硬湊理由。請只依題目資料重新計算，檢查物料守恆、電荷／原子守恆、單位、有效數字、公式與每個選項語意，再判斷參考答案是否一致。\n\n輸出格式：{"consistent":true,"constraints":["獨立算出的必要中間量"],"checks":["已執行的關鍵檢查"],"warnings":["矛盾或風險；沒有則空陣列"]}\n若無法由題目確認參考答案，consistent 必須為 false。constraints 只寫可由題目獨立驗算的條件；禁止輸出給學生看的詳解。`;
+const ANSWER_VERIFICATION_SCHEMA = {
+  type: 'object', required: ['consistent', 'constraints', 'checks', 'warnings'],
+  properties: {
+    consistent: { type: 'boolean' },
+    constraints: { type: 'array', items: { type: 'string' } },
+    checks: { type: 'array', items: { type: 'string' } },
+    warnings: { type: 'array', items: { type: 'string' } }
+  }
+};
+
+function normalizeAnswerVerification(raw) {
+  const fallback = { consistent: false, constraints: [], checks: [], warnings: ['獨立驗證回覆無法解析'] };
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const list = (value) => Array.isArray(value) ? value.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12) : [];
+    return {
+      consistent: parsed?.consistent === true,
+      constraints: list(parsed?.constraints),
+      checks: list(parsed?.checks),
+      warnings: list(parsed?.warnings)
+    };
+  } catch (_) {
+    return fallback;
+  }
 }
+
+function verificationModelFor(mainModel) {
+  return mainModel === 'gemini-2.5-flash' ? 'gemini-3.5-flash' : 'gemini-2.5-flash';
+}
+
+function normalizeNumericExpression(value) {
+  let text = String(value || '')
+    .replace(/[−–—]/g, '-')
+    .replace(/\\(?:times|cdot)/g, '*')
+    .replace(/\\div/g, '/')
+    .replace(/[×·]/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/\\(?:left|right)/g, '')
+    .replace(/10\s*\^\s*\{\s*([+\-]?\d+)\s*\}/g, '10^($1)');
+  for (let pass = 0; pass < 4; pass += 1) {
+    const next = text.replace(/\\(?:d?frac|tfrac)\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
+    if (next === text) break;
+    text = next;
+  }
+  text = text
+    .replace(/\\mathrm\{(?:mol|mL|L|M|g|mg|kg|s|min|h|atm|kPa|Pa)\}/gi, '')
+    .replace(/(?:mol|mL|L|M|g|mg|kg|s|min|h|atm|kPa|Pa)\b/gi, '')
+    .replace(/,/g, '')
+    .replace(/\s+/g, '');
+  return text;
+}
+
+function evaluateNumericExpression(value) {
+  const expression = normalizeNumericExpression(value);
+  if (!/\d/.test(expression) || !/^[0-9eE+\-*/().^]+$/.test(expression)) return null;
+  try {
+    const result = typeof math !== 'undefined' && typeof math.evaluate === 'function'
+      ? Number(math.evaluate(expression))
+      : NaN;
+    return Number.isFinite(result) ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function auditCalculationDocument(documentValue) {
+  const issues = [];
+  let checked = 0;
+  const blocks = Array.isArray(documentValue?.blocks) ? documentValue.blocks : [];
+  blocks.forEach((block, blockIndex) => {
+    if (!['calculation', 'paragraph', 'choice'].includes(block?.type)) return;
+    const source = String(block.text || block.expression || '');
+    if ((source.match(/[=＝≈]/g) || []).length < 1) return;
+    const numericValues = source.split(/[=＝≈]/).map(evaluateNumericExpression).filter((value) => value !== null);
+    for (let index = 1; index < numericValues.length; index += 1) {
+      const left = numericValues[index - 1];
+      const right = numericValues[index];
+      checked += 1;
+      const scale = Math.max(Math.abs(left), Math.abs(right), 1e-12);
+      if (Math.abs(left - right) > Math.max(1e-10, scale * 0.015)) {
+        issues.push(`第 ${blockIndex + 1} 個區塊的等號兩側不一致（${left} ≠ ${right}）`);
+      }
+    }
+  });
+  return { checked, issues };
+}
+
+window.auditCalculationDocument = auditCalculationDocument;
 
 function getSolveSpec() {
   return typeof window.SolveSpec !== 'undefined' && window.SolveSpec.fromInputs
@@ -128,13 +200,13 @@ function initStoichiometryToggle() {
 }
 const MAX_IMAGES = 2;
 const GEMINI_MODEL_IDS = new Set(PROVIDERS.gemini.models.map(m => m.id));
-const savedModel = loadSetting('aim', 'gemini-3.1-flash-lite');
+const savedModel = loadSetting('aim', 'gemini-3.5-flash');
 const cfg = {
   provider: 'gemini',
   key: cleanKey(loadSetting('aik', '')),
-  model: DEPRECATED[savedModel] || savedModel || 'gemini-3.1-flash-lite'
+  model: savedModel || 'gemini-3.5-flash'
 };
-if (!GEMINI_MODEL_IDS.has(cfg.model)) cfg.model = 'gemini-3.1-flash-lite';
+if (!GEMINI_MODEL_IDS.has(cfg.model)) cfg.model = 'gemini-3.5-flash';
 localStorage.setItem('aip', 'gemini');
 sessionStorage.setItem('aip', 'gemini');
 if (cfg.model !== savedModel) localStorage.setItem('aim', cfg.model);
@@ -437,14 +509,8 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
     lines.push(ok ? '指定答案：一致' : '指定答案：不一致（結果已拒絕顯示）');
     warning = warning || !ok;
   }
-  if (typeof window.FormulaTools?.auditReply === 'function') {
-    const audit = window.FormulaTools.auditReply(reply);
-    if (audit.checked) {
-      lines.push(audit.failed
-        ? `本機算式驗算：${audit.failed} 式不一致，請複核`
-        : `本機算式驗算：${audit.checked} 式一致`);
-      warning = warning || audit.failed > 0;
-    }
+  if (solveOpts?.calculationAudit?.checked) {
+    lines.push(`本機算式驗算：${solveOpts.calculationAudit.checked} 組等號一致`);
   }
   if (!lines.length) return clearSolveValidation();
   el.hidden = false;
@@ -462,15 +528,7 @@ function renderAiInto(container, text, options = {}) {
     if (typeof window.__RENDER_BUILD === 'undefined') {
       console.warn('[render] 快取可能過舊，請 Ctrl+F5');
     }
-    const isDocument = typeof SolutionDocument !== 'undefined' && SolutionDocument.isDocument?.(text);
-    let compiledNotes = [];
     let body = text || '';
-    if (isDocument) {
-      const compiled = SolutionDocument.compile(text, { autoNote: false });
-      if (!compiled.ok) throw new Error(`SolutionDocument 驗證失敗：${compiled.validation.errors.slice(0, 3).join('；')}`);
-      body = compiled.text;
-      compiledNotes = compiled.notes;
-    }
     if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
@@ -481,10 +539,6 @@ function renderAiInto(container, text, options = {}) {
     container.innerHTML = renderMarkdownSolution(body);
     doKaTeX(container);
     if (container?.style) container.style.visibility = previousVisibility;
-    if (compiledNotes.length && typeof SolutionDocument !== 'undefined') {
-      const applied = SolutionDocument.applyInlineNotes(container, compiledNotes);
-      if (applied !== compiledNotes.length) console.warn('[SolutionDocument] 部分文字 NOTE 未套用', { applied, expected: compiledNotes.length });
-    }
     const drawTasks = [];
     if (typeof MolfileDraw !== 'undefined' && MolfileDraw.scan) {
       drawTasks.push(MolfileDraw.scan(container));
@@ -625,8 +679,7 @@ async function startSolve() {
       solveSpec,
       formatRoute
     };
-    // 只由使用者明確輸入的範圍控制分題標題；題庫／OCR 的題號不是多題指令。
-    updateSolveHeadingMode(scopeInput);
+    // 只由使用者明確輸入的範圍控制分題標題；圖片中的題號不是多題指令。
     if (typeof window.buildSolveUserText !== 'function') {
       throw new Error('prompts.js 未載入（buildSolveUserText 不存在）。請按 Ctrl+Shift+R 強制重新整理；若仍失敗，請用「啟動網頁.bat」開啟並確認主控台是否有 js 語法錯誤。');
     }
@@ -637,9 +690,36 @@ async function startSolve() {
     );
     const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
       ? window.SolveSpec.buildActiveBlock(formatRoute) : '';
-    const fullUserText = [userText, advancedBlock].filter(Boolean).join('\n\n');
     if (typeof window.SolutionCore === 'undefined') throw new Error('solution-core.js 未載入');
     const systemText = window.SolutionCore.buildSystem();
+    let verificationResult = null;
+
+    // 有參考答案時，另一個 Flash 先從題目獨立計算；主解題模型看不到參考答案。
+    if (solveOpts.refAnswer) {
+      setBadge('驗證答案條件中…', '#F9F3E6', '#8A6D3B');
+      const verificationUserText = typeof window.buildAnswerVerificationUserText === 'function'
+        ? window.buildAnswerVerificationUserText(scopeInput, solveOpts.refAnswer, solveOpts, advancedBlock)
+        : `【題目】\n${textQuestion}\n\n【待驗證參考答案】${solveOpts.refAnswer}`;
+      const verificationMessages = textOnly
+        ? [{ role: 'user', content: verificationUserText }]
+        : [{
+          role: 'user', content: [
+            ...imgDataURLs.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
+            { type: 'text', text: verificationUserText }
+          ]
+        }];
+      const verificationCfg = { ...cfg, model: verificationModelFor(cfg.model) };
+      const verification = await callAPI(verificationCfg, verificationMessages, ANSWER_VERIFICATION_SYSTEM, {
+        temperature: 0,
+        maxOutputTokens: 1800,
+        timeoutMs: 90000,
+        maxContinue: 0,
+        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: ANSWER_VERIFICATION_SCHEMA } }
+      });
+      verificationResult = normalizeAnswerVerification(verification.text);
+    }
+    // 主解題模型不接收參考答案或驗證結論，避免先入為主與反向硬湊。
+    const fullUserText = [userText, advancedBlock].filter(Boolean).join('\n\n');
 
     if (textOnly) {
       apiMessages = [{
@@ -660,8 +740,9 @@ async function startSolve() {
       }];
     }
 
-    const responseSchema = buildSolveResponseSchema(solveOpts.refAnswer);
-    let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, {
+    const responseSchema = buildSolveResponseSchema();
+    setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
+    const mainGenerationOptions = {
       temperature: 0.25,
       maxOutputTokens: 6144,
       timeoutMs: 120000,
@@ -669,30 +750,57 @@ async function startSolve() {
       responseFormat: {
         text: { mimeType: 'APPLICATION_JSON', schema: responseSchema }
       }
-    });
+    };
+    let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, mainGenerationOptions);
     let prepared = window.SolutionCore.prepare(reply);
     if (!prepared.ok) throw new Error('AI 詳解格式不完整，請重新作答。');
     reply = prepared.text;
-    if (solveOpts.refAnswer && !window.answersMatch(reply, solveOpts.refAnswer)) {
-      const retryMessages = [...apiMessages,
-        { role: 'assistant', content: reply },
-        { role: 'user', content: buildAnswerCorrectionText(solveOpts.refAnswer) }
-      ];
-      const retry = await callAPI(cfg, retryMessages, systemText, {
-        temperature: 0,
-        maxOutputTokens: 6144,
-        timeoutMs: 120000,
-        maxContinue: 0,
-        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: responseSchema } }
-      });
-      truncated = truncated || retry.truncated;
-      prepared = window.SolutionCore.prepare(retry.text);
-      if (!prepared.ok) throw new Error('指定答案修正後的詳解格式不完整，請重新作答。');
-      reply = prepared.text;
-      if (!window.answersMatch(reply, solveOpts.refAnswer)) {
-        toast('AI 詳解已顯示，但與指定答案不完全符合，請複核。');
+    let calculationAudit = auditCalculationDocument(prepared.document);
+    const validationProblems = () => {
+      const problems = [...calculationAudit.issues];
+      if (solveOpts.refAnswer && verificationResult?.consistent !== true) {
+        problems.push(`參考答案未通過獨立驗證${verificationResult?.warnings?.length ? `：${verificationResult.warnings.join('、')}` : ''}`);
       }
+      if (solveOpts.refAnswer && !window.answersMatch(reply, solveOpts.refAnswer)) {
+        problems.push('詳解最終答案與參考答案不同');
+      }
+      return problems;
+    };
+
+    let problems = validationProblems();
+    if (problems.length) {
+      setBadge('重新計算與核對中…', '#F9F3E6', '#8A6D3B');
+      const correctionPrompt = [
+        fullUserText,
+        solveOpts.refAnswer ? `【待核對參考答案】${solveOpts.refAnswer}` : '',
+        verificationResult ? `【另一個 Flash 的獨立驗證】\n${JSON.stringify(verificationResult)}` : '',
+        `【第一次結果未通過】\n${problems.join('\n')}\n\n【第一次輸出】\n${reply}`,
+        '請從題目重新計算，只修正有證據的錯誤；所有等號兩側、單位、守恆與選項結論必須一致。仍只回傳指定 JSON。'
+      ].filter(Boolean).join('\n\n');
+      const correctionMessages = textOnly
+        ? [{ role: 'user', content: correctionPrompt }]
+        : [{ role: 'user', content: [
+          ...imgDataURLs.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
+          { type: 'text', text: correctionPrompt }
+        ] }];
+      const correctionCfg = { ...cfg, model: 'gemini-3.5-flash' };
+      const corrected = await callAPI(correctionCfg, correctionMessages, systemText, {
+        ...mainGenerationOptions,
+        temperature: 0
+      });
+      const correctedPrepared = window.SolutionCore.prepare(corrected.text);
+      if (!correctedPrepared.ok) throw new Error('重新計算後的詳解格式仍不完整。');
+      prepared = correctedPrepared;
+      reply = prepared.text;
+      truncated = truncated || corrected.truncated;
+      calculationAudit = auditCalculationDocument(prepared.document);
+      problems = validationProblems();
     }
+
+    if (problems.length) {
+      throw new Error(`詳解未通過一致性驗證：${problems.join('；')}。請確認題目圖片與參考答案後再試。`);
+    }
+    solveOpts.calculationAudit = calculationAudit;
     apiMessages.push({ role: 'assistant', content: reply });
     setMainSolution(reply);
     renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);

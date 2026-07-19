@@ -68,11 +68,11 @@
       topic('ksp_precipitation', '溶度積、同離子效應與選擇性沉澱', 'Ksp、離子積 Qsp、沉澱條件與選擇性沉澱', /Ksp|溶度積|離子積|Qsp|同離子效應|選擇性沉澱|開始沉澱/, ['溶解平衡式', 'Qsp 與 Ksp 比較', '沉澱順序或濃度結論'], '先依溶解反應式寫 Qsp；Qsp>Ksp 才會沉澱，選擇性沉澱需比較各鹽達飽和所需的條件。')
     ]),
 
-    acidbase: chapter('反應與平衡', '酸鹼與鹽類平衡', '酸鹼理論、pH、Ka／Kb、滴定、水解與緩衝溶液', /酸鹼|酸性|鹼性|pH|pOH|K_a|Ka|K_b|Kb|K_w|Kw|水的解離|中和|滴定|當量點|終點|鹽類水解|緩衝|共軛酸鹼|多質子酸/, ['酸鹼物種與反應式', '平衡／當量或 pH 關係', '條件與近似檢查', '結論'], '先判斷強弱酸鹼與主要物種；計算題要說明近似是否合理，滴定題則先定位當量點前、當量點或當量點後。', [
+    acidbase: chapter('反應與平衡', '酸鹼與鹽類平衡', '酸鹼理論、pH、Ka／Kb、滴定、水解與緩衝溶液', /酸鹼|酸性|鹼性|pH|pOH|K_a|Ka|K_b|Kb|K_w|Kw|水的解離|中和|滴定|當量點|終點|鹽類水解|緩衝|共軛酸鹼|多質子酸/, ['酸鹼物種與反應式', '平衡／當量或 pH 關係', '條件與近似檢查', '結論'], '先判斷強弱酸鹼與主要物種；計算題要說明近似是否合理，滴定題則先定位當量點前、當量點或當量點後。若題目出現多質子酸、解離度或不同解離型態比例，先做物種分配與總量檢查後才代入 Ka。', [
       topic('acidbase_ph_water', '酸鹼命名、pH 與水的解離', '酸鹼強度、pH／pOH、Kw 與水溶液酸鹼性', /酸鹼命名|強酸|強鹼|pH|pOH|水的解離|Kw|K_w|中性|酸性溶液|鹼性溶液/, ['主要離子或 [H+]/[OH−]', 'pH、pOH 或 Kw 關係', '酸鹼性結論'], '強酸強鹼先依化學計量決定主要離子濃度；在指定溫度下使用 pH+pOH 與 Kw 關係，不要把中性固定等同 pH 7。'),
       topic('acidbase_theories', '阿瑞尼士與布－洛酸鹼理論', '酸鹼定義、質子轉移與共軛酸鹼對', /阿瑞尼士|Arrhenius|布.?洛|Bronsted|Brønsted|質子轉移|共軛酸|共軛鹼/, ['酸與鹼角色', '質子轉移與共軛對', '反應判斷'], '布－洛理論中酸提供 H+、鹼接受 H+；一組共軛酸鹼對只相差一個質子。'),
       topic('weak_acids_kakb', '弱酸弱鹼、Ka／Kb 與共軛關係', '弱電解質解離、Ka、Kb 與 KaKb=Kw', /弱酸|弱鹼|Ka|Kb|K_a|K_b|酸解離常數|鹼解離常數|共軛酸鹼對/, ['解離反應與初始濃度', 'Ka／Kb 平衡關係', 'pH 或強弱結論'], '先寫解離反應與平衡式，再判斷 x 相對初濃度的近似是否可用；共軛對在同溫下滿足 Ka×Kb=Kw。'),
-      topic('polyprotic_acids', '多質子酸與逐步解離', '多質子酸、Ka1、Ka2 與主要解離步驟', /多質子酸|二元酸|三元酸|Ka1|Ka2|Ka3|逐步解離/, ['逐步解離反應', '各步 Ka 比較', '主要物種或 pH 結論'], '逐步寫出每次解離；通常 Ka1 最大，pH 常由第一步主導，除非題目給定特殊濃度或常數。'),
+      topic('polyprotic_acids', '多質子酸與逐步解離', '多質子酸、Ka1、Ka2 與主要解離步驟', /多質子酸|二元酸|三元酸|H2A|H3A|H4A|Ka1|Ka2|Ka3|逐步解離|解離度|α/, ['逐步解離反應', '物種分配與總量檢查', '各步 Ka 比較', '主要物種或 pH 結論'], '逐步寫出每次解離；若題目同時給解離度與不同型態的比例，先用總酸濃度分配各型態，並檢查各型態濃度總和等於總濃度後才代入 Ka。除非題目明示可忽略後續解離，不可把 Cα 直接當成 [H+] 或單一離子濃度。通常 Ka1 最大，pH 常由第一步主導，除非題目給定特殊濃度或常數。'),
       topic('acidbase_titration', '酸鹼滴定與滴定曲線', '當量點、終點、強酸強鹼、強弱滴定與指示劑', /酸鹼滴定|滴定曲線|當量點|滴定終點|指示劑|半當量點|滴定管|標定/, ['滴定前的莫耳數', '所在區段與主要反應', 'pH／指示劑或體積結論'], '先做中和莫耳計量，再判斷滴定區段；當量點 pH 是否為 7 取決於酸鹼強弱，終點是指示劑變色範圍。'),
       topic('salt_hydrolysis', '鹽類與水解', '鹽的分類、共軛離子水解與溶液酸鹼性', /鹽類|鹽的水解|水解反應|共軛鹼|共軛酸|NH4|CH3COO/, ['鹽的離子來源', '可能的水解反應', '溶液酸鹼性'], '由鹽的陽、陰離子分別判斷是否為強酸／強鹼的共軛物種；只有會與水反應的離子造成水解。'),
       topic('buffer', '緩衝溶液', '同離子效應、緩衝組成、容量與半當量點', /緩衝溶液|緩衝能力|同離子效應|半當量點|Henderson|配製緩衝/, ['共軛酸鹼對與莫耳數', '加入強酸／強鹼後的計量', 'pH 與緩衝結論'], '緩衝液須含弱酸／共軛鹼或弱鹼／共軛酸；先做加入強酸鹼的完全反應，再用剩餘兩者的比例判斷 pH。')
@@ -124,7 +124,6 @@
   });
 
   const FORMATS = Object.freeze({
-    choice: ['選擇題逐項分析', '判斷依據、各選項分析如下、答案', ['判斷依據', '各選項分析如下']],
     calculation: ['計算題四步推導', '已知與目標、關係式、代入計算、結論', ['已知與目標', '關係式', '代入計算', '結論']],
     concept: ['概念／性質三步判斷', '判斷依據、推論過程、結論', ['判斷依據', '推論過程', '結論']]
   });
@@ -183,26 +182,12 @@
     });
     return next;
   }
-  function countSignals(text, patterns) { return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0); }
-  function autoFormatId(question) {
-    const text = String(question || '');
-    const hasChoices = /\([A-EＡ-Ｅ]\)|選項/.test(text);
-    const reactionSignals = countSignals(text, [/反應式|配平|反應/, /限量試劑|足量|過量/, /起始|變化|結果|反應前|反應後/, /生成|產生|消耗|剩餘|逸出/, /莫耳(?:數)?比|化學計量/]);
-    const hasQuantity = /莫耳|mol|質量|體積|濃度|產率/.test(text);
-    if (hasQuantity && reactionSignals >= 2) return 'reaction_calculation';
-    if (hasChoices) return 'choice';
-    const calculationSignals = countSignals(text, [/計算|求(?:出|得)?/, /\d+(?:\.\d+)?\s*(?:mol|g|kg|mL|L|M|atm|kPa|%|秒|s)(?:\s|$|[,，。；])/i, /=|\d+\s*[×x*\/]/, /濃度|稀釋|氣體定律|pH|產率|單位換算|莫耳/]);
-    if (calculationSignals >= 2) return 'calculation';
-    const conceptSignals = countSignals(text, [/比較|何者|判斷|原因|為何|性質|趨勢|正確|錯誤/, /電子組態|鍵角|混成|氧化數|酸鹼|平衡移動|反應速率/]);
-    if (conceptSignals >= 1 && !hasQuantity) return 'concept';
-    return 'plain';
-  }
   function route(spec, question, opts) {
     opts = opts || {};
     const manual = withApplicability(spec, question);
     if (opts.forceStoichiometry) return { id: 'reaction_table', origin: 'manual', solveSpec: manual, forceStoichiometry: true, forceCalcCompact: !!opts.forceCalcCompact };
     if (manual.formatIds.length || manual.chapterIds.length || opts.forceCalcCompact) return { id: 'manual', origin: 'manual', solveSpec: manual, forceStoichiometry: false, forceCalcCompact: !!opts.forceCalcCompact };
-    return { id: 'plain', origin: 'auto', detectedId: autoFormatId(question), solveSpec: create({}), forceStoichiometry: false, forceCalcCompact: false };
+    return { id: 'plain', origin: 'auto', solveSpec: create({}), forceStoichiometry: false, forceCalcCompact: false };
   }
   function describeRoute(value) {
     const routeValue = value || {};
@@ -213,12 +198,6 @@
     routeValue.solveSpec?.chapters?.filter((item) => item.applicability !== 'not-applicable').forEach((item) => active.push(item.label));
     routeValue.solveSpec?.formats?.forEach((item) => active.push(item.label));
     return `已啟用進階功能：${[...new Set(active)].join('、') || '手動格式'}。`;
-  }
-  function buildRouteUserBlock(value) {
-    if (!value || value.id === 'plain' || value.id === 'manual') return '';
-    if (value.id === 'reaction_table') return '【本機格式路由｜反應方程式表】完整詳解內容必須維持；反應式與起始／變化／結果表是額外區塊，不可用表格取代計算、理由或逐項分析。';
-    if (value.id === 'reaction_calculation') return '【本機格式路由｜反應表＋四步計算】先用反應方程式表整理反應物種與起始／變化／結果；再依「已知與目標、關係式、代入計算、驗算與結論」完成共用計算。若選項只是數字／比例，最後只需對照並寫答案，不必逐項重複計算。資料不足不可硬湊表格。';
-    return `【本機格式路由】本題適合「${({ calculation: '計算題四步推導', concept: '概念／性質三步判斷', choice: '選擇題逐項分析' })[value.id]}」；只套用此格式，不適用時回到一般詳解。`;
   }
   function describe(spec) {
     if (!spec?.enabled) return spec?.autoCandidates?.length ? `自動候選：${spec.autoCandidates.map((id) => CHAPTERS[id].label).join('、')}。未強制套用。` : '未啟用章節或格式規格，將依題目自動判斷。';
@@ -266,5 +245,5 @@
     return issues;
   }
 
-  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, autoFormatId, route, describe, describeRoute, buildRouteUserBlock, buildUserBlock, buildActiveBlock, checkReply });
+  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, route, describe, describeRoute, buildUserBlock, buildActiveBlock, checkReply });
 })(typeof window !== 'undefined' ? window : globalThis);

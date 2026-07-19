@@ -61,7 +61,7 @@
 
   const chapterHost = document.getElementById('chapterOptions');
   const chapterSpec = chapterHost?.closest('.solve-spec');
-  const formatSpec = document.getElementById('solveTypeChoice')?.closest('.solve-spec');
+  const formatSpec = document.getElementById('solveSpecTitle')?.closest('.solve-spec');
   if (!chapterHost || !chapterSpec || !formatSpec) return;
 
   const chapterControl = document.createElement('section');

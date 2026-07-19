@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.9.0/github-markdown.css">
   <link rel="stylesheet" href="css/app.css?v=20260719-editorial">
-  <link rel="stylesheet" href="css/board.css?v=20260719-markdown-unified">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260716-clean">
+  <link rel="stylesheet" href="css/board.css?v=20260719-flash-crosscheck">
+  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260719-single-pipeline">
   <link rel="stylesheet" href="css/chem-structure.css?v=20260716-clean">
-  <link rel="stylesheet" href="css/studio-theme.css?v=20260716-clean">
+  <link rel="stylesheet" href="css/studio-theme.css?v=20260719-single-pipeline">
 </head>
 <body class="app-page" data-theme="ivory">
 
@@ -43,7 +43,7 @@
   <section class="panel panel-input" aria-label="上傳題目">
     <div class="panel-head">
       <h1 class="panel-title">上傳題目</h1>
-      <p class="panel-desc">拍照上傳，或直接輸入題目文字；皆可配對題庫</p>
+      <p class="panel-desc">拍照上傳，或直接輸入題目文字</p>
     </div>
 
     <div class="upload-zone" id="zone">
@@ -98,9 +98,9 @@
     </details>
 
     <div class="field-group">
-      <label class="field-label" for="answerInput">指定正確答案（選填）</label>
+      <label class="field-label" for="answerInput">參考答案（選填）</label>
       <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off">
-      <p class="field-hint">填入後即作為最終答案硬性條件：AI 的答案欄會被鎖定，本機也會再次驗證；不一致的結果不會顯示。單題寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>（第3題選A、第5題選C與D）。</p>
+      <p class="field-hint">填入後會交給另一個 Flash 獨立驗算，不會先告訴主解題模型，也不會強制鎖定答案；兩邊計算或本機檢查不一致時，結果不會顯示。單題可寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>。</p>
     </div>
 
     <div class="solve-options">
@@ -128,11 +128,10 @@
     <section class="solve-spec" aria-labelledby="solveSpecTitle" aria-describedby="solveSpecHint solveSpecStatus">
       <h2 class="field-label" id="solveSpecTitle">作答格式（可複選）</h2>
       <div class="solve-spec-row">
-        <label class="option-toggle" for="solveTypeChoice"><input type="checkbox" id="solveTypeChoice" data-solve-type="choice"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">選擇題逐項分析</span></label>
         <label class="option-toggle" for="solveTypeCalculation"><input type="checkbox" id="solveTypeCalculation" data-solve-type="calculation"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算題四步推導</span></label>
         <label class="option-toggle" for="solveTypeConcept"><input type="checkbox" id="solveTypeConcept" data-solve-type="concept"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">概念／性質三步判斷</span></label>
       </div>
-      <p class="field-hint" id="solveSpecHint">選擇格式只控制呈現步驟；未選取時維持原本依題目自動判斷的解題方式。</p>
+      <p class="field-hint" id="solveSpecHint">格式只控制額外呈現步驟；所有選擇題本來就會依題目實際選項逐項分析。</p>
       <p class="solve-spec-status" id="solveSpecStatus" aria-live="polite">未啟用題型規格，將依題目自動判斷。</p>
     </section>
 
@@ -225,19 +224,18 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@cortex-js/compute-engine@0.62.1/compute-engine.min.js"></script>
-<script src="js/solve-spec.js?v=20260716-clean"></script>
-  <script src="js/prompts.js?v=20260719-answer-gate"></script>
-<script src="js/math-note/math-note.js?v=20260716-clean"></script>
+  <script src="js/solve-spec.js?v=20260719-single-pipeline"></script>
+  <script src="js/prompts.js?v=20260719-flash-crosscheck"></script>
+<script src="js/math-note/math-note.js?v=20260719-single-pipeline"></script>
 <script src="js/formula-tools.js?v=20260716-clean"></script>
 <script src="js/latex-sanitize.js?v=20260716-clean2"></script>
-<script src="js/solution-format.js?v=20260716-clean"></script>
-<script src="js/solution-core.js?v=20260719-editorial"></script>
+<script src="js/solution-core.js?v=20260719-single-pipeline"></script>
 <script src="js/structures-bundle.js?v=20260716-clean"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
-<script src="js/chem-structure.js?v=20260716-clean"></script>
-  <script src="js/render.js?v=20260719-answer-gate"></script>
-<script src="js/api.js?v=20260716-clean"></script>
-  <script src="js/app.js?v=20260719-answer-notice"></script>
+<script src="js/chem-structure.js?v=20260719-single-pipeline"></script>
+  <script src="js/render.js?v=20260719-flash-crosscheck"></script>
+<script src="js/api.js?v=20260719-flash-crosscheck"></script>
+  <script src="js/app.js?v=20260719-flash-crosscheck"></script>
 <script src="js/studio-layout.js?v=20260716-clean"></script>
 <script>
   (() => {

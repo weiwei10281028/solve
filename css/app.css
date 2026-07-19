@@ -463,7 +463,7 @@ body {
 .solve-validation.is-warning { color: #9B4444; }
 
 /* 非 KaTeX 的題幹、結論與 NOTE 數字採固定寬度，避免中英文混排時數字跳動。 */
-.board, .ai-plain, .math-note-popover { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.board, .chem-markdown, .math-note-popover { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 .action-row {
   display: flex;
@@ -575,22 +575,12 @@ body {
   word-break: normal;
 }
 
-.msg-body .ai-plain .plain-line-inner {
-  overflow-wrap: break-word;
-  word-break: normal;
-}
-
-.msg-body .ai-plain .plain-line-inner.plain-line--hscroll {
-  overflow-wrap: normal;
-  word-break: normal;
-}
-
 .msg-body .katex {
   line-height: 1.6;
   overflow: visible;
 }
-.board-scroll .ai-plain .katex,
-.board-reply .ai-plain .katex,
+.board-scroll .chem-markdown .katex,
+.board-reply .chem-markdown .katex,
 .msg-body .board-scroll .katex,
 .msg-body .board-reply .katex {
   font-size: 1em;
@@ -1141,7 +1131,7 @@ body.is-lightbox-open {
 
   .board,
   .board-scroll,
-  .ai-plain {
+  .chem-markdown {
     max-width: 100%;
     min-width: 0;
   }

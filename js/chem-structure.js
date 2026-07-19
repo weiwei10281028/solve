@@ -502,8 +502,8 @@
 
   function getLayoutRoot(container) {
     if (!container) return null;
-    if (container.classList?.contains('ai-plain')) return container;
-    return container.querySelector('.ai-plain') || container;
+    if (container.classList?.contains('chem-markdown')) return container;
+    return container.querySelector('.chem-markdown') || container;
   }
 
   /** (a)～(g) 子項：標題 + 結構圖 + 混成／形狀文字並排 */

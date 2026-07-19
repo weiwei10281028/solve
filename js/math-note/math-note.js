@@ -370,7 +370,7 @@
     if (!root) return;
     root.querySelectorAll('[data-note], [note]').forEach((el) => {
       if (el.classList.contains('math-note-popover')) return;
-      if (!el.closest('.ai-plain, .board-reply, .board')) return;
+      if (!el.closest('.chem-markdown, .board-reply, .board')) return;
       el.classList.add('math-note');
       const note = parseHtmlDataNote(el.getAttribute('data-note') || el.getAttribute('note') || '');
       if (note) el.setAttribute('data-note', note);

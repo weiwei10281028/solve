@@ -16,20 +16,18 @@ JS = ROOT / "js"
 FILES = [
     "solve-spec.js", "prompts.js", "app.js",
     "render.js",
-    "latex-sanitize.js", "solution-format.js", "solution-core.js", "chem-structure.js", "math-note/math-note.js",
+    "latex-sanitize.js", "solution-core.js", "chem-structure.js", "math-note/math-note.js",
 ]
 REQUIRED = {
     "solve-spec.js": ["global.SolveSpec", "function buildUserBlock", "function checkReply"],
     "prompts.js": [
         "window.buildSolveUserText",
         "window.getSystemPromptForSolve",
-        "window.checkSolutionBoardStyle",
     ],
-    "render.js": ["function quarantineInvalidLatexSegments"],
+    "render.js": ["function renderMarkdownSolution", "function isFormulaDominantLine", "function doKaTeX"],
     "app.js": ["window.SolutionCore.prepare", "responseFormat:"],
     "math-note/math-note.js": ["function positionActivePopover", "function renderNoteContent"],
     "latex-sanitize.js": ["function sanitizeText", "function repairMath"],
-    "solution-format.js": ["global.SolutionDocument", "function validateDocument", "function compileDocument"],
     "solution-core.js": ["global.SolutionCore", "function prepare", "const SCHEMA"],
     "chem-structure.js": ["global.MolResolver", "global.MolfileDraw", "global.StructureLayout", "global.SmilesDraw"],
 }

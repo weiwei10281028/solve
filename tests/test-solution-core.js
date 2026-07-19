@@ -15,7 +15,7 @@ const doc = {
 
 const result = Core.prepare(JSON.stringify(doc));
 if (!result.ok) throw new Error('結構化詳解解析失敗');
-if (!Core.SYSTEM.includes('不預設選項數量、標籤或順序')) throw new Error('選項規格未整合至唯一提示詞');
+if (!Core.SYSTEM.includes('不預設選項數量、標籤形式或順序')) throw new Error('選項規格未整合至唯一提示詞');
 if (!result.text.includes('\\ce{MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O}')) throw new Error('反應式未由本機編譯');
 if (result.text.includes('(F)')) throw new Error('本機不應自行補寫選項標籤');
 if (!/\\htmlData\{note=[^}]*濃度[^}]*\}\{0\.016\}/.test(result.text)) throw new Error('本機 NOTE 未包含物種濃度語意');
@@ -29,7 +29,6 @@ const structureText = Core.prepare(JSON.stringify({ blocks: [{
 }], answer: 'B' })).text;
 if (/\\ce\{\\ce/.test(structureText) || /\\htmlData/.test(structureText)) throw new Error('結構敘述不應產生巢狀化學式或 NOTE');
 if (!structureText.includes('\\ce{CO3^2-}')) throw new Error('結構題化學式未統一為 mhchem');
-if (/note=[^}]*(?:（[A-E]）|\([A-E]\))/.test(result.text)) throw new Error('NOTE 單位被誤判為選項標籤');
 if (/0\.016M|0\.0105L|10\^\{-4\}mol|\\mathrm\{M\}/.test(result.text)) throw new Error('計算式仍直接顯示單位');
 if (/\\mathrm\{(?:M|mL|L|mol)\}|\d(?:M|mL|L|mol)\b/.test(result.text)) throw new Error('文字欄位內的算式仍直接顯示單位');
 if (!/係數比為 .*：.*。/.test(result.text) || result.text.includes('係數比為 1:5.')) throw new Error('文字標點未統一全形');
@@ -103,7 +102,10 @@ const advancedDoc = Core.prepare(JSON.stringify({blocks:[
   ]}
 ],answer:'完成'}));
 if (!advancedDoc.text.includes('【已知與目標】') || !advancedDoc.text.includes('\\begin{array}') || !advancedDoc.text.includes('\\ce{MnO4^-}')) throw new Error('進階標題或反應變化表未由本機編譯');
-if (Object.keys(Core.SCHEMA.properties.blocks.items.properties).join(',') !== 'type,text') throw new Error('Gemini schema 未精簡為穩定的兩欄結構');
+for (const field of ['type', 'text']) {
+  if (!Object.hasOwn(Core.SCHEMA.properties.blocks.items.properties, field)) throw new Error(`Gemini schema 缺少 ${field} 結構欄位`);
+}
+if (Object.keys(Core.SCHEMA.properties.blocks.items.properties).length !== 2) throw new Error('Gemini schema 不應再帶入多層排版欄位');
 if (Core.SCHEMA.type !== 'object' || Core.SCHEMA.properties.blocks.type !== 'array') throw new Error('Gemini JSON schema 型別必須使用標準小寫');
 const compactTable = Core.prepare(JSON.stringify({blocks:[{type:'reaction_table',text:'物種：A｜B｜C；起始：2｜5｜0；變化：-x｜-2x｜+x；結果：0｜1｜2'}],answer:'C = 2'}));
 if (!compactTable.text.includes('\\begin{array}') || !compactTable.text.includes('2')) throw new Error('精簡反應表未由本機編譯');
@@ -121,25 +123,52 @@ if (normalRoute.id !== 'plain' || normalRoute.forceStoichiometry || Spec.buildAc
 const manualRoute = Spec.route(Spec.create({ formatIds: ['calculation'] }), '求濃度', { forceCalcCompact: true });
 const activeBlock = Spec.buildActiveBlock(manualRoute);
 if (manualRoute.origin !== 'manual' || !activeBlock.includes('計算精簡') || !activeBlock.includes('計算題四步推導')) throw new Error('已勾選的進階功能未進入執行規格');
+const acidRoute = Spec.route(Spec.create({ chapterIds: ['acidbase'] }), '', {});
+const acidBlock = Spec.buildActiveBlock(acidRoute);
+if (!acidBlock.includes('多質子酸、解離度或不同解離型態比例') || !acidBlock.includes('物種分配與總量檢查')) throw new Error('酸鹼章節未注入條件式物種分配檢查');
 
 const app = fs.readFileSync('js/app.js', 'utf8');
+const prompts = fs.readFileSync('js/prompts.js', 'utf8');
 const boardCss = fs.readFileSync('css/board.css', 'utf8');
 const renderer = fs.readFileSync('js/render.js', 'utf8');
 const startSolve = app.slice(app.indexOf('async function startSolve()'), app.indexOf('async function sendFollowUp'));
-if ((startSolve.match(/callAPI\(/g) || []).length !== 2) throw new Error('指定答案不一致時未進行一次修正呼叫');
+if ((startSolve.match(/callAPI\(/g) || []).length !== 3) throw new Error('主解題、獨立驗證與最多一次修正的呼叫數不正確');
+if (!/ANSWER_VERIFICATION_SYSTEM/.test(app) || !/buildAnswerVerificationUserText/.test(startSolve) || !/verificationModelFor\(cfg\.model\)/.test(startSolve)) throw new Error('參考答案未交給另一個 Flash 獨立驗證');
+if (!/parsed\?\.consistent === true/.test(app)) throw new Error('獨立驗證缺少明確 true 時仍可能誤放行');
+if (/enum:\s*\[answer\]/.test(app) || !/JSON\.parse\(JSON\.stringify\(window\.SolutionCore\.SCHEMA\)\)/.test(app)) throw new Error('參考答案仍被寫入輸出 schema 強制鎖定');
 if (/ensureQualityReply|ensureVerifiedMainSolution|ensureChoiceCompletenessReply/.test(startSolve)) throw new Error('主解題仍連接舊的 AI 重寫流程');
 if (/ensureDensityReply/.test(startSolve)) throw new Error('主解題不應再讓舊的密度 AI 重寫流程介入');
 if (/requestAnimationFrame\(\(\) => requestAnimationFrame/.test(app.slice(app.indexOf('function renderAiInto'), app.indexOf('function setMainSolution')))) throw new Error('詳解顯示仍依賴背景可能停用的動畫幀');
 if (!/renderMarkdownSolution\(body\)/.test(app) || !/function renderMarkdownSolution/.test(renderer)) throw new Error('詳解未統一使用 Markdown 渲染');
 if (!/grid-template-columns:\s*2rem minmax\(0, 1fr\)/.test(boardCss)) throw new Error('選項未使用固定標籤欄與懸掛縮排');
-if (!/plain-line-inner--xscroll::after/.test(boardCss) || !/可左右滑動查看完整公式/.test(renderer)) throw new Error('長公式缺少橫向滑動提示');
+if (/plain-line-inner--xscroll::after/.test(boardCss) || /content:\s*["']↔/.test(boardCss)) throw new Error('橫向滑動箭頭仍存在');
+if (!/function isFormulaDominantLine/.test(renderer)) throw new Error('未區分自然換行文字與純長公式');
 if (!/measureLineOverflow/.test(renderer) || !/\.markdown-choice-body/.test(renderer)) throw new Error('Markdown 長列未依實際寬度判定橫滑');
 if (!/lineScrollResizeBound/.test(renderer)) throw new Error('視窗尺寸改變後不會更新公式橫滑');
-if (!/schema:\s*responseSchema/.test(startSolve) || !/buildSolveResponseSchema/.test(app)) throw new Error('Gemini 呼叫未使用指定答案結構化閘門');
+if (!/schema:\s*responseSchema/.test(startSolve) || !/buildSolveResponseSchema/.test(app)) throw new Error('Gemini 呼叫未使用結構化輸出 schema');
 if (!/buildSystem\(\)/.test(startSolve)) throw new Error('主解題未使用唯一 system prompt');
 if (!/renderSolveValidation\(reply, solveOpts, solveOpts\.refAnswer\)/.test(startSolve)) throw new Error('完成後未執行本機驗證');
-if (!/window\.answersMatch\(reply, solveOpts\.refAnswer\)/.test(startSolve) || !/與指定答案不完全符合/.test(startSolve)) throw new Error('指定答案不一致時未清楚提示');
+if (!/window\.answersMatch\(reply, solveOpts\.refAnswer\)/.test(startSolve) || !/詳解最終答案與參考答案不同/.test(startSolve)) throw new Error('參考答案不一致時未拒絕顯示');
+if (!/auditCalculationDocument\(prepared\.document\)/.test(startSolve) || !/problems = validationProblems\(\)/.test(startSolve)) throw new Error('本機算式驗算未接入顯示前閘門');
 if (!/initSolveOptionToggles\(\);\s*updateSolveSpecStatus\(\);/.test(app)) throw new Error('重開頁面後進階狀態未同步');
+
+const promptContext = { window: {} };
+vm.runInNewContext(prompts, promptContext);
+const mainPrompt = promptContext.window.buildSolveUserText('題目文字', 'A', { questionBody: '題目文字' });
+if (mainPrompt.includes('A') || mainPrompt.includes('參考答案')) throw new Error('主解題提示詞仍收到參考答案');
+const verificationPrompt = promptContext.window.buildAnswerVerificationUserText('題目文字', 'A');
+if (!verificationPrompt.includes('待驗證參考答案') || !verificationPrompt.includes('不預設參考答案正確')) throw new Error('獨立驗證提示詞未把參考答案視為待驗證命題');
+
+const auditContext = {
+  window: {},
+  math: { evaluate: expression => Function(`return (${expression.replace(/\^/g, '**')})`)() }
+};
+const auditSource = app.slice(app.indexOf('function normalizeNumericExpression'), app.indexOf('function getSolveSpec'));
+vm.runInNewContext(auditSource, auditContext);
+const goodAudit = auditContext.window.auditCalculationDocument({ blocks: [{ type: 'calculation', text: 'n=0.016*0.0105=0.000168' }] });
+const badAudit = auditContext.window.auditCalculationDocument({ blocks: [{ type: 'calculation', text: 'x=2*3=7' }] });
+if (goodAudit.checked !== 1 || goodAudit.issues.length) throw new Error('正確算式未通過本機等號檢查');
+if (badAudit.issues.length !== 1) throw new Error('錯誤算式未被本機等號檢查攔截');
 
 const acidResult = Core.prepare(JSON.stringify({blocks:[
   {type:'paragraph',text:'設 H2A 初始濃度 C=0.24，解離後 [H2A]=0.02。'},
@@ -159,5 +188,17 @@ const acidNarrative = Core.prepare(JSON.stringify({blocks:[
 if (/\[\$|\]\s*\/\s*\$/.test(acidNarrative) || !acidNarrative.includes('\\dfrac{[\\mathrm{HA}^{-}]}{[\\mathrm{A}^{2-}]}')) throw new Error('段落中的抽象酸物種比未完整編譯');
 if (!acidNarrative.includes('$pK_{a1}=')) throw new Error('pK1 未正規化為 pKa1 下標');
 if (!acidNarrative.includes('$[\\ce{H+}]$')) throw new Error('敘述中的濃度物種括號被拆開');
+
+const arbitraryLabels = Core.prepare(JSON.stringify({blocks:[
+  {type:'heading',text:'選項分析'},
+  {type:'choice',text:'（甲）此敘述符合守恆關係，正確。'},
+  {type:'choice',text:'（J）此值少乘了稀釋倍數，錯誤。'},
+  {type:'choice',text:'（⑥）計算結果與題目條件一致，正確。'}
+],answer:'甲、⑥'}));
+for (const label of ['甲', 'J', '⑥']) {
+  if (!arbitraryLabels.text.includes(`@@CHOICE[${label}]@@`)) throw new Error(`任意選項標籤遺失：${label}`);
+}
+if (/\(甲\)|\(J\)|\(⑥\)/.test(arbitraryLabels.text)) throw new Error('編譯器仍把選項標籤混進選項文字');
+if (/A\s*[～~\-–—]\s*E/.test(Core.SYSTEM)) throw new Error('唯一提示詞仍限制選項標籤範圍');
 
 console.log('SOLUTION_CORE_STAGE4_OK');

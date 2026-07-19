@@ -2,13 +2,13 @@
 <html lang="zh-TW">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>詳解渲染驗證</title>
+<title>詳解手機排版驗證</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <link rel="stylesheet" href="../css/app.css">
-<link rel="stylesheet" href="../css/board.css">
-<link rel="stylesheet" href="../css/math-note/math-note.css">
+<link rel="stylesheet" href="../css/board.css?v=20260719-single-pipeline">
+<link rel="stylesheet" href="../css/math-note/math-note.css?v=20260719-single-pipeline">
 <body class="app-page">
-  <main class="page-main">
+  <main class="page-main" style="max-width:375px">
     <div class="board"><div class="board-scroll" id="fixture"></div></div>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -16,20 +16,19 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@18.0.6/lib/marked.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
-  <script src="../js/math-note/math-note.js"></script>
-  <script src="../js/latex-sanitize.js"></script>
-  <script src="../js/render.js?v=20260719-markdown-unified"></script>
+  <script src="../js/math-note/math-note.js?v=20260719-single-pipeline"></script>
+  <script src="../js/render.js?v=20260719-single-pipeline"></script>
   <script>
-    const sample = String.raw`一般 English sentence stays as readable prose and wraps naturally. 已知 $W=128\,\mathrm{mg}$，$n=3.65\,\mathrm{mol}$，溫度為 $28^{\circ}\mathrm{C}$；化學式 $H_2O$、$Fe^{2+}$、$CO$、$SO_3$、$CaO$。
-$$\htmlData{note=樣品質量（128 mg）}{W}=\dfrac{\htmlData{note=樣品質量（128 mg）}{128\,\mathrm{mg}}}{\htmlData{note=莫耳質量（100 g mol^{-1}）}{100\,\mathrm{g\,mol^{-1}}}}=\htmlData{note=計算得到的莫耳數}{1.28\times10^{-3}\,\mathrm{mol}}\quad\longrightarrow\quad\dfrac{\left(\dfrac{128}{100}\right)^2+\left(\dfrac{128}{100}\right)^2}{\dfrac{3.65}{28}+\dfrac{3.65}{28}}$$
-各選項分析如下：
-(A) $H_2O$ 為化學式，敘述正確。
-(B) $Fe^{2+}$ 為離子，敘述正確。
-(C) $CaO$ 為化合物，敘述錯誤。
-(D) $CO$ 與 $SO_3$ 均走數學 token，敘述正確。
-(E) $28$、$128-100=28$、$3.65$ 可保留完整 token，敘述正確。
-雙反斜線輸入也須正確：$\\ce{Fe_xO_y}$、$\\ce{Ca(OH)2 -> CaCO3 + H2O}$。
-@@ANSWER@@(A)(B)(D)(E)`;
+    const sample = String.raw`【已知條件與反應平衡】
+本實驗為氧化還原滴定，$\ce{MnO4^-}$ 將 $\ce{Fe^2+}$ 氧化，敘述文字可以依螢幕寬度自然換行。
+$\ce{MnO4^- + 5Fe^2+ + 8H+ -> Mn^2+ + 5Fe^3+ + 4H2O}$
+【計算過程】
+$n_{\ce{Fe^2+}}=5\times0.016\times0.0105=8.4\times10^{-4}\,\mathrm{mol}$
+【選項分析】
+@@CHOICE[甲]@@ 正確，電子轉移數與係數比一致。
+@@CHOICE[J]@@ 錯誤，這是一段較長的中文理由，應自然分行並維持標點，不可被鎖在同一行。
+@@CHOICE[⑥]@@ 正確，$\ce{MnO4^-}$ 的上下標與電荷應由 KaTeX 正確顯示。
+@@ANSWER@@甲、⑥`;
     const fixture = document.getElementById('fixture');
     fixture.innerHTML = renderMarkdownSolution(sample);
     doKaTeX(fixture);

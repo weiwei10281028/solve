@@ -1,134 +1,74 @@
 # -*- coding: utf-8 -*-
-"""用途：執行本機 HTTP 冒煙驗收（無需瀏覽器 F12）。
-
-安全提醒：本程式只讀取專案檔案與本機 18080 伺服器，不會修改網站或資料庫內容。
-"""
+"""現行單一詳解管線的靜態與本機 HTTP 冒煙測試。"""
+from pathlib import Path
 import os
-import re
 import sys
 import urllib.request
 
-# 與「啟動網頁.bat」一致；18080 較不易與常見開發服務衝突。
+ROOT = Path(__file__).resolve().parents[1]
 BASE = os.environ.get("AI_SOLVE_TEST_BASE", "http://localhost:18080")
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RENDER_BUILD = "20260719-answer-gate"
-APP_BUILD = "20260719-answer-notice"
-SOLVE_SPEC_BUILD = "20260716-clean"
-SOLUTION_CORE_BUILD = "20260719-editorial"
+BUILD = "20260719-flash-crosscheck"
 results = []
 
 
-def ok(name, cond, detail=""):
-    results.append({"name": name, "pass": bool(cond), "detail": detail})
+def check(name, condition, detail=""):
+    results.append((name, bool(condition), detail))
 
 
-def fetch(url):
-    with urllib.request.urlopen(url, timeout=8) as r:
-        return r.read().decode("utf-8", errors="replace")
+def read(relative):
+    return (ROOT / relative).read_text(encoding="utf-8")
 
 
-for path in ["/index.html", f"/js/render.js?v={RENDER_BUILD}", "/tests/verify-build.html", f"/js/solve-spec.js?v={SOLVE_SPEC_BUILD}", f"/js/solution-core.js?v={SOLUTION_CORE_BUILD}"]:
+def fetch(path):
+    with urllib.request.urlopen(BASE + path, timeout=8) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+render = read("js/render.js")
+core = read("js/solution-core.js")
+spec = read("js/solve-spec.js")
+prompts = read("js/prompts.js")
+app = read("js/app.js")
+index = read("index.html")
+board = read("css/board.css")
+note = read("css/math-note/math-note.css")
+
+check("單一 Markdown 渲染器", "function renderMarkdownSolution" in render and "renderCompiledSolution" not in app)
+schema_source = core.split("const SYSTEM", 1)[0]
+check("扁平穩定詳解 schema", "type: { type: 'string'" in schema_source and "text: { type: 'string'" in schema_source and "rows:" not in schema_source)
+check("每個實際選項都要分析", "最後逐項分析題目實際出現的每個選項" in core)
+check("選項數量與標籤不限", "不預設選項數量、標籤形式或順序" in core and "A～E" not in core)
+check("進階功能未包含逐項分析開關", "solveTypeChoice" not in index and "optionMode" not in prompts)
+check("停用的格式入口已移除", "solution-format.js" not in index and "SolutionDocument" not in app and "BoardDoc" not in render)
+check("舊 ai-plain 排版已移除", "ai-plain" not in board and "ai-plain" not in note)
+check("選項標籤與文字固定對齊", "grid-template-columns: 2rem minmax(0, 1fr)" in board and ".markdown-choice-label" in board)
+check("一般文字自然換行", ".markdown-choice-body" in board and "white-space: normal" in board)
+check("只有公式主導行橫滑", "function isFormulaDominantLine" in render and "if (!isFormulaDominantLine(content))" in render)
+check("橫滑箭頭已移除", "plain-line-inner--xscroll::after" not in board and 'content: "↔"' not in board)
+check("現行版本已載入", f"render.js?v={BUILD}" in index and f"board.css?v={BUILD}" in index)
+check("唯一 system prompt", "const systemText = window.SolutionCore.buildSystem();" in app)
+check("主流程直接使用結構化回覆", "schema: responseSchema" in app and "window.SolutionCore.prepare(reply)" in app)
+check("進階路由無自動舊格式", "autoFormatId" not in spec and "buildRouteUserBlock" not in spec)
+check("免費 Flash 模型清單", all(model in app for model in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-3-flash-preview"]) and "gemini-pro" not in app)
+check("預設使用 3.5 Flash", "loadSetting('aim', 'gemini-3.5-flash')" in app)
+check("參考答案未鎖入 schema", "enum: [answer]" not in app and "JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA))" in app)
+check("另一個 Flash 獨立驗證", "verificationModelFor(cfg.model)" in app and "不預設參考答案正確" in prompts)
+check("缺少明確驗證不放行", "parsed?.consistent === true" in app)
+check("本機算式驗算與一次修正", "auditCalculationDocument(prepared.document)" in app and "const corrected = await callAPI" in app)
+check("畫面不再宣稱答案鎖定", "參考答案（選填）" in index and "答案欄會被鎖定" not in index)
+check("舊 Pro 提示已移除", "Gemini 3.1 Pro" not in read("js/api.js"))
+
+for path in ["/index.html", f"/js/render.js?v={BUILD}", "/tests/verify-build.html", "/tests/test-pipeline.html"]:
     try:
-        body = fetch(BASE + path)
-        ok(f"HTTP {path}", True, f"{len(body)} bytes")
-    except Exception as e:
-        ok(f"HTTP {path}", False, str(e))
+        payload = fetch(path)
+        check(f"HTTP {path}", bool(payload), f"{len(payload)} bytes")
+    except Exception as exc:
+        check(f"HTTP {path}", False, str(exc))
 
-js_path = os.path.join(ROOT, "js", "render.js")
-js = open(js_path, encoding="utf-8").read()
-ok(f"RENDER BUILD {RENDER_BUILD}", f"__RENDER_BUILD = '{RENDER_BUILD}'" in js)
-ok("preprocessBoardCompiledText", "function preprocessBoardCompiledText" in js)
-ok("preprocessLegacyPlainText", "function preprocessLegacyPlainText" in js)
-ok("Markdown unified default", "__RENDER_PIPELINE_DEFAULT = 'markdown'" in js)
-ok("circC repair", "\\\\circC" in js and "circC" in js and "mathrm{C}" in js)
-ok("tryRenderBoardDoc", "function tryRenderBoardDoc" in js)
-
-app = open(os.path.join(ROOT, "js", "app.js"), encoding="utf-8").read()
-ok("__LAST_RENDER_PIPELINE", "__LAST_RENDER_PIPELINE" in app)
-ok("solveSpec integration", "solveSpec" in app and "getSolveSpec" in app and "formatRoute" in app)
-ok("setting validation", "function renderSolveValidation" in app and "getCalcCompactValidation" in app)
-ok("指定答案具修正與提示機制", "buildSolveResponseSchema" in app and "buildAnswerCorrectionText" in app and "與指定答案不完全符合" in app)
-
-prompts = open(os.path.join(ROOT, "js", "prompts.js"), encoding="utf-8").read()
-ok("單一解題提示入口", "window.buildSolveUserText" in prompts and "window.getSystemPromptForSolve" in prompts)
-solution_format = open(os.path.join(ROOT, "js", "solution-format.js"), encoding="utf-8").read()
-api_js = open(os.path.join(ROOT, "js", "api.js"), encoding="utf-8").read()
-ok("SolutionDocument schema／編譯器", "global.SolutionDocument" in solution_format and "function validateDocument" in solution_format and "function compileDocument" in solution_format)
-ok("Renderer 不阻擋正常顯示", "renderAiInto(el, text, options);" in app)
-solution_core = open(os.path.join(ROOT, "js", "solution-core.js"), encoding="utf-8").read()
-solve_spec = open(os.path.join(ROOT, "js", "solve-spec.js"), encoding="utf-8").read()
-ok("原始詳解格式編譯器可用", "global.SolutionCore" in solution_core and "function prepare" in solution_core and "window.SolutionCore.prepare(reply)" in app)
-ok("Gemini 使用指定答案結構化 schema", "schema: responseSchema" in app and "const systemText = window.SolutionCore.buildSystem();" in app)
-ok("未勾選不啟用進階功能", "return { id: 'plain', origin: 'auto'" in solve_spec and "forceStoichiometry: false" in solve_spec)
-ok("主解題只加入手動進階規格", "const fullUserText = [userText, advancedBlock].filter(Boolean).join" in app and "teachingRulesSystemAddon" not in app)
-ok("主流程直接呼叫 Gemini", "function callGemini" in api_js and "generativelanguage.googleapis.com" in api_js)
-ok("未指定範圍維持原題", "mode: 'default'" in prompts and "return numbers.length ? { mode: 'partial', numbers } : { mode: 'default', numbers: [] };" in prompts)
-ok("單題不開分題標題", "window.__solveMultiQuestion = scope.mode === 'all' || numbers.length > 1;" in js)
-ok("分題標題限指定題號", "function isSolveQuestionHeadingAllowed" in js and "window.__solveQuestionNumbers" in js)
-
-render = open(js_path, encoding="utf-8").read()
-ok("LaTeX 安全隔離", "function quarantineInvalidLatexSegments" in render and "\\propto" in render)
-
-sanitizer = open(os.path.join(ROOT, "js", "latex-sanitize.js"), encoding="utf-8").read()
-ok("LaTeX sanitizer", "function sanitizeText" in sanitizer and "function repairMath" in sanitizer)
-ok("雙反斜線 mhchem 在驗證前正規化", r"replace(/\\\\ce(?=\{)/g, '\\ce')" in sanitizer)
-
-app_css = open(os.path.join(ROOT, "css", "app.css"), encoding="utf-8").read()
-ok("方程式顯示間距", ".msg-body .katex-display { margin: 12px 0;" in app_css and ".board-scroll .math-block" in app_css)
-
-note_css = open(os.path.join(ROOT, "css", "math-note", "math-note.css"), encoding="utf-8").read()
-ok("選項 NOTE 無虛線", ".ai-plain .choice-body .katex" in note_css and "border-bottom: 0 !important" in note_css and "border-bottom: 1px dotted" not in note_css)
-studio_theme = open(os.path.join(ROOT, "css", "studio-theme.css"), encoding="utf-8").read()
-ok("深色 NOTE 與 hero 淺金色", 'body[data-theme="lunar"] .katex :is(.math-note, [data-note], [note])' in studio_theme and "--hero-accent: #ead49a" in studio_theme)
-board_css = open(os.path.join(ROOT, "css", "board.css"), encoding="utf-8").read()
-ok("手機選項固定 grid 欄位", "grid-template-columns: 2rem minmax(0, 1fr)" in board_css and ".chem-markdown .markdown-choice-body" in board_css)
-ok("公式列只保留單一透明橫軸捲動", "scrollbar-color: #aeb4ba transparent" in board_css and "::-webkit-scrollbar-track" in board_css and "background: transparent;" in board_css and ".ai-plain .katex-display" in board_css)
-math_note_js = open(os.path.join(ROOT, "js", "math-note", "math-note.js"), encoding="utf-8").read()
-ok("NOTE popover 保持可視", "window.innerHeight - pop.offsetHeight - 8" in math_note_js and "document.addEventListener('keydown'" in math_note_js)
-ok("NOTE 上下標沿用科學 token 管線", "window.normalizeScientificTokens" in math_note_js and "renderMathInElement(pop" in math_note_js)
-
-ok("語意 token 統一走 KaTeX", "function normalizeScientificTokens" in render and "function wrapSemanticMathTokens" in render)
-ok("化學 token 統一交給 mhchem", "function wrapChemFormula" in render and "function wrapBareMhchemTokens" in render and "\\\\ce{" in render)
-ok("化學式只走 KaTeX mhchem", "return `\\\\ce{${chemistry}}`;" in render and "function fallbackMhchemLatex" not in render)
-ok("長公式依實際溢出橫滑", "function measureLineOverflow" in render and "function setupHorizontalLineScroll" in render and "可左右滑動查看完整公式" in render)
-ok("不再移除算式中的單位或 NOTE", "text = stripAllCalcUnitsAndEmptyNotes(text);" not in render and "text = stripRawCalcUnitsInInlineMath(text);" not in render)
-
-ok("Board JSON 相容解析", "function parseBoardJson" in render and "function escapeLatexBackslashesInJson" in render)
-
-chem_structure = open(os.path.join(ROOT, "js", "chem-structure.js"), encoding="utf-8").read()
-ok("非結構子項不建立卡片", "const hasDrawBlock = group.slice(1).some(isDrawBlock);" in chem_structure and "group.length >= 2 && hasDrawBlock" in chem_structure)
-
-app = open(os.path.join(ROOT, "js", "app.js"), encoding="utf-8").read()
-solve_body = app[app.find("async function startSolve()"):app.find("async function sendFollowUp")]
-ok("主解題採硬性答案閘門＋本機編譯", solve_body.count("callAPI(") == 2 and "SolutionCore.prepare(reply);" in app and "setMainSolution(reply" in app and "window.answersMatch(reply, solveOpts.refAnswer)" in app)
-ok("詳解統一走 Markdown Renderer", "renderMarkdownSolution(body)" in app and "renderCompiledSolution(body)" not in app)
-ok("選項提示不再鎖定 A～E", "不預設選項數量、標籤或順序" in solution_core)
-ok("僅載入既有詳解鏈", "solution-document-v2.js" not in open(os.path.join(ROOT, "index.html"), encoding="utf-8").read() and "block-renderer-v2.js" not in open(os.path.join(ROOT, "index.html"), encoding="utf-8").read())
-
-try:
-    idx = fetch(BASE + "/index.html")
-    ok("index → render current build", f"render.js?v={RENDER_BUILD}" in idx)
-    ok("index → app current build", f"app.js?v={APP_BUILD}" in idx)
-    ok("index → SolutionDocument current build", "solution-format.js?v=20260716-clean" in idx)
-    ok("index → API current build", "api.js?v=20260716-clean" in idx)
-    ok("index → mhchem", "contrib/mhchem.min.js" in idx)
-    ok("index → solveSpec current build", f"solve-spec.js?v={SOLVE_SPEC_BUILD}" in idx)
-    ok("index → solution core current build", f"solution-core.js?v={SOLUTION_CORE_BUILD}" in idx)
-    ok("index → option NOTE current style", "math-note/math-note.css?v=20260716-clean" in idx)
-    ok("index → option grid current style", "board.css?v=20260719-markdown-unified" in idx and "plain-choice-options" not in idx and "plain-reaction-table" not in idx)
-    ok("index → Markdown renderer stack", "marked@18.0.6" in idx and "dompurify@3.4.7" in idx and "github-markdown-css@5.9.0" in idx)
-    ok("index → structure layout current build", "chem-structure.js?v=20260716-clean" in idx and "chem-structure.css?v=20260716-clean" in idx and "structure-layout.js" not in idx)
-    ok("index → 移除一般入口", "teacher-tools.html\">教師工具" not in idx and "solution-format.html\">排版" not in idx)
-except Exception as e:
-    ok("index", False, str(e))
-
-print("=== 自動測試（AI解題 Phase 4）===")
-passed = 0
-for r in results:
-    mark = "PASS" if r["pass"] else "FAIL"
-    if r["pass"]:
-        passed += 1
-    d = f" | {r['detail']}" if r["detail"] else ""
-    print(f"[{mark}] {r['name']}{d}")
-print(f"\n合計 {passed}/{len(results)} 通過")
-sys.exit(0 if passed == len(results) else 1)
+print("=== 現行詳解管線測試 ===")
+for name, passed, detail in results:
+    suffix = f" | {detail}" if detail else ""
+    print(f"[{'PASS' if passed else 'FAIL'}] {name}{suffix}")
+passed_count = sum(passed for _, passed, _ in results)
+print(f"\n合計 {passed_count}/{len(results)} 通過")
+sys.exit(0 if passed_count == len(results) else 1)
