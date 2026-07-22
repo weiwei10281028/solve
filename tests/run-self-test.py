@@ -7,8 +7,8 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = os.environ.get("AI_SOLVE_TEST_BASE", "http://localhost:18080")
-BUILD = "20260721-v2"
-STUDIO_BUILD = "20260722-supplement"
+BUILD = "20260722-formula"
+STUDIO_BUILD = "20260722-clear"
 results = []
 
 

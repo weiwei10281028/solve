@@ -15,10 +15,10 @@
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/katex.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.9.0/github-markdown.css">
-  <link rel="stylesheet" href="css/app.css?v=20260721-v2">
-  <link rel="stylesheet" href="css/board.css?v=20260721-v2">
-  <link rel="stylesheet" href="css/chem-structure.css?v=20260721-v2">
-  <link rel="stylesheet" href="css/studio-theme.css?v=20260722-supplement">
+  <link rel="stylesheet" href="css/app.css?v=20260722-formula">
+  <link rel="stylesheet" href="css/board.css?v=20260722-formula">
+  <link rel="stylesheet" href="css/chem-structure.css?v=20260722-formula">
+  <link rel="stylesheet" href="css/studio-theme.css?v=20260722-clear">
 </head>
 <body class="app-page" data-theme="ivory">
 
@@ -38,102 +38,27 @@
 
 <main class="page-main">
   <section class="app-hero" aria-labelledby="appTitle">
-    <p class="app-kicker">CHEMISTRY STUDY SPACE</p>
-    <h1 id="appTitle">把題目交給<span>清晰的推導</span></h1>
-    <p>上傳題目或直接輸入內容，保留原本的解題設定與結果閱讀流程。</p>
+    <h1 id="appTitle">把題目攤開，<span>一步一步看懂它。</span></h1>
   </section>
   <section class="panel panel-input" aria-label="上傳題目">
-    <div class="panel-head">
-      <h1 class="panel-title">上傳題目</h1>
-      <p class="panel-desc">拍照上傳，或直接輸入題目文字</p>
-    </div>
-
-    <div class="upload-zone" id="zone">
-      <input type="file" id="fileInput" accept="image/*" onchange="onFilesSelected(this.files)">
-      <div class="upload-graphic" aria-hidden="true">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect x="4" y="8" width="32" height="26" rx="3" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="14" cy="18" r="3" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M4 28l9-8 7 6 6-5 10 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+    <div class="bench-title"><span class="status-dot" aria-hidden="true"></span><strong>建立一份新題目</strong></div>
+    <div class="studio-core-grid"><section class="studio-field studio-attachment">
+      <div class="studio-field-head"><h2>題目附件與參考答案</h2><span>圖片最多 2 張</span></div>
+      <div class="studio-upload-row">
+        <div class="upload-zone studio-upload" id="zone"><input type="file" id="fileInput" accept="image/*" onchange="onFilesSelected(this.files)" aria-label="上傳題目圖片，最多兩張"><div class="upload-graphic" aria-hidden="true"><svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="8" width="32" height="26" rx="3" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="18" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M4 28l9-8 7 6 6-5 10 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><p class="upload-title">選擇題目圖片</p><p class="upload-hint">點擊、拖放或貼上</p></div>
+        <div class="preview-wrap" id="prevWrap"><button type="button" class="preview-remove-btn" id="previewRemove0" onclick="removeImage(0)" title="移除此圖" aria-label="移除第 1 張圖片" hidden>×</button><button type="button" class="preview-download-btn" id="previewDownload0" onclick="downloadImage(0)" title="下載原圖" aria-label="下載第 1 張圖片" hidden>↓</button><button type="button" class="preview-btn" id="previewBtn" onclick="openLightbox(0)" title="點擊放大"><img class="preview-img" id="prevImg" src="" alt="題目預覽"><span class="preview-zoom-hint">點擊放大</span></button><p class="preview-name" id="prevName"></p></div>
+        <div class="preview-wrap" id="prevWrap2"><button type="button" class="preview-remove-btn" id="previewRemove1" onclick="removeImage(1)" title="移除此圖" aria-label="移除第 2 張圖片" hidden>×</button><button type="button" class="preview-download-btn" id="previewDownload1" onclick="downloadImage(1)" title="下載原圖" aria-label="下載第 2 張圖片" hidden>↓</button><button type="button" class="preview-btn" id="previewBtn2" onclick="openLightbox(1)" title="點擊放大"><img class="preview-img" id="prevImg2" src="" alt="題目預覽（圖 2）"><span class="preview-zoom-hint">點擊放大</span></button><p class="preview-name" id="prevName2"></p></div>
+        <button class="btn-ghost studio-clear-all" type="button" onclick="clearAll()">清除</button>
       </div>
-      <p class="upload-title">選擇題目圖片</p>
-      <p class="upload-hint">點擊、拖放或貼上</p>
-    </div>
-
-    <div class="preview-wrap" id="prevWrap">
-      <button type="button" class="preview-remove-btn" id="previewRemove0" onclick="removeImage(0)" title="移除此圖" aria-label="移除第 1 張圖片" hidden>×</button>
-      <button type="button" class="preview-download-btn" id="previewDownload0" onclick="downloadImage(0)" title="下載原圖" aria-label="下載第 1 張圖片" hidden>↓</button>
-      <button type="button" class="preview-btn" id="previewBtn" onclick="openLightbox(0)" title="點擊放大">
-        <img class="preview-img" id="prevImg" src="" alt="題目預覽">
-        <span class="preview-zoom-hint">點擊放大</span>
-      </button>
-      <p class="preview-name" id="prevName"></p>
-    </div>
-
-    <div class="preview-wrap" id="prevWrap2">
-      <button type="button" class="preview-remove-btn" id="previewRemove1" onclick="removeImage(1)" title="移除此圖" aria-label="移除第 2 張圖片" hidden>×</button>
-      <button type="button" class="preview-download-btn" id="previewDownload1" onclick="downloadImage(1)" title="下載原圖" aria-label="下載第 2 張圖片" hidden>↓</button>
-      <button type="button" class="preview-btn" id="previewBtn2" onclick="openLightbox(1)" title="點擊放大">
-        <img class="preview-img" id="prevImg2" src="" alt="題目預覽（圖 2）">
-        <span class="preview-zoom-hint">點擊放大</span>
-      </button>
-      <p class="preview-name" id="prevName2"></p>
-    </div>
-
-    <div class="field-group">
-      <label class="field-label" for="textQuestionInput">補充說明或者問題輸入（選填）</label>
-      <textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="上傳圖片，或在此輸入／貼上題目"></textarea>
-      <p class="field-hint">有圖則以圖為主，可指定題號（如第 5 題）或選項，亦可補充說明缺少數據或資料，若無圖片可輸入文字說明問題</p>
-    </div>
-
-    <details class="formula-tools" id="formulaTools">
-      <summary>公式輸入與本機驗算（不會送出題目）</summary>
-      <div class="formula-tools-body">
-        <math-field id="formulaInput" class="formula-input" math-virtual-keyboard-policy="auto" aria-label="數學公式輸入"></math-field>
-        <div class="formula-tools-actions">
-          <button class="btn-ghost formula-tool-btn" type="button" onclick="insertFormulaIntoQuestion()">插入題目</button>
-          <button class="btn-ghost formula-tool-btn" type="button" onclick="verifyFormulaInput()">驗算公式</button>
-        </div>
-        <p class="formula-tool-status" id="formulaToolStatus" aria-live="polite">可輸入 LaTeX、分數、次方與單位；驗算只檢查可在本機判定的式子。</p>
-      </div>
-    </details>
-
-    <div class="field-group">
-      <label class="field-label" for="answerInput">參考答案（選填）</label>
-      <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off">
-      <p class="field-hint">填入後會交給另一個 Flash 獨立驗算，不會先告訴主解題模型。系統會盡量對齊參考答案；若驗證異常或無法對齊，仍會顯示詳解並標示警告。單題可寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>。</p>
-    </div>
-
-    <div class="solve-options">
-      <div class="option-toggle-row">
-      <label class="option-toggle" for="stoichiometryToggle">
-        <input type="checkbox" id="stoichiometryToggle">
-        <span class="option-toggle-ui" aria-hidden="true"></span>
-        <span class="option-toggle-label">化學反應方程式表達</span>
-      </label>
-      <label class="option-toggle" for="calcCompactToggle">
-        <input type="checkbox" id="calcCompactToggle">
-        <span class="option-toggle-ui" aria-hidden="true"></span>
-        <span class="option-toggle-label">計算精簡</span>
-      </label>
-      </div>
-      <p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p>
-    </div>
-
-    <section class="solve-spec" aria-labelledby="chapterSpecTitle" aria-describedby="chapterSpecHint solveSpecStatus">
-      <h2 class="field-label" id="chapterSpecTitle">章節類型（可複選）</h2>
-      <div class="solve-spec-row" id="chapterOptions"></div>
-      <p class="field-hint" id="chapterSpecHint">可選 1～3 個章節；未選取時由系統自動判斷，不會強制套用。</p>
-    </section>
-
-    <p class="solve-spec-status" id="solveSpecStatus" aria-live="polite">詳解固定依「題意、依據與推導、結果」呈現；選擇題另逐項分析。</p>
-
-    <div class="action-row">
-      <button class="btn-primary" type="button" id="solveBtn" onclick="startSolve()" disabled>開始解題</button>
-      <button class="btn-ghost" type="button" onclick="clearAll()">清除</button>
-    </div>
+      <div class="field-group"><label class="field-label" for="answerInput">參考答案（選填）</label><input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off"><p class="field-hint">填入後會交給另一個 Flash 獨立驗算，不會先告訴主解題模型。系統會盡量對齊參考答案；若驗證異常或無法對齊，仍會顯示詳解並標示警告。單題可寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>。</p></div>
+    </section></div>
+    <details class="studio-advanced studio-note"><summary><span><b>補充說明</b><small>補充題意或指定作答範圍</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></summary><div class="studio-advanced-body"><div class="field-group"><label class="field-label" for="textQuestionInput">補充說明或者問題輸入（選填）</label><textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="上傳圖片，或在此輸入／貼上題目"></textarea><p class="field-hint">有圖則以圖為主，可指定題號（如第 5 題）或選項，亦可補充說明缺少數據或資料，若無圖片可輸入文字說明問題</p></div></div></details>
+    <details class="studio-advanced"><summary><span><b>進階設定</b><small>章節類型、作答格式、公式與計算偏好</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></summary><div class="studio-advanced-body"><div class="studio-advanced-layout">
+      <section class="studio-advanced-block studio-study-settings"><div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選大章節；系統會再依題目命中 Ka、滴定、Ksp、官能基等細項。</p></div><section class="studio-chapter-control"><button class="studio-chapter-trigger" type="button" id="openChapterPicker"><span><b>章節類型</b><small id="chapterPickerSummary">尚未選取</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></button></section></section>
+      <section class="studio-advanced-block studio-preferences-settings"><div class="studio-advanced-block-head"><h2>解題偏好</h2><p>調整反應式、計算與公式輸入方式。</p></div><div class="solve-options"><div class="option-toggle-row"><label class="option-toggle" for="stoichiometryToggle"><input type="checkbox" id="stoichiometryToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">化學反應方程式表達</span></label><label class="option-toggle" for="calcCompactToggle"><input type="checkbox" id="calcCompactToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算精簡</span></label></div><p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p></div><details class="formula-tools" id="formulaTools"><summary>公式輸入與本機驗算（不會送出題目）</summary><div class="formula-tools-body"><math-field id="formulaInput" class="formula-input" math-virtual-keyboard-policy="auto" aria-label="數學公式輸入"></math-field><div class="formula-tools-actions"><button class="btn-ghost formula-tool-btn" type="button" onclick="insertFormulaIntoQuestion()">插入題目</button><button class="btn-ghost formula-tool-btn" type="button" onclick="verifyFormulaInput()">驗算公式</button></div><p class="formula-tool-status" id="formulaToolStatus" aria-live="polite">可輸入 LaTeX、分數、次方與單位；驗算只檢查可在本機判定的式子。</p></div></details></section>
+    </div></div></details>
   </section>
+
 
   <section class="panel panel-result result-card" id="resultCard" aria-label="解題結果">
     <div class="result-header">
@@ -173,6 +98,14 @@
     </div>
   </section>
 </main>
+
+<div class="studio-solve-dock"><button class="btn-primary" type="button" id="solveBtn" onclick="startSolve()" disabled>開始解題</button></div>
+
+<dialog class="studio-chapter-dialog" id="chapterPickerDialog">
+  <div class="studio-dialog-head"><div><h2>選擇章節類型</h2><p>可複選 1–3 個大章節；細項會由題目自動命中並加強解題步驟。</p></div><button type="button" class="studio-dialog-close" aria-label="關閉">×</button></div>
+  <div class="studio-dialog-body"><section class="solve-spec" aria-labelledby="chapterSpecTitle" aria-describedby="chapterSpecHint solveSpecStatus"><h2 class="field-label" id="chapterSpecTitle">章節類型（可複選）</h2><div class="solve-spec-row" id="chapterOptions"></div><p class="field-hint" id="chapterSpecHint">可選 1～3 個章節；未選取時由系統自動判斷，不會強制套用。</p></section><section class="studio-chapter-preview" id="chapterSelectionPreview" aria-live="polite"></section></div>
+  <div class="studio-dialog-foot"><span id="chapterDialogStatus">尚未選取，將自動判斷</span><div><button type="button" class="btn-ghost studio-clear-chapters">清除</button><button type="button" class="btn-primary studio-apply-chapters">套用選擇</button></div></div>
+</dialog>
 
 <div class="overlay" id="overlay" onclick="overlayClick(event)">
   <div class="modal" role="dialog" aria-labelledby="modalTitle">
@@ -218,20 +151,20 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@cortex-js/compute-engine@0.62.1/compute-engine.min.js"></script>
-  <script src="js/solve-spec.js?v=20260721-v2"></script>
-  <script src="js/chem-rule-cards.js?v=20260721-v2"></script>
-  <script src="js/prompts.js?v=20260721-v2"></script>
-<script src="js/formula-tools.js?v=20260721-v2"></script>
-<script src="js/latex-sanitize.js?v=20260721-v2"></script>
-<script src="js/solution-core.js?v=20260721-v2"></script>
-<script src="js/compiler.js?v=20260721-v2"></script>
-<script src="js/structures-bundle.js?v=20260721-v2"></script>
+  <script src="js/solve-spec.js?v=20260722-formula"></script>
+  <script src="js/chem-rule-cards.js?v=20260722-formula"></script>
+  <script src="js/prompts.js?v=20260722-formula"></script>
+<script src="js/formula-tools.js?v=20260722-formula"></script>
+<script src="js/latex-sanitize.js?v=20260722-formula"></script>
+<script src="js/solution-core.js?v=20260722-formula"></script>
+<script src="js/compiler.js?v=20260722-formula"></script>
+<script src="js/structures-bundle.js?v=20260722-formula"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
-<script src="js/chem-structure.js?v=20260721-v2"></script>
-  <script src="js/render.js?v=20260721-v2"></script>
-<script src="js/api.js?v=20260721-v2"></script>
-  <script src="js/app.js?v=20260721-v2"></script>
-<script src="js/studio-layout.js?v=20260721-v2"></script>
+<script src="js/chem-structure.js?v=20260722-formula"></script>
+  <script src="js/render.js?v=20260722-formula"></script>
+<script src="js/api.js?v=20260722-formula"></script>
+  <script src="js/app.js?v=20260722-formula"></script>
+<script src="js/studio-layout.js?v=20260722-static"></script>
 <script>
   (() => {
     const toggle = document.getElementById('themeToggle');

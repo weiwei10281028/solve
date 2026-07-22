@@ -295,7 +295,7 @@ const startSolve = app.slice(app.indexOf('async function startSolve()'), app.ind
 if ((startSolve.match(/callAPI\(/g) || []).length !== 4 || (app.match(/callAPI\(/g) || []).length < 6) throw new Error('主解題、驗證、修正與答案對齊的呼叫數不正確');
 if (!/isStandaloneFormulaLine/.test(renderer)) throw new Error('Markdown 未避免合併獨立公式行');
 const renderContext = { window: { SolutionCore: Core }, marked: { parse: (md) => md }, DOMPurify: { sanitize: (html) => html } };
-vm.runInNewContext(`${renderer}\nthis.compiledSolutionToMarkdown = compiledSolutionToMarkdown;\nthis.buildAnswerHtml = buildAnswerHtml;\nthis.normalizeScientificTokens = normalizeScientificTokens;`, renderContext);
+vm.runInNewContext(`${renderer}\nthis.compiledSolutionToMarkdown = compiledSolutionToMarkdown;\nthis.buildAnswerHtml = buildAnswerHtml;\nthis.normalizeScientificTokens = normalizeScientificTokens;\nthis.normalizeMhchemForKatex = normalizeMhchemForKatex;`, renderContext);
 const renderedConcentration = renderContext.normalizeScientificTokens('甲液 C（IO3-）＝0.020 M；乙液 c(HSO3-)=0.0040 M。');
 if (!renderedConcentration.includes('$[\\ce{IO_3-}]$') || !renderedConcentration.includes('$[\\ce{HSO_3-}]$')) {
   throw new Error(`顯示端未將 C(物種) 統一為中括弧：${renderedConcentration}`);
@@ -303,6 +303,10 @@ if (!renderedConcentration.includes('$[\\ce{IO_3-}]$') || !renderedConcentration
 const renderedConcentrationMath = renderContext.normalizeScientificTokens('$c(HSO3-)=n(HSO3-)/V(乙溶液)$');
 if (!renderedConcentrationMath.includes('$[\\ce{HSO3-}]=\\dfrac{n_{\\ce{HSO_3-}}}{V_{\\text{乙溶液}}}$')) {
   throw new Error(`追問數學式未統一濃度或化學量符號：${renderedConcentrationMath}`);
+}
+const repairedNestedTextSubscript = renderContext.normalizeMhchemForKatex('n_{\\text{\\text{乙}}\n= 0.004 \\text{M} \\times 0.01');
+if (repairedNestedTextSubscript !== 'n_{\\text{乙}} = 0.004 \\text{M} \\times 0.01') {
+  throw new Error(`巢狀文字下標跨行未修復：${repairedNestedTextSubscript}`);
 }
 const renderedDerivation = renderContext.compiledSolutionToMarkdown(derivationLayout.text);
 if ((renderedDerivation.markdown.match(/markdown-derivation-group/g) || []).length !== 2

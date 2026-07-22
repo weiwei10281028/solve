@@ -22,7 +22,7 @@ function keySummary(key) {
 }
 
 
-let imgDataURLs = [], apiMessages = [], busy = false, lightboxIndex = 0;
+let imgDataURLs = [], apiMessages = [], busy = false, lightboxIndex = 0, solveEpoch = 0;
 // self-test compatibility markers: SolutionCore.prepare(reply) / setMainSolution(prepared.text)
 const detailMode = false;
 
@@ -456,11 +456,15 @@ function addImage(file) {
 }
 
 function clearAll() {
+  solveEpoch += 1;
   imgDataURLs = []; apiMessages = [];
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('answerInput').value = '';
   document.getElementById('chatInput').value = '';
+  window.__lastRawReply = '';
+  window.__lastCompiledReply = '';
+  lightboxIndex = 0;
   resetStoichiometryToggle();
   resetCalcCompactToggle();
   resetSolveSpec();
@@ -470,6 +474,7 @@ function clearAll() {
   clearThreads();
   document.getElementById('chatInputWrap').classList.remove('show');
   setBadge('就緒');
+  setBusy(false);
   updateSolveButtonState();
 }
 
@@ -710,6 +715,7 @@ function chatKeydown(e) {
 
 async function startSolve() {
   if (busy || !hasSolveInput()) return;
+  const activeSolveEpoch = ++solveEpoch;
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
@@ -728,6 +734,7 @@ async function startSolve() {
       const el = document.getElementById('mainSolution');
       el.innerHTML = '';
       const result = await MolfileDraw.drawById(molPreview.id, molPreview.label);
+      if (activeSolveEpoch !== solveEpoch) return;
       if (result.node) el.appendChild(result.node);
       if (result.ok) {
         setBadge('預存結構', '#EAF2ED', '#3D6B52');
@@ -1004,6 +1011,7 @@ async function startSolve() {
     solveOpts.structureIssues = typeof window.SolutionCore.auditRequiredSections === 'function'
       ? window.SolutionCore.auditRequiredSections(prepared.document) : [];
     solveOpts.answerAligned = answerMatchesRef();
+    if (activeSolveEpoch !== solveEpoch) return;
     apiMessages.push({ role: 'assistant', content: reply });
     window.__lastCompiledReply = reply;
     setMainSolution(reply);
@@ -1017,11 +1025,12 @@ async function startSolve() {
     }
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
   } catch (err) {
+    if (activeSolveEpoch !== solveEpoch) return;
     console.error('解題失敗', err);
     setMainSolution(`❌ ${formatError(err.message)}`);
     setBadge('錯誤', '#F9EDED', '#9B4444');
   } finally {
-    setBusy(false);
+    if (activeSolveEpoch === solveEpoch) setBusy(false);
   }
 }
 

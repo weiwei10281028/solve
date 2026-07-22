@@ -34,7 +34,17 @@ function normalizeMhchemForKatex(latex) {
   // Keep a final guard at the renderer boundary for structured replies that
   // do not pass through LatexSanitize.  Only a double-escaped mhchem command
   // is changed; ordinary LaTeX escapes and layout remain untouched.
-  return String(latex || '').replace(/\\\\ce(?=\{)/g, '\\ce');
+  let normalized = String(latex || '').replace(/\\\\ce(?=\{)/g, '\\ce');
+  // A model occasionally produces `n_{\text{\text{乙}} ...}` and splits it
+  // across a line.  That leaves the subscript unclosed, so KaTeX returns the
+  // raw `$...$` text.  Repair only this nested-text-in-script shape; ordinary
+  // multi-line equations and text layout are left unchanged.
+  if (/[_^]\{\s*\\text\s*\{\s*\\text\s*\{/.test(normalized)) {
+    normalized = normalized
+      .replace(/\s*\n\s*/g, ' ')
+      .replace(/([_^])\{\s*\\text\s*\{\s*\\text\s*\{([^{}]+)\}\s*\}/g, '$1{\\text{$2}}');
+  }
+  return normalized;
 }
 
 /** 將化學式片段包成 $CO_2$ 型（不用 \\text{}） */
