@@ -1,3 +1,4 @@
+import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -9,4 +10,6 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-ThreadingHTTPServer(('', 18080), NoCacheHandler).serve_forever()
+server = ThreadingHTTPServer(('', 18080), NoCacheHandler)
+webbrowser.open_new_tab('http://127.0.0.1:18080/')
+server.serve_forever()

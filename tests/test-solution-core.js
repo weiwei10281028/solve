@@ -15,10 +15,18 @@ const doc = {
 
 const result = Core.prepare(JSON.stringify(doc));
 if (!result.ok) throw new Error('結構化詳解解析失敗');
+const strayHeading = Core.prepare(JSON.stringify({ blocks: [
+  { type: 'heading', text: '19. 葉妍探究秒錶反應' },
+  { type: 'heading', text: '題意' },
+  { type: 'paragraph', text: '判斷反應級數。' }
+] }));
+if (strayHeading.text.includes('葉妍探究秒錶反應') || !strayHeading.text.includes('【題意】')) {
+  throw new Error('題意前不應輸出題名或類別標題');
+}
 if (!Core.SYSTEM.includes('逐項依據前述結果判定') || !Core.SYSTEM.includes('不得漏掉或增加選項')) throw new Error('選項規格未整合至唯一提示詞');
 if (!Core.SYSTEM.includes('calculation 才使用 \\dfrac') || Core.SYSTEM.includes('\\htmlData{note=')) throw new Error('提示詞應要求 dfrac 且不得要求 NOTE');
 if (!Core.SYSTEM.includes('【詳解架構｜必須遵守】') || !Core.SYSTEM.includes('題意：') || !Core.SYSTEM.includes('依據與推導：') || !Core.SYSTEM.includes('結果：') || !Core.SYSTEM.includes('選項分析：')) throw new Error('提示詞缺少選擇題骨架');
-if (!Core.SYSTEM.includes('依據與推導：只寫導出本題結果所必需') || !Core.SYSTEM.includes('paragraph 必須以「• 」起首') || !Core.SYSTEM.includes('算式一式一行')) {
+if (!Core.SYSTEM.includes('依據與推導：只寫導出本題結果所必需') || !Core.SYSTEM.includes('優先 2～3 個圓點') || !Core.SYSTEM.includes('paragraph 必須以「• 」起首') || !Core.SYSTEM.includes('算式一式一行')) {
   throw new Error('提示詞缺少精簡的圓點推導分工');
 }
 if (!Core.SYSTEM.includes('一步一式') || !Core.SYSTEM.includes('禁止任何逗號')) throw new Error('提示詞缺少分段／逗號規則');
@@ -499,7 +507,7 @@ const underscoreChain = Core.prepare(JSON.stringify({
 if (!/H/.test(underscoreChain) || !/PO/.test(underscoreChain)) {
   throw new Error(`底線化學式 compile 遺失：${underscoreChain}`);
 }
-if (!/normalizeScientificTokens\(/.test(app)) throw new Error('主渲染流程未接入 normalizeScientificTokens 安全網');
+if (/normalizeScientificTokens\(body/.test(app)) throw new Error('主渲染流程仍重複改寫已編譯公式');
 if (!/guardStructuralMarkers/.test(renderer)) throw new Error('render.js 缺少結構標記保護，normalizeScientificTokens 可能誤傷 @@CHOICE@@');
 
 console.log('SOLUTION_CORE_STAGE4_OK');

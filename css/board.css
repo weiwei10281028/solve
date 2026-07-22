@@ -219,7 +219,10 @@
 .katex :is(.mfrac, .vlist-t, .vlist-b) {
   overflow: visible;
 }
-.chem-markdown .katex .msupsub > .vlist-t { font-size: 1.08em; }
+.chem-markdown .katex .msupsub > .vlist-t {
+  font-size: 1.16em;
+  font-weight: 600;
+}
 .katex .mfrac,
 .katex .mfrac-has-nested { vertical-align: baseline; }
 

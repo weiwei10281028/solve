@@ -634,13 +634,6 @@ function renderAiInto(container, text, options = {}) {
     if (typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
       body = SmilesDraw.preprocess(body);
     }
-    if (typeof normalizeScientificTokens === 'function') {
-      // 單一科學 token 正規化入口：只處理詳解正文，@@ANSWER@@ 之後的簡答欄維持原樣顯示。
-      const answerAt = body.lastIndexOf('@@ANSWER@@');
-      body = answerAt >= 0
-        ? normalizeScientificTokens(body.slice(0, answerAt)) + body.slice(answerAt)
-        : normalizeScientificTokens(body);
-    }
     window.__LAST_RENDER_PIPELINE = 'markdown';
     container.innerHTML = renderMarkdownSolution(body);
     doKaTeX(container);

@@ -106,17 +106,6 @@
     };
   }
 
-  function extractCardSections(body, names) {
-    const text = String(body || "");
-    const parts = [];
-    (names || []).forEach((name) => {
-      const re = new RegExp(String.raw`#\s*${name}\s*\n([\s\S]*?)(?=\n#\s|$)`);
-      const m = text.match(re);
-      if (m) parts.push(`# ${name}\n${String(m[1] || "").trim()}`);
-    });
-    return parts.join("\n\n");
-  }
-
   function buildDecisionRuleBlock(card) {
     if (!card) return "";
     const shared = "題幹已提供反應式、計量關係、實驗條件或定義時，一律依題幹；通則卡只補足題幹未明示的判定條件。";
@@ -444,7 +433,6 @@
     hasNoBlueTimeViolation,
     buildPrecomputedBoundaryBlock,
     buildCorrectionUserBlock,
-    extractCardSections,
     buildDecisionRuleBlock,
     buildReferenceBlock,
     auditDocument,

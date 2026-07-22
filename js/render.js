@@ -34,8 +34,7 @@ function normalizeMhchemForKatex(latex) {
   // Keep a final guard at the renderer boundary for structured replies that
   // do not pass through LatexSanitize.  Only a double-escaped mhchem command
   // is changed; ordinary LaTeX escapes and layout remain untouched.
-  const normalized = String(latex || '').replace(/\\\\ce(?=\{)/g, '\\ce');
-  return normalized;
+  return String(latex || '').replace(/\\\\ce(?=\{)/g, '\\ce');
 }
 
 /** 將化學式片段包成 $CO_2$ 型（不用 \\text{}） */
@@ -1641,9 +1640,6 @@ function repairCodeChemSpans(root) {
 function postProcessMarkdownBoard(root) {
   if (!root) return;
   hideKatexErrors(root);
-  recoverBareMhchemInDom(root);
-  recoverLeakedLatexInDom(root);
-  recoverLeakedStashCases(root);
   markAndSpaceNestedFractions(root);
   normalizeCjkLatinSpacing(root);
   // After KaTeX layout: decide whether a whole calculation row needs one
@@ -1653,17 +1649,13 @@ function postProcessMarkdownBoard(root) {
 
 function doKaTeX(element) {
   if (!element || typeof renderMathInElement !== 'function') return;
-  repairCodeChemSpans(element);
-  normalizeChemLatexInMarkdown(element);
   const { trust, macros } = getKatexOpts();
   const katexOpts = {
     throwOnError: false,
     strict: 'ignore',
     trust,
     macros,
-    preProcess: (math) => normalizeMhchemForKatex(
-      repairInlineMathTypography(String(math || '').replace(/^\$+|\$+$/g, ''))
-    )
+    preProcess: (math) => normalizeMhchemForKatex(String(math || '').replace(/^\$+|\$+$/g, ''))
   };
   renderMathInElement(element, {
     delimiters: [
