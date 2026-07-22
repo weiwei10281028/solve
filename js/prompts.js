@@ -57,7 +57,7 @@ window.getSystemPromptForSolve = async function () {
 
 window.getSystemPromptForFollowUp = async function () {
   const notation = window.SolutionCore?.buildQuantityNotationPrompt?.('followup') || '';
-  return `你是台灣高中化學老師。使用繁體中文，直接回答追問。一般化學式與離子請用一般文字（例：H3PO4、H3O+），不得使用 HTML、\\htmlData 或 NOTE。純數學算式可使用 $...$；分式可寫 \\dfrac{}{}。\n${notation}`;
+  return `你是台灣高中化學老師。使用繁體中文，直接回答追問。一般化學式與離子可用一般文字或直接 AsciiMath（例：H3PO4、H3O+）。所有公式直接使用 AsciiMath；不使用 LaTeX、$、$$、Markdown、HTML、\\htmlData 或 NOTE。分式用 frac(分子)(分母)，根號用 sqrt(...)。\n${notation}`;
 };
 
 var buildSolveUserText = window.buildSolveUserText;

@@ -33,40 +33,48 @@
     volume: 'V'
   });
   const QUANTITY_NOTATION_PROMPT = `【化學量與濃度符號｜唯一規範】
-莫耳數寫 n(物質)，質量寫 W(物質)，體積寫 V(對象)；括號內必須寫物質、元素、樣品、氣體或溶液名稱。不可只寫 n、W、V，也不可用 m 表示質量。溶液濃度一律寫 [物種]，不可用 C(物種)、c(物種) 或 C1V1。例：n(CO2)、W(O)、W(樣品)、V(甲溶液)、[IO3-]。莫耳關係寫 n(X)＝[X] × V；濃度關係寫 [X]＝\\dfrac{n(X)}{V}。科學符號的下標與次方必須明確寫成 N_A、m^2、cm^3；數值與單位之間留一個半形空格，如 300 DU、3.0 cm、22.4 L mol^-1。本機會統一顯示下標、次方、化學式與中括弧。`;
+莫耳數寫 n(物質)，質量寫 W(物質)，體積寫 V(對象)；括號內必須寫物質、元素、樣品、氣體或溶液名稱。不可只寫 n、W、V，也不可用 m 表示質量。溶液濃度一律寫 [物種]，不可用 C(物種)、c(物種) 或 C1V1。例：n(CO2)、W(O)、W(樣品)、V(甲溶液)、[IO3-]。莫耳關係寫 n(X) = [X] * V；濃度關係寫 [X] = frac(n(X))(V)。科學符號的下標與次方必須明確寫成 N_A、m^2、cm^3；數值與單位之間留一個半形空格，如 300 DU、3.0 cm、22.4 L mol^-1。`;
 
-  function buildQuantityNotationPrompt(mode) {
-    if (mode === 'followup') {
-      return `${QUANTITY_NOTATION_PROMPT}\n追問中的純數學式可放在 $...$；化學計算符號 n(物質)、W(物質)、V(對象) 可寫在數學式內，不要自行改用 m。`;
-    }
+  function buildQuantityNotationPrompt(_mode) {
     return QUANTITY_NOTATION_PROMPT;
   }
 
   const SYSTEM_CORE = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
-只回傳指定 JSON；不得輸出 Markdown、HTML、$、$$。paragraph、choice 與 chemical_equation 不得輸出排版指令；calculation 只可使用本提示指定的算式指令。公式與化學式寫在 block 的 text 字串內，由本機編譯成可換行的詳解。
+只回傳指定 JSON；不得輸出 Markdown、HTML、$、$$、LaTeX 或其他排版指令。公式與化學式寫在 block 的 text 字串內。
 ${QUANTITY_NOTATION_PROMPT}
 每個 block 只有 type 與 text，整題最多 32 個 block。heading 是固定架構，且只可為「題意、依據與推導、結果、選項分析」；第一個 heading 必須是「題意」，不得在它前面加入題號、題名、章節或類別。paragraph 是說明；chemical_equation 是反應式；calculation 是一條算式；reaction_table 依序寫物種、起始、變化、結果；choice 以題目原標籤開頭並判定正誤。
-【先列必要方程式與計算｜必須遵守】題幹、判斷或結果需要完整化學反應式時，先以一個獨立 chemical_equation block 寫出完整反應物、箭頭與產物；不得把箭頭反應式塞入 paragraph 或 choice，也不得拆開同一反應式。題目提到、要求或必須用到某物種的濃度時，必須先以 calculation 寫出 [物種]＝\\dfrac{n(物種)}{V} 的代入與數值結果；不得只寫「計算濃度」或只重述濃度資料。之後才用 paragraph 說明該反應式或濃度如何用於判斷。
+【先列必要方程式與計算｜必須遵守】題幹、判斷或結果需要完整化學反應式時，先以一個獨立 chemical_equation block 寫出完整反應物、箭頭與產物；不得把箭頭反應式塞入 paragraph 或 choice，也不得拆開同一反應式。題目提到、要求或必須用到某物種的濃度時，必須先以 calculation 寫出 [物種] = frac(n(物種))(V) 的代入與數值結果；不得只寫「計算濃度」或只重述濃度資料。之後才用 paragraph 說明該反應式或濃度如何用於判斷。
 【詳解架構｜必須遵守】
 題意：只寫本題要判斷或求出的核心問題；不重述題幹資料、方法或所有選項，限一句且不超過 30 個中文字。
 依據與推導：只寫導出本題結果所必需的化學判準、比較與算式，優先 2～3 個圓點。每個 paragraph 必須以「• 」起首，且一個「• 」只代表一項獨立結論；每點只寫一個短句，不重述題幹、算式或已列反應式。比較題優先直接列倍率或比值；可相消的相同量不逐一計算。paragraph 只能陳述已知事實、已得結果或化學判斷，禁止以「先計算、計算、求出、代入」描述解題動作；若需計算，圓點改寫為「由……得……」，並在同段後緊接 calculation，不得只宣告要計算。非決定答案的機制背景、重複反應式與重複結論一律省略；同段的 calculation 或 chemical_equation 緊接在該段後且不再加圓點。算式一式一行。
 結果：整理可直接用於判斷選項的結論；一項結論不用編號，互不相同的多項結論才以 1、2、整理。
 選項分析：選擇題逐項依據前述結果判定；每項只寫決定正誤的必要理由，不重複整段推導，不得漏掉或增加選項。answer 只寫最終答案。
-【文字與算式分工｜必須遵守】paragraph、choice 與 chemical_equation 的化學式與離子請用一般文字（例：H3PO4、H3O+、CH3COOH）；禁止 $、\\ce{}、\\mathrm{}、\\dfrac、\\le、\\times 等排版或跳脫指令。化學反應式使用 chemical_equation；分式、不等式與數學等式才獨立為 calculation。不得在學生詳解提及類別卡、通則卡或系統條件。科學符號可保留明確的 _ 與 ^，如 N_A、m^2、cm^3；calculation 才使用 \\dfrac。`;
+【文字與算式分工｜必須遵守】paragraph、choice 與 chemical_equation 的化學式與離子可用一般文字或直接 AsciiMath（例：H3PO4、H3O+、CH3COOH）。化學反應式使用 chemical_equation；分式、不等式與數學等式才獨立為 calculation。不得在學生詳解提及類別卡、通則卡或系統條件。科學符號可保留明確的 _ 與 ^，如 N_A、m^2、cm^3。`;
 
-  const SYSTEM_CALC = `【排版與算式｜必須遵守】
-【硬規則｜分段】一個 calculation 是同一推理目的的一條完整等號鏈；說明用 paragraph。能直接比較的量以同一比值或倍率式呈現，不另列可相消的中間量；由濃度倍率求反應級數時，同一條 calculation 必須同時包含速率比、濃度倍率的未知數次方與求得的指數結論，不得只寫速率比後以文字宣布級數。兩式之間必須用全形「；」或「。」，禁止同一 text 連寫。約等鏈（≒／\\approx）一步一式。
-1. 反應式各自一個 chemical_equation，且每個 block 只放一條完整橫式；可逆寫 <=>（本機顯示為 ⇌）。
-2. 計算中的除法一律直式分式 \\dfrac{分子}{分母}；比例關係可寫 A：B，不必改成分式。禁止 A/B、/、÷。
-3. 禁止 calculation 內文包 $。乘號一律寫「×」（Unicode 乘號，禁止寫 times 或 \\times，以免被吃成 imes）。中文標點用全形。
-4. 【數字與單位】之間禁止任何逗號（錯：0.10, M）；只可空格或緊貼（對：0.10 M／0.10M）。
-5. 根號寫 \\sqrt{...}（大括號，禁止 \\sqrt(...)）；約等寫 ≈；禁止 \\fallingdotseq。
-6. 禁止 calculation 只輸出單一數字；禁止把多條算式擠在同一 text（一步一式、一式一行）。
-7. 禁止把整條根號等號鏈包進 \\dfrac{...}（沒有分母會整段炸掉）。`;
+  const SYSTEM_CALC = `【算式｜必須遵守】
+一個 calculation 是同一推理目的的一條完整等號鏈；說明用 paragraph。能直接比較的量以同一比值或倍率式呈現，不另列可相消的中間量；由濃度倍率求反應級數時，同一條 calculation 必須同時包含速率比、濃度倍率的未知數次方與求得的指數結論，不得只寫速率比後以文字宣布級數。反應式各自一個 chemical_equation，且每個 block 只放一條完整橫式；可逆寫 <->。數字與單位之間不可用逗號，只可空格或緊貼。禁止 calculation 只輸出單一數字；算式一式一行。`;
 
-  const SYSTEM = SYSTEM_CORE + SYSTEM_CALC;
+  const ASCIIMATH_OUTPUT_RULES = `【輸出格式】
+所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)，箭頭用 -> 或 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
+
+  const SYSTEM = SYSTEM_CORE + SYSTEM_CALC + ASCIIMATH_OUTPUT_RULES;
 
   function buildSystem() { return SYSTEM; }
+
+  /** 供答案比對與 API 記錄使用的純文字摘要；視覺排版只由 ascii-solution-render.js 負責。 */
+  function compilePlainDocument(doc) {
+    if (!doc || !Array.isArray(doc.blocks)) return '';
+    const lines = [];
+    doc.blocks.forEach((block) => {
+      if (!block || !block.type) return;
+      if (block.type === 'heading') lines.push(`// ${clean(block.text)}`);
+      else if (block.type === 'choice') lines.push(`(${clean(block.label)}) ${clean(block.text)}`);
+      else if (block.type === 'reaction_table') lines.push(clean(block.text));
+      else lines.push(clean(block.expression || block.text));
+    });
+    if (clean(doc.answer)) lines.push(`@@ANSWER@@${answerText(doc.answer)}`);
+    return lines.filter(Boolean).join('\n');
+  }
 
   /**
    * JSON／API 解析會把 \times 的 \t 吃成 tab，畫面變「imes」。
@@ -346,7 +354,7 @@ ${QUANTITY_NOTATION_PROMPT}
       .replace(CHEM_CANDIDATE, (whole, prefix, token) => (
         isChemicalToken(token) ? prefix + keep(chemistry(token)) : whole
       ));
-    // 裸數字、科學記號交由 render.js 處理。
+    // 裸數字、科學記號保留給 AsciiMath 詳解 renderer 處理。
     text = fullwidth(text);
     stash.forEach((item, index) => { text = text.replace(`\uE200${'x'.repeat(index + 1)}\uE201`, item); });
     return repairInlineSlashFractions(text);
@@ -1171,7 +1179,7 @@ ${QUANTITY_NOTATION_PROMPT}
   function prepare(raw) {
     try {
       const document = normalizeDocument(parse(raw));
-      const text = compile(document);
+      const text = compilePlainDocument(document);
       return text
         ? { ok: true, text, document, fallback: false }
         : { ok: false, text: String(raw || '').trim(), document: null, fallback: true, reason: 'parse_or_empty' };

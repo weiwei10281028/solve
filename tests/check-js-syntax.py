@@ -15,8 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 JS = ROOT / "js"
 FILES = [
     "solve-spec.js", "chem-rule-cards.js", "prompts.js", "app.js",
-    "render.js",
-    "latex-sanitize.js", "solution-core.js", "chem-structure.js",
+    "ascii-solution-render.js", "solution-core.js", "chem-structure.js",
 ]
 REQUIRED = {
     "solve-spec.js": ["global.SolveSpec", "function buildUserBlock"],
@@ -25,9 +24,8 @@ REQUIRED = {
         "window.buildSolveUserText",
         "window.getSystemPromptForSolve",
     ],
-    "render.js": ["function renderMarkdownSolution", "function isFormulaDominantLine", "function doKaTeX"],
+    "ascii-solution-render.js": ["global.AsciiSolutionRender", "function renderInto", "function ensureMathJax"],
     "app.js": ["window.SolutionCore.prepare", "responseFormat:"],
-    "latex-sanitize.js": ["function sanitizeText", "function repairMath"],
     "solution-core.js": ["global.SolutionCore", "function prepare", "const SCHEMA", "function stripHtmlData"],
     "chem-structure.js": ["global.MolResolver", "global.MolfileDraw", "global.StructureLayout", "global.SmilesDraw"],
 }

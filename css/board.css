@@ -351,9 +351,109 @@
 }
 body[data-theme="lunar"] .board {
   --board-bg: #14151a;
-  --board-grid: color-mix(in srgb, #f4f4f1 6%, transparent);
+  background-image: none;
   color: #e9e7e1;
 }
+
+/* AsciiMath 詳解：保留原有板書密度，公式只由 MathJax 4 輸出。 */
+.board .am-solution,
+.board-reply .am-solution {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  color: inherit;
+  font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+  font-variant-numeric: lining-nums;
+}
+.am-solution > :first-child { margin-top: 0; }
+.am-solution > :last-child { margin-bottom: 0; }
+.am-solution p { min-width: 0; margin: 0 0 .9rem; overflow-wrap: break-word; }
+.am-solution .am-section-title {
+  margin: 1.35rem 0 .85rem;
+  padding: .55rem .9rem;
+  border-left: 4px solid var(--accent, #3d5c48);
+  border-radius: 0 10px 10px 0;
+  background: var(--accent-soft, #e8f0eb);
+  color: var(--accent, #2f4a3a);
+  font-family: 'Noto Serif TC', 'Noto Sans TC', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1.45;
+}
+.am-solution .am-section-title span { display: inline-block; }
+.am-solution .am-choice {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: .5rem;
+  align-items: baseline;
+  margin: .78rem 0;
+}
+.am-solution .am-choice-label { white-space: nowrap; font-weight: 700; }
+.am-solution .am-choice-body { min-width: 0; }
+.am-solution .am-choice-body p { margin: 0; }
+.am-solution .am-result-list { display: grid; gap: .7rem; margin: .3rem 0 .95rem; }
+.am-solution .am-result-item { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: .42rem; align-items: baseline; }
+.am-solution .am-result-index { white-space: nowrap; font-weight: 700; }
+.am-solution .am-result-body { min-width: 0; overflow-wrap: break-word; }
+.am-solution .am-derivation {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: .62rem;
+  align-items: start;
+  margin: .95rem 0 1.05rem;
+}
+.am-solution .am-derivation-bullet { padding-top: .08em; font-size: 1.05em; font-weight: 700; line-height: 1.8; }
+.am-solution .am-derivation-body { min-width: 0; }
+.am-solution .am-derivation-text { margin: 0; }
+.am-solution .am-derivation-body .am-display-scroll { margin: .55rem 0 .8rem; }
+.am-solution .am-derivation-body .am-derivation-text + .am-display-scroll { margin-top: .55rem; }
+.am-math--inline { display: inline-block; max-width: 100%; overflow: visible; vertical-align: baseline; }
+.am-math--inline mjx-container { display: inline-block; vertical-align: baseline !important; transform: translateY(-.015em); }
+.am-display-scroll,
+.am-table-scroll {
+  box-sizing: border-box;
+  display: block;
+  max-width: 100%;
+  margin: .72rem 0 1rem;
+  padding: .18rem 0 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pinch-zoom;
+  scrollbar-width: thin;
+}
+.am-display-scroll::-webkit-scrollbar,
+.am-table-scroll::-webkit-scrollbar { height: 6px; }
+.am-display-scroll::-webkit-scrollbar-track,
+.am-table-scroll::-webkit-scrollbar-track { background: color-mix(in srgb, currentColor 8%, transparent); border-radius: 999px; }
+.am-display-scroll::-webkit-scrollbar-thumb,
+.am-table-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, currentColor 34%, transparent); border-radius: 999px; }
+.am-display-content {
+  display: inline-block;
+  min-width: max-content;
+  width: max-content;
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
+  text-align: left;
+}
+.am-display-scroll mjx-container,
+.am-display-scroll mjx-container * { max-width: none !important; }
+.am-display-scroll mjx-container { min-width: max-content; width: max-content; overflow: visible !important; }
+.am-display-scroll mjx-frac mjx-frac,
+.am-display-scroll mjx-frac mjx-frac *,
+.am-display-scroll mjx-script mjx-frac,
+.am-display-scroll mjx-script mjx-frac * { font-size: 100% !important; }
+.am-solution mjx-container { color: inherit; font-size: 1em; line-height: inherit; }
+.am-reaction-table { min-width: max-content; border-collapse: collapse; font-size: .94em; }
+.am-reaction-table :is(th, td) { padding: .45rem .65rem; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); text-align: center; }
+.am-reaction-table th { font-weight: 700; }
+.am-solution .answer-box { margin-top: 1.25rem; }
+body[data-theme="lunar"] .am-solution .am-section-title { background: color-mix(in srgb, var(--accent-soft, #334) 70%, #1c1e22); }
 
 /* 答案盒：暖褐全寬橫排、左側色條，貼近參考圖。 */
 .board .chem-markdown .answer-box,

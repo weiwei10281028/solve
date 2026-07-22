@@ -101,7 +101,7 @@ body[data-theme="lunar"] .option-toggle input:checked + .option-toggle-ui { box-
 .btn-primary, .btn-send { background: var(--accent); color: var(--surface); }.btn-primary:hover:not(:disabled), .btn-send:hover { background: var(--accent-hover); }
 body[data-theme="lunar"] .btn-primary, body[data-theme="lunar"] .btn-send { color: #17191d; }.btn-ghost { color: var(--ink-muted); border-color: var(--border); }.btn-ghost:hover { color: var(--ink); background: var(--bg-accent); }
 
-.board { --board-bg: var(--surface-raised); background: var(--board-bg); border-color: var(--border); color: var(--ink); border-radius: 12px; }
+.board { --board-bg: var(--surface-raised); background-color: var(--board-bg); border-color: var(--border); color: var(--ink); border-radius: 12px; }
 .board-scroll .chem-markdown, .chem-markdown { color: var(--ink); }
 .solve-section-title {
   color: var(--accent);

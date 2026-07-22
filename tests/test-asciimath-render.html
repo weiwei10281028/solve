@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AsciiMath 詳解渲染測試</title>
+<link rel="stylesheet" href="../css/app.css?v=20260722-asciimath">
+<link rel="stylesheet" href="../css/board.css?v=20260722-asciimath">
+<link rel="stylesheet" href="../css/studio-theme.css?v=20260722-asciimath">
+<style>.panel { display: block !important; }</style>
+<body class="app-page">
+  <main class="page-main"><section class="panel panel-result result-card"><div class="board"><div class="board-scroll" id="fixture"></div></div></section></main>
+  <script src="../js/ascii-solution-render.js?v=20260722-asciimath"></script>
+  <script>
+    AsciiSolutionRender.renderInto(document.getElementById('fixture'), {
+      blocks: [
+        { type: 'heading', text: '依據與推導' },
+        { type: 'chemical_equation', expression: 'Ca(OH)_2 + CO_2 -> CaCO_3 + H_2O ; n(CaCO_3) = frac(8.00)(100) = 0.08 mol' },
+        { type: 'chemical_equation', expression: 'Fe_xO_y + y CO -> x Fe + y CO_2' },
+        { type: 'paragraph', text: '由反應式可得氧與二氧化碳的莫耳數相同。' },
+        { type: 'calculation', expression: 'n(O) = n(CO_2) = 0.08 mol' },
+        { type: 'calculation', expression: 'W(O) = 0.08 * 16 = 1.28 g' },
+        { type: 'calculation', expression: 'n(Fe) = frac(3.92)(56) = 0.07 mol' },
+        { type: 'calculation', expression: 'n(Fe) : n(O) = 0.07 : 0.08 = 7 : 8' }
+        ,{ type: 'heading', text: '結果' }
+        ,{ type: 'paragraph', text: '1. 鐵與氧的莫耳數比為 7 : 8；2. 氧化物化學式為 Fe_7O_8。' }
+        ,{ type: 'heading', text: '選項分析' }
+        ,{ type: 'choice', text: '（A）正確，計算結果為 7 : 8。' }
+      ], answer: 'Fe_7O_8'
+    });
+  </script>
+</body>
+</html>

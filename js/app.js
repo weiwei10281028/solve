@@ -622,26 +622,22 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   el.classList.toggle('is-warning', warning);
 }
 
-function renderAiInto(container, text, options = {}) {
+async function renderAiInto(container, text, options = {}) {
   const previousVisibility = container?.style?.visibility || '';
   if (container?.style) container.style.visibility = 'hidden';
   try {
-    if (typeof renderMarkdownSolution !== 'function' || typeof doKaTeX !== 'function') {
-      throw new Error('render.js 未載入，請強制重新整理頁面');
-    }
-    if (typeof window.__RENDER_BUILD === 'undefined') {
-      console.warn('[render] 快取可能過舊，請 Ctrl+F5');
+    if (!window.AsciiSolutionRender?.renderInto) {
+      throw new Error('AsciiMath 詳解 renderer 未載入，請強制重新整理頁面');
     }
     let body = text || '';
-    if (typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
+    if (typeof body === 'string' && typeof MolResolver !== 'undefined' && MolResolver.preprocessSmilesToMol) {
       body = MolResolver.preprocessSmilesToMol(body);
     }
-    if (typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
+    if (typeof body === 'string' && typeof SmilesDraw !== 'undefined' && SmilesDraw.preprocess) {
       body = SmilesDraw.preprocess(body);
     }
-    window.__LAST_RENDER_PIPELINE = 'markdown';
-    container.innerHTML = renderMarkdownSolution(body);
-    doKaTeX(container);
+    window.__LAST_RENDER_PIPELINE = 'asciimath';
+    await window.AsciiSolutionRender.renderInto(container, body);
     if (container?.style) container.style.visibility = previousVisibility;
     const drawTasks = [];
     if (typeof MolfileDraw !== 'undefined' && MolfileDraw.scan) {
@@ -670,9 +666,9 @@ function renderAiInto(container, text, options = {}) {
   }
 }
 
-function setMainSolution(text, options = {}) {
+async function setMainSolution(text, options = {}) {
   const el = document.getElementById('mainSolution');
-  renderAiInto(el, text, options);
+  await renderAiInto(el, text, options);
   scrollBoard(el);
 }
 
@@ -1014,7 +1010,7 @@ async function startSolve() {
     if (activeSolveEpoch !== solveEpoch) return;
     apiMessages.push({ role: 'assistant', content: reply });
     window.__lastCompiledReply = reply;
-    setMainSolution(reply);
+    await setMainSolution(prepared.document);
     showChemRuleWarning(chemRuleAudit);
     renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     setBadge('詳解完成', '#EAF2ED', '#3D6B52');

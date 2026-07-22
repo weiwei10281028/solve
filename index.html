@@ -9,12 +9,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/katex.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.9.0/github-markdown.css">
   <link rel="stylesheet" href="css/app.css?v=20260722-formula">
   <link rel="stylesheet" href="css/board.css?v=20260722-formula">
   <link rel="stylesheet" href="css/chem-structure.css?v=20260722-formula">
@@ -55,7 +49,7 @@
     <details class="studio-advanced studio-note"><summary><span><b>補充說明</b><small>補充題意或指定作答範圍</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></summary><div class="studio-advanced-body"><div class="field-group"><label class="field-label" for="textQuestionInput">補充說明或者問題輸入（選填）</label><textarea class="question-input text-question-input" id="textQuestionInput" rows="4" placeholder="上傳圖片，或在此輸入／貼上題目"></textarea><p class="field-hint">有圖則以圖為主，可指定題號（如第 5 題）或選項，亦可補充說明缺少數據或資料，若無圖片可輸入文字說明問題</p></div></div></details>
     <details class="studio-advanced"><summary><span><b>進階設定</b><small>章節類型、作答格式、公式與計算偏好</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></summary><div class="studio-advanced-body"><div class="studio-advanced-layout">
       <section class="studio-advanced-block studio-study-settings"><div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選大章節；系統會再依題目命中 Ka、滴定、Ksp、官能基等細項。</p></div><section class="studio-chapter-control"><button class="studio-chapter-trigger" type="button" id="openChapterPicker"><span><b>章節類型</b><small id="chapterPickerSummary">尚未選取</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></button></section></section>
-      <section class="studio-advanced-block studio-preferences-settings"><div class="studio-advanced-block-head"><h2>解題偏好</h2><p>調整反應式、計算與公式輸入方式。</p></div><div class="solve-options"><div class="option-toggle-row"><label class="option-toggle" for="stoichiometryToggle"><input type="checkbox" id="stoichiometryToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">化學反應方程式表達</span></label><label class="option-toggle" for="calcCompactToggle"><input type="checkbox" id="calcCompactToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算精簡</span></label></div><p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p></div><details class="formula-tools" id="formulaTools"><summary>公式輸入與本機驗算（不會送出題目）</summary><div class="formula-tools-body"><math-field id="formulaInput" class="formula-input" math-virtual-keyboard-policy="auto" aria-label="數學公式輸入"></math-field><div class="formula-tools-actions"><button class="btn-ghost formula-tool-btn" type="button" onclick="insertFormulaIntoQuestion()">插入題目</button><button class="btn-ghost formula-tool-btn" type="button" onclick="verifyFormulaInput()">驗算公式</button></div><p class="formula-tool-status" id="formulaToolStatus" aria-live="polite">可輸入 LaTeX、分數、次方與單位；驗算只檢查可在本機判定的式子。</p></div></details></section>
+      <section class="studio-advanced-block studio-preferences-settings"><div class="studio-advanced-block-head"><h2>解題偏好</h2><p>調整反應式與計算呈現方式。</p></div><div class="solve-options"><div class="option-toggle-row"><label class="option-toggle" for="stoichiometryToggle"><input type="checkbox" id="stoichiometryToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">化學反應方程式表達</span></label><label class="option-toggle" for="calcCompactToggle"><input type="checkbox" id="calcCompactToggle"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算精簡</span></label></div><p class="field-hint solve-options-hint">化學反應方程式：須計量追蹤時寫配平式＋變化表。計算精簡：合併代數步驟，不省略推理。</p></div></section>
     </div></div></details>
   </section>
 
@@ -144,24 +138,16 @@
   <img class="lightbox-img" id="lightboxImg" src="" alt="題目放大">
 </div>
 
-<script src="js/katex.min.js?v=20260722"></script>
-<script src="js/auto-render.min.js?v=20260722"></script>
-<script src="js/mhchem.min.js?v=20260722"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked@18.0.6/lib/marked.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@cortex-js/compute-engine@0.62.1/compute-engine.min.js"></script>
   <script src="js/solve-spec.js?v=20260722-formula"></script>
   <script src="js/chem-rule-cards.js?v=20260722-formula"></script>
   <script src="js/prompts.js?v=20260722-formula"></script>
-<script src="js/formula-tools.js?v=20260722-formula"></script>
-<script src="js/latex-sanitize.js?v=20260722-formula"></script>
 <script src="js/solution-core.js?v=20260722-formula"></script>
-<script src="js/compiler.js?v=20260722-formula"></script>
 <script src="js/structures-bundle.js?v=20260722-formula"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
 <script src="js/chem-structure.js?v=20260722-formula"></script>
-  <script src="js/render.js?v=20260722-formula"></script>
+  <script src="js/ascii-solution-render.js?v=20260722-aq-subscript"></script>
 <script src="js/api.js?v=20260722-formula"></script>
   <script src="js/app.js?v=20260722-formula"></script>
 <script src="js/studio-layout.js?v=20260722-static"></script>
