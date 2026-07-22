@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "issues": [],
+  "marked_check": {
+    "build": "20260721-derive-eq",
+    "hasCommaUnit": false,
+    "text_head": "答案【推導】體積20.0 mL，濃度0.10 M。體積20.0\\,\\mathrm{mL}，濃度0.10\\,\\mathrm{M}。體積20.0mL，濃度0.10M。"
+  },
+  "visible_head": "推導\n\n起始醋酸體積\n20.0\nm\nL\n20.0mL，\nN\na\nO\nH\nNaOH濃度\n0.10\nM\n0.10M，滴定終點消耗\n20.0\nm\nL\n20.0mL \nN\na\nO\nH\nNaOH，可知醋酸濃度亦為\n0.10\nM\n0.10M。\n\n總莫耳數為\n0.002\nm\no\nl\n0.002mol。\n\n（甲）\n加入\n5.0\nm\nL\n5.0mL \nN\na\nO\nH\nNaOH時，形成緩衝溶液。\n\nC\nH\n3\nC\nO\nO\nH\nCH\nX\n3\n\t​\n\nCOOH剩餘\n0.0015\nm\no\nl\n0.0015mol，\nC\nH\n3\nC\nO\nO\nCH\nX\n3\n\t​\n\nCOO-生成\n0.0005\nm\no\nl\n0.0005mol。\n\n[\nH\n+\n]\n=\n1.8\n×\n1\n0\n−\n5\n×\n0.0015\n0.0005\n=\n5.4\n×\n1\n0\n−\n5\n[H\nX\n+\n]=1.8×10\n−5\n×\n0.0005\n0.0015\n\t​\n\n=5.",
+  "src_head": "【推導】\n起始醋酸體積20.0 mL，NaOH濃度0.10 M，滴定終點消耗20.0 mL NaOH，可知醋酸濃度亦為0.10 M。\n總莫耳數為0.002 mol。\n（甲）加入5.0 mL NaOH時，形成緩衝溶液。\nCH3COOH剩餘0.0015 mol，CH3COO-生成0.0005 mol。\n$[\\ce{H+}]=1.8\\times10^{-5}\\times\\dfrac{0.0015}{0.0005}=5.4\\times10^{-5}$\n（乙）達終點時，溶液為0.05 M的CH3COONa溶液。\n$[\\ce{OH-}]=\\sqrt{Kh\\times C}=\\sqrt{5.56\\times10^{-10}\\times0.05}\\approx 5.27\\times10^{-6}$\n$[\\ce{OH-}]=\\sqrt{5.56\\times10^{-10}\\times0.05}$\n$pOH=-\\\\log(5.27\\times10^{-6})\\approx 5.28$\n$pH=14-5.28=8.72$\n@@ANSWER@@D"
+}

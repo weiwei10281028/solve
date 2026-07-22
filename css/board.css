@@ -13,18 +13,16 @@
 }
 .katex .katex-html { display: inline-block; }
 
-@font-face {
-  font-family: 'BoardKaTeXMath';
-  src: url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2') format('woff2');
-  font-weight: normal;
-  font-style: italic;
-  font-display: swap;
-}
-
+/*
+ * 詳解區拉丁字母／數字：一律 KaTeX_Main（與公式同系，教科書 Roman 風格）。
+ * 中文無此字型時自動落到 Noto Sans TC。變數斜體僅限 .mathnormal → KaTeX_Math。
+ */
 .board,
-.board-reply {
-  font-family: 'Noto Sans TC', sans-serif;
-  font-variant-numeric: tabular-nums;
+.board-reply,
+.board .chem-markdown,
+.board-reply .chem-markdown {
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
+  font-variant-numeric: lining-nums;
   font-synthesis: none;
 }
 
@@ -60,10 +58,8 @@
   overflow-wrap: break-word;
   color: inherit;
   background: transparent;
-  font-family: 'Noto Sans TC', sans-serif;
   font-size: 16px;
   line-height: 1.8;
-  font-variant-numeric: tabular-nums;
 }
 
 .chem-markdown > :first-child { margin-top: 0; }
@@ -73,13 +69,30 @@
   margin: 0 0 0.9rem;
   white-space: normal;
 }
-.chem-markdown h2 {
-  margin: 1.5rem 0 0.7rem;
-  padding: 0 0 0.38rem;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  color: inherit;
-  font-size: 1.08rem;
-  line-height: 1.45;
+.chem-markdown h2,
+.chem-markdown .solve-section-title {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 1.35rem 0 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  border-left: 4px solid #3D5C48;
+  border-radius: 0 10px 10px 0;
+  background: #E8F0EB;
+  color: #2F4A3A;
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+.chem-markdown > h2:first-child,
+.chem-markdown > .solve-section-title:first-child {
+  margin-top: 0.2rem;
+}
+.chem-markdown .solve-section-title-text {
+  display: inline-block;
 }
 .chem-markdown ul {
   margin: 0.95rem 0;
@@ -87,30 +100,39 @@
   list-style: none;
 }
 
-/* 標籤與說明各自佔一欄，所有標籤後的文字從同一位置開始。 */
-.chem-markdown li {
+/* 標籤與說明各自佔一欄，換行後仍維持懸掛縮排。 */
+.chem-markdown li:has(.markdown-choice-label),
+.chem-markdown li:has(.markdown-step-label),
+.chem-markdown p:has(> .markdown-choice-label),
+.chem-markdown p:has(> .markdown-step-label) {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 0.5rem;
   align-items: baseline;
   margin: 0.78rem 0;
   padding: 0;
   text-indent: 0;
 }
-.chem-markdown .markdown-choice-label {
+.chem-markdown li:has(.markdown-choice-label) > p,
+.chem-markdown li:has(.markdown-step-label) > p {
+  display: contents;
+}
+.chem-markdown .markdown-choice-label,
+.chem-markdown .markdown-step-label {
   grid-column: 1;
   display: block;
   width: auto;
   margin: 0;
   padding: 0;
   white-space: nowrap;
-  font-family: 'Noto Sans TC', sans-serif;
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
   font-style: normal;
   font-weight: 700;
   line-height: inherit;
   text-indent: 0;
 }
-.chem-markdown .markdown-choice-body {
+.chem-markdown .markdown-choice-body,
+.chem-markdown .markdown-step-body {
   grid-column: 2;
   display: block;
   min-width: 0;
@@ -119,11 +141,46 @@
   white-space: normal;
 }
 
+/* 依據與推導：一個圓點代表一個完整推理段；段內算式另列但不重複標記。 */
+.chem-markdown .markdown-derivation-group {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.62rem;
+  align-items: start;
+  margin: 0.95rem 0 1.05rem;
+  padding: 0;
+}
+.chem-markdown .markdown-derivation-bullet {
+  display: block;
+  padding-top: 0.08em;
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
+  font-size: 1.05em;
+  font-weight: 700;
+  line-height: 1.8;
+}
+.chem-markdown .markdown-derivation-body {
+  min-width: 0;
+}
+.chem-markdown .markdown-derivation-text {
+  margin: 0;
+  line-height: 1.8;
+  overflow-wrap: break-word;
+}
+.chem-markdown .markdown-derivation-text + .markdown-derivation-text {
+  margin-top: 0.45rem;
+}
+.chem-markdown .markdown-derivation-formula {
+  min-width: 0;
+  margin: 0.42rem 0 0;
+  line-height: 1.8;
+}
+
+
 .board-latin {
   display: inline;
   margin-inline: 0.04em;
   padding: 0;
-  font-family: 'Noto Sans TC', sans-serif;
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
   font-size: 1em;
   font-style: normal;
   font-weight: inherit;
@@ -135,23 +192,28 @@
   max-height: none;
   overflow: visible;
   color: inherit;
+  font-family: KaTeX_Main, serif;
   font-size: 1em;
   line-height: inherit;
   vertical-align: baseline;
 }
+/* 僅數學變數用斜體；數字、運算子、\\mathrm／\\ce 一律 KaTeX_Main 直立 */
 .chem-markdown .katex :is(.mathnormal, .mord.mathnormal) {
-  font-family: 'BoardKaTeXMath', KaTeX_Math, serif;
+  font-family: KaTeX_Math, KaTeX_Main, serif;
   font-style: italic;
   font-weight: 400;
 }
-.chem-markdown .katex :is(.mord:not(.mathnormal), .mord.text),
-.chem-markdown .katex .mrel,
-.chem-markdown .katex .mbin {
+.chem-markdown .katex :is(.mord:not(.mathnormal), .mord.text, .mathrm, .textup, .textbf),
+.chem-markdown .katex :is(.mrel, .mbin, .mopen, .mclose, .mpunct, .minner, .mop, .mspace) {
   color: inherit;
-  font-family: KaTeX_Main, 'Noto Sans TC', serif;
+  font-family: KaTeX_Main, serif;
   font-style: normal;
   font-weight: 400;
   opacity: 1;
+}
+.chem-markdown .katex .sizing,
+.chem-markdown .katex .fontsize-ensurer {
+  font-family: KaTeX_Main, serif;
 }
 .chem-markdown .katex :is(.katex-html, .msupsub, .msupsub .vlist-t),
 .katex :is(.mfrac, .vlist-t, .vlist-b) {
@@ -175,6 +237,10 @@
   text-align: left;
 }
 .chem-markdown .answer-box { margin-top: 1.25rem; }
+.chem-markdown .answer-box,
+.chem-markdown .answer-box-value {
+  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
+}
 
 /* 純長公式的唯一橫滑層；沒有額外箭頭或第二條捲軸。 */
 .chem-markdown .plain-line-inner--xscroll { padding-bottom: 0; }
@@ -213,8 +279,22 @@
 .chem-markdown .plain-line-xwrap--scroll.plain-line-xwrap--nowrap .plain-line-xcontent {
   display: inline-block;
   min-width: max-content;
+  max-width: none;
   white-space: nowrap;
   vertical-align: top;
+}
+/* 橫滑時禁止 KaTeX 因 min-width:0／窄欄而把同一條式子折行。 */
+.chem-markdown .plain-line-xwrap--scroll .katex,
+.chem-markdown .plain-line-xwrap--scroll .katex-html,
+.chem-markdown .plain-line-xwrap--scroll .katex .base {
+  white-space: nowrap !important;
+}
+.chem-markdown .plain-line-xwrap--scroll .katex,
+.chem-markdown .plain-line-xwrap--scroll .katex-display,
+.chem-markdown .plain-line-xwrap--scroll .katex-display > .katex {
+  min-width: max-content;
+  max-width: none;
+  width: max-content;
 }
 .chem-markdown .plain-line-xwrap--scroll .math-block {
   width: max-content;
@@ -243,7 +323,69 @@
 }
 
 @media (max-width: 760px) {
-  .chem-markdown li {
-    grid-template-columns: 2rem minmax(0, 1fr);
+  .chem-markdown li:has(.markdown-choice-label),
+  .chem-markdown li:has(.markdown-step-label),
+  .chem-markdown p:has(> .markdown-choice-label),
+  .chem-markdown p:has(> .markdown-step-label) {
+    grid-template-columns: max-content minmax(0, 1fr);
   }
 }
+
+/* ==========================================================================
+ * v2 板書視覺（對齊 TUTOR FORMOSA 參考圖）
+ * 方格紙底、Computer Modern 公式、暖褐色置中答案盒。
+ * ==========================================================================*/
+
+/* 方格紙背景：淺灰網格疊在暖白紙面上。 */
+.board {
+  --board-grid: color-mix(in srgb, #2a2520 7%, transparent);
+  background-color: var(--board-bg);
+  background-image:
+    linear-gradient(var(--board-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--board-grid) 1px, transparent 1px);
+  background-size: 26px 26px, 26px 26px;
+  background-position: -1px -1px, -1px -1px;
+}
+body[data-theme="lunar"] .board {
+  --board-bg: #14151a;
+  --board-grid: color-mix(in srgb, #f4f4f1 6%, transparent);
+  color: #e9e7e1;
+}
+
+/* 答案盒：暖褐全寬橫排、左側色條，貼近參考圖。 */
+.board .chem-markdown .answer-box,
+.board-reply .chem-markdown .answer-box {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 1.5rem 0 0.4rem;
+  padding: 0.7rem 1.2rem 0.7rem 1rem;
+  background: #f3e7d5;
+  border: 1px solid color-mix(in srgb, #9b6a32 30%, transparent);
+  border-left: 4px solid #8b5a2b;
+  border-radius: 12px;
+  color: #5a3d1c;
+  text-align: center;
+}
+body[data-theme="lunar"] .board .chem-markdown .answer-box {
+  background: color-mix(in srgb, #ead49a 16%, #1d2028);
+  border-color: color-mix(in srgb, #ead49a 34%, transparent);
+  border-left-color: #c9a56a;
+  color: #ead49a;
+}
+.board .chem-markdown .answer-box-inline {
+  display: inline;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.55;
+  white-space: normal;
+  word-break: break-word;
+}
+.board .chem-markdown .answer-box-value {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* 次要推導行（連續 calculation）淡化，讓最終式與答案更突出；沿用參考圖層次。 */
+.board .chem-markdown .calc-step--muted { color: color-mix(in srgb, currentColor 55%, transparent); }

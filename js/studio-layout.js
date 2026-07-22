@@ -62,7 +62,7 @@
   const chapterHost = document.getElementById('chapterOptions');
   const chapterSpec = chapterHost?.closest('.solve-spec');
   const formatSpec = document.getElementById('solveSpecTitle')?.closest('.solve-spec');
-  if (!chapterHost || !chapterSpec || !formatSpec) return;
+  if (!chapterHost || !chapterSpec) return;
 
   const chapterControl = document.createElement('section');
   chapterControl.className = 'studio-chapter-control';
@@ -74,7 +74,8 @@
   const studySettings = document.createElement('section');
   studySettings.className = 'studio-advanced-block studio-study-settings';
   studySettings.innerHTML = '<div class="studio-advanced-block-head"><h2>章節與作答方式</h2><p>先選大章節；系統會再依題目命中 Ka、滴定、Ksp、官能基等細項。</p></div>';
-  studySettings.append(chapterControl, formatSpec);
+  studySettings.append(chapterControl);
+  if (formatSpec) studySettings.append(formatSpec);
   const preferencesSettings = document.createElement('section');
   preferencesSettings.className = 'studio-advanced-block studio-preferences-settings';
   preferencesSettings.innerHTML = '<div class="studio-advanced-block-head"><h2>解題偏好</h2><p>調整反應式、計算與公式輸入方式。</p></div>';

@@ -1,11 +1,13 @@
 # 排版與 NOTE 流程
 
-更新日期：2026-07-14
+更新日期：2026-07-20
 
 ```text
 題目／圖片
   -> 瀏覽器以設定中的 Gemini API Key 呼叫 generateContent
-  -> js/solution-core.js：驗證結構化區塊，統一文字標點、化學式與算式
+  -> 解題 AI 在算式 text 中同步寫入 \htmlData NOTE（規格見 SolutionCore.SYSTEM）
+  -> js/solution-core.js：驗證結構化區塊，統一文字標點、化學式與算式；保留 AI NOTE，本機不去另補標
+  -> js/app.js（renderAiInto）：分離 @@ANSWER@@ 後，對主文呼叫 js/render.js 的 normalizeScientificTokens 做顯示前唯一的科學 token 正規化
   -> js/render.js：編譯 Markdown 與選項版面
   -> js/latex-sanitize.js：修復或降級無法顯示的 LaTeX
   -> KaTeX：公式渲染

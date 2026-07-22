@@ -123,10 +123,7 @@
     ])
   });
 
-  const FORMATS = Object.freeze({
-    calculation: ['計算題四步推導', '已知與目標、關係式、代入計算、結論', ['已知與目標', '關係式', '代入計算', '結論']],
-    concept: ['概念／性質三步判斷', '判斷依據、推論過程、結論', ['判斷依據', '推論過程', '結論']]
-  });
+  const FORMATS = Object.freeze({});
 
   function ids(values, map) {
     const seen = {};
@@ -210,19 +207,22 @@
   }
   function buildUserBlock(spec) {
     if (!spec?.enabled) return '';
-    const lines = ['【解題規格｜只套用本題適用項】'];
+    const lines = [
+      '【本題章節提醒】'
+    ];
     spec.chapters.filter((item) => item.applicability !== 'not-applicable').forEach((item) => {
-      lines.push(`【章節：${item.label}】請以小標依序呈現：${item.steps.join(' → ')}。${item.rule}`);
+      lines.push(`【章節：${item.label}】請注意：${item.rule}`);
       item.topics.filter((entry) => entry.applicability === 'applicable').slice(0, 3).forEach((entry) => {
-        lines.push(`【細項：${entry.label}】${entry.rule} 請以小標依序呈現：${entry.steps.join(' → ')}。`);
+        lines.push(`【細項：${entry.label}】${entry.rule}`);
       });
     });
-    spec.formats.forEach((item) => lines.push(`【格式：${item.label}】${item.rule}。`));
     return lines.length > 1 ? lines.join('\n') : '';
   }
   function buildActiveBlock(routeValue) {
     if (!routeValue || routeValue.origin !== 'manual') return '';
-    const lines = ['【使用者已啟用進階功能｜本次詳解必須明確反映】'];
+    const lines = [
+      '【本題解題提醒】'
+    ];
     if (routeValue.forceStoichiometry) {
       lines.push('【反應方程式表達】完整詳解、計算與逐項分析不得刪減；只額外加入配平反應式與 reaction_table（物種欄、起始、變化、結果／平衡列）。');
     }
@@ -233,17 +233,5 @@
     if (specBlock) lines.push(specBlock);
     return lines.join('\n');
   }
-  function checkReply(spec, reply) {
-    if (!spec?.enabled) return [];
-    const text = String(reply || '');
-    const required = [
-      ...spec.chapters.filter((item) => item.applicability !== 'not-applicable').flatMap((item) => [[item.label, item.steps], ...item.topics.filter((entry) => entry.applicability === 'applicable').slice(0, 3).map((entry) => [entry.label, entry.steps])]),
-      ...spec.formats.map((item) => [item.label, item.steps])
-    ];
-    const issues = [];
-    required.forEach(([label, steps]) => steps.forEach((step) => { if (!text.includes(step)) issues.push(`${label}缺少「${step}」步驟。`); }));
-    return issues;
-  }
-
-  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, route, describe, describeRoute, buildUserBlock, buildActiveBlock, checkReply });
+  global.SolveSpec = Object.freeze({ CHAPTERS, FORMATS, create, fromInputs, withApplicability, detectChapters, route, describe, describeRoute, buildUserBlock, buildActiveBlock });
 })(typeof window !== 'undefined' ? window : globalThis);

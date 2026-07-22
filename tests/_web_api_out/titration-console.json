@@ -1,0 +1,5 @@
+[
+  "error: Failed to load resource: the server responded with a status of 503 ()",
+  "error: 解題失敗 Error: AI 詳解格式不完整，請重新作答。\n    at startSolve (http://127.0.0.1:18084/js/app.js?v=20260720-single-pipeline:865:29)",
+  "warning: No character metrics for '❌' in style 'Main-Regular' and mode 'text'"
+]

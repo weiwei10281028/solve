@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -9,14 +9,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/katex.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.9.0/github-markdown.css">
-  <link rel="stylesheet" href="css/app.css?v=20260719-editorial">
-  <link rel="stylesheet" href="css/board.css?v=20260719-flash-crosscheck">
-  <link rel="stylesheet" href="css/math-note/math-note.css?v=20260719-single-pipeline">
-  <link rel="stylesheet" href="css/chem-structure.css?v=20260716-clean">
-  <link rel="stylesheet" href="css/studio-theme.css?v=20260719-single-pipeline">
+  <link rel="stylesheet" href="css/app.css?v=20260721-v2">
+  <link rel="stylesheet" href="css/board.css?v=20260721-v2">
+  <link rel="stylesheet" href="css/chem-structure.css?v=20260721-v2">
+  <link rel="stylesheet" href="css/studio-theme.css?v=20260721-v2">
 </head>
 <body class="app-page" data-theme="ivory">
 
@@ -100,7 +102,7 @@
     <div class="field-group">
       <label class="field-label" for="answerInput">參考答案（選填）</label>
       <input type="text" class="question-input" id="answerInput" placeholder="例：(E)、3.A、5.CD、2.42 mol…" autocomplete="off">
-      <p class="field-hint">填入後會交給另一個 Flash 獨立驗算，不會先告訴主解題模型，也不會強制鎖定答案；兩邊計算或本機檢查不一致時，結果不會顯示。單題可寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>。</p>
+      <p class="field-hint">填入後會交給另一個 Flash 獨立驗算，不會先告訴主解題模型。系統會盡量對齊參考答案；若驗證異常或無法對齊，仍會顯示詳解並標示警告。單題可寫選項或數值；多題可寫 <strong>3.A、5.CD</strong>。</p>
     </div>
 
     <div class="solve-options">
@@ -125,15 +127,7 @@
       <p class="field-hint" id="chapterSpecHint">可選 1～3 個章節；未選取時由系統自動判斷，不會強制套用。</p>
     </section>
 
-    <section class="solve-spec" aria-labelledby="solveSpecTitle" aria-describedby="solveSpecHint solveSpecStatus">
-      <h2 class="field-label" id="solveSpecTitle">作答格式（可複選）</h2>
-      <div class="solve-spec-row">
-        <label class="option-toggle" for="solveTypeCalculation"><input type="checkbox" id="solveTypeCalculation" data-solve-type="calculation"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">計算題四步推導</span></label>
-        <label class="option-toggle" for="solveTypeConcept"><input type="checkbox" id="solveTypeConcept" data-solve-type="concept"><span class="option-toggle-ui" aria-hidden="true"></span><span class="option-toggle-label">概念／性質三步判斷</span></label>
-      </div>
-      <p class="field-hint" id="solveSpecHint">格式只控制額外呈現步驟；所有選擇題本來就會依題目實際選項逐項分析。</p>
-      <p class="solve-spec-status" id="solveSpecStatus" aria-live="polite">未啟用題型規格，將依題目自動判斷。</p>
-    </section>
+    <p class="solve-spec-status" id="solveSpecStatus" aria-live="polite">詳解固定依「題意、依據與推導、結果」呈現；選擇題另逐項分析。</p>
 
     <div class="action-row">
       <button class="btn-primary" type="button" id="solveBtn" onclick="startSolve()" disabled>開始解題</button>
@@ -186,7 +180,7 @@
     <p class="modal-desc">金鑰僅儲存在你的瀏覽器，不會上傳至其他伺服器。</p>
 
     <div class="tip-box">
-      化學計算建議使用 <strong>Gemini 3.1 Flash Lite</strong>。
+      主解題建議使用 <strong>Gemini 3.5 Flash</strong>（獨立驗算自動改用 Gemini 3.5 Flash Lite）。
       <a id="keyLink" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">取得 API 金鑰</a>
     </div>
 
@@ -217,26 +211,27 @@
   <img class="lightbox-img" id="lightboxImg" src="" alt="題目放大">
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.18.1/dist/contrib/mhchem.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@18.0.6/lib/marked.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@cortex-js/compute-engine@0.62.1/compute-engine.min.js"></script>
-  <script src="js/solve-spec.js?v=20260719-single-pipeline"></script>
-  <script src="js/prompts.js?v=20260719-flash-crosscheck"></script>
-<script src="js/math-note/math-note.js?v=20260719-single-pipeline"></script>
-<script src="js/formula-tools.js?v=20260716-clean"></script>
-<script src="js/latex-sanitize.js?v=20260716-clean2"></script>
-<script src="js/solution-core.js?v=20260719-single-pipeline"></script>
-<script src="js/structures-bundle.js?v=20260716-clean"></script>
+  <script src="js/solve-spec.js?v=20260721-v2"></script>
+  <script src="js/chem-rule-cards.js?v=20260721-v2"></script>
+  <script src="js/prompts.js?v=20260721-v2"></script>
+<script src="js/formula-tools.js?v=20260721-v2"></script>
+<script src="js/latex-sanitize.js?v=20260721-v2"></script>
+<script src="js/solution-core.js?v=20260721-v2"></script>
+<script src="js/compiler.js?v=20260721-v2"></script>
+<script src="js/structures-bundle.js?v=20260721-v2"></script>
 <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
-<script src="js/chem-structure.js?v=20260719-single-pipeline"></script>
-  <script src="js/render.js?v=20260719-flash-crosscheck"></script>
-<script src="js/api.js?v=20260719-flash-crosscheck"></script>
-  <script src="js/app.js?v=20260719-flash-crosscheck"></script>
-<script src="js/studio-layout.js?v=20260716-clean"></script>
+<script src="js/chem-structure.js?v=20260721-v2"></script>
+  <script src="js/render.js?v=20260721-v2"></script>
+<script src="js/api.js?v=20260721-v2"></script>
+  <script src="js/app.js?v=20260721-v2"></script>
+<script src="js/studio-layout.js?v=20260721-v2"></script>
 <script>
   (() => {
     const toggle = document.getElementById('themeToggle');

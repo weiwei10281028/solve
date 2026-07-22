@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "lines": 3,
+  "sample": "$\\htmlData{note=溶液濃度（M）}{0.10}\\,\\mathrm{M} \\times  \\htmlData{note=溶液體積（L）}{0.020}\\,\\mathrm{L} = 0.002$\n$\\htmlData{note=溶液濃度（M）}{0.10}\\,\\mathrm{M} \\times  \\htmlData{note=溶液體積（L）}{0.005}\\,\\mathrm{L} = 0.0005$\n$0.002 - 0.0005 = 0.0015$\n@@ANSWER@@x",
+  "fixed": "0.10 M\\times0.020 L=0.002 0.10 M\\times0.005=0.0005",
+  "prep": "$\\htmlData{note=溶液濃度（M）}{0.10}\\,\\mathrm{M}\\times0.020=0.002$\n$\\htmlData{note=溶液濃度（M）}{0.10}\\,\\mathrm{M}\\times0.005=0.0005$\n@@ANSWER@@A"
+}

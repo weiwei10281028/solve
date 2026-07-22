@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "sample": "已知醋酸初始體積 20.0 mL，濃度 0.10 M。\n$0.10M \\times 20.0mL = 2.0mmol$\n$[\\ce{H+}]=1.8\\times10^{-5}\\times\\dfrac{1.5}{0.5}=5.4\\times10^{-5}$\n@@ANSWER@@x",
+  "fw": "濃度 0.10 M，體積 20.0 mL",
+  "calcComma": "0.10 M\\times20.0 mL=2.0 mmol",
+  "norm": "已知醋酸初始體積 $20.0\\,\\mathrm{mL}$，濃度 $0.10\\,\\mathrm{M}$。\n$0.10M \\times 20.0mL = 2.0mmol$\n$[\\ce{H+}]=1.8\\times10^{-5}\\times\\dfrac{1.5}{0.5}=5.4\\times10^{-5}$\n@@$\\ce{ANSWER}$@@x"
+}

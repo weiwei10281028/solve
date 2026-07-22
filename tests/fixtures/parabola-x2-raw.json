@@ -1,0 +1,37 @@
+{
+  "blocks": [
+    {
+      "type": "heading",
+      "text": "題意"
+    },
+    {
+      "type": "paragraph",
+      "text": "本題給定拋物線方程式，要求由頂點式判斷開口方向與頂點座標。"
+    },
+    {
+      "type": "heading",
+      "text": "推導"
+    },
+    {
+      "type": "paragraph",
+      "text": "由題意可將曲線寫為 x^2 = 12y，屬標準開口向上的拋物線。"
+    },
+    {
+      "type": "calculation",
+      "text": "y = x^2 + 6x + 5"
+    },
+    {
+      "type": "calculation",
+      "text": "y = (x+3)^2 - 4"
+    },
+    {
+      "type": "heading",
+      "text": "結果"
+    },
+    {
+      "type": "paragraph",
+      "text": "頂點為 (-3, -4)，開口向上。"
+    }
+  ],
+  "answer": "x = -1 或 x = -5"
+}

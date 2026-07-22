@@ -2,11 +2,11 @@
 <html lang="zh-TW">
 <meta charset="utf-8">
 <title>詳解渲染版本驗證</title>
-<script src="../js/render.js?v=20260719-single-pipeline"></script>
+<script src="../js/render.js?v=20260721-no-note"></script>
 <body>
   <p id="result">檢查中……</p>
   <script>
-    const expected = '20260719-single-pipeline';
+    const expected = '20260721-no-note';
     const ok = window.__RENDER_BUILD === expected;
     document.getElementById('result').textContent = ok
       ? `PASS：${expected}`

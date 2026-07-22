@@ -14,6 +14,9 @@ function formatError(msg) {
     return 'API Key 驗證失敗。\n\n請到「API 設定」重新貼上 Gemini API Key 後儲存。';
   }
   if (/high demand|spikes in demand|try again later/i.test(msg)) return 'Gemini 目前請求過多，請稍後再試。';
+  if (/no longer available to new users|no longer available/i.test(msg)) {
+    return '此 Gemini 模型對新 API 金鑰不可用。\n\n請在「模型」選 Gemini 3.5 Flash 或 Gemini 3.5 Flash Lite，儲存後再試。';
+  }
   if (/not found|not supported for generateContent/i.test(msg)) return '此 Gemini 模型目前不可用。請確認模型 ID。';
   if (/decommissioned|model_decommissioned/i.test(msg)) return '此 Gemini 模型已被官方下架或更名。請確認最新模型 ID。';
   if (/quota|rate.?limit|exceeded|limit:\s*0/i.test(msg)) return 'Gemini 額度已用完，請更換 API Key 或等待額度恢復。';
@@ -58,7 +61,16 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
     const raw = await res.text(); let data;
     try { data = JSON.parse(raw); } catch (_) { throw new Error(raw || `HTTP ${res.status}`); }
     if (data.error || !res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-    const candidate = data.candidates?.[0]; const text = (candidate?.content?.parts || []).map(p => p.text || '').join('').trim();
+    const candidate = data.candidates?.[0];
+    let text = (candidate?.content?.parts || []).map(p => p.text || '').join('').trim();
+    // API JSON.parse 會把 \times 吃成 tab+imes；此處 text 是詳解 JSON 原文，要寫回 \\times
+    if (typeof window !== 'undefined' && window.SolutionCore && typeof window.SolutionCore.restoreEatenLatexInJsonSource === 'function') {
+      text = window.SolutionCore.restoreEatenLatexInJsonSource(text);
+    } else {
+      text = String(text)
+        .replace(/\u0009imes/gi, '\\\\times')
+        .replace(/([A-Za-z0-9}\\]])imes(?=\\s*(?:\\d|10\\b|\\\\))/gi, '$1\\\\times');
+    }
     if (text) return { text, finishReason: candidate?.finishReason || 'UNKNOWN' };
     throw new Error(`Gemini 沒有回傳文字。原因：${candidate?.finishReason || data.promptFeedback?.blockReason || '未知原因'}`);
   } catch (err) {
@@ -70,18 +82,41 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
 function looksIncomplete(text, finishReason) {
   const t = String(text || '').trim();
   if (!t || finishReason === 'MAX_TOKENS') return true;
+  // JSON 詳解：能 parse 就不算未完成；括號／字串未關則算未完成
+  if (t.includes('"blocks"') || /^\s*\{/.test(t)) {
+    if (typeof window !== 'undefined' && window.SolutionCore && typeof window.SolutionCore.parse === 'function') {
+      const doc = window.SolutionCore.parse(t);
+      if (doc && Array.isArray(doc.blocks) && doc.blocks.length) return false;
+    }
+    try {
+      const parsed = JSON.parse(t);
+      if (parsed && Array.isArray(parsed.blocks)) return false;
+    } catch (_) { /* fallthrough */ }
+    return true;
+  }
   if (/\*\*答[:：]/.test(t)) return false;
   return /故僅能$|如下$|因此$|可得$|無法$|不能$/.test(t);
 }
 
 async function callAPI(cfg, apiMessages, systemText, genOpts = {}) {
   const maxContinue = genOpts.maxContinue ?? 2; let messages = apiMessages.map(m => ({ ...m })); let combined = '';
+  const jsonMode = !!(genOpts.responseFormat || genOpts.responseSchema || /APPLICATION_JSON/i.test(genOpts.responseMimeType || ''));
   for (let round = 0; round <= maxContinue; round++) {
     const { text, finishReason } = await callGemini(cfg, messages, systemText, genOpts);
-    combined = combined ? `${combined}\n${text}` : text;
+    combined = combined ? (jsonMode ? `${combined}${text}` : `${combined}\n${text}`) : text;
     if (!looksIncomplete(combined, finishReason)) return { text: combined, truncated: false };
     if (round >= maxContinue) break;
-    messages = [...apiMessages, { role: 'assistant', content: combined }, { role: 'user', content: '上一段詳解尚未寫完。請從中斷處繼續，補完計算並以 **答：** 結尾；不要重複已寫內容。' }];
+    if (jsonMode) {
+      // JSON 被截斷後，從字元中斷處續寫常會遺失引號／括號；改為重新產生一份較精煉的完整 JSON。
+      combined = '';
+      messages = [...apiMessages, {
+        role: 'user',
+        content: '上一版 JSON 因長度未完成。請重新輸出一份完整、可解析的 JSON；保留必要化學判斷，刪除重複說明，blocks 不超過 32，勿輸出 Markdown。'
+      }];
+    } else {
+      const continueHint = '上一段詳解尚未寫完。請從中斷處繼續，補完計算並以 **答：** 結尾；不要重複已寫內容。';
+      messages = [...apiMessages, { role: 'assistant', content: combined }, { role: 'user', content: continueHint }];
+    }
   }
   return { text: combined, truncated: true };
 }

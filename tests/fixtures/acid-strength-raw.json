@@ -1,0 +1,101 @@
+{
+  "blocks": [
+    {
+      "type": "heading",
+      "text": "題意"
+    },
+    {
+      "type": "paragraph",
+      "text": "本題給定四個酸鹼反應，並說明反應均有利於產物生成，要求判斷布－洛酸的強度順序。"
+    },
+    {
+      "type": "heading",
+      "text": "依據"
+    },
+    {
+      "type": "paragraph",
+      "text": "在布－洛酸鹼反應中，若反應有利於產物生成，表示反應物酸的強度大於產物酸的強度，且反應物鹼的強度大於產物鹼的強度。我們將利用此原則來比較各酸的相對強度。"
+    },
+    {
+      "type": "heading",
+      "text": "推導"
+    },
+    {
+      "type": "paragraph",
+      "text": "分析各反應以建立酸強度順序："
+    },
+    {
+      "type": "paragraph",
+      "text": "反應 (1) CH3COOH + HS- → H2S + CH3COO-"
+    },
+    {
+      "type": "paragraph",
+      "text": "此反應有利於產物，表示反應物酸 CH3COOH 比產物酸 H2S 強。"
+    },
+    {
+      "type": "paragraph",
+      "text": "酸強度關係：CH3COOH > H2S"
+    },
+    {
+      "type": "paragraph",
+      "text": "反應 (2) H3O+ + H2PO4- → H3PO4 + H2O"
+    },
+    {
+      "type": "paragraph",
+      "text": "此反應有利於產物，表示反應物酸 H3O+ 比產物酸 H3PO4 強。"
+    },
+    {
+      "type": "paragraph",
+      "text": "酸強度關係：H3O+ > H3PO4"
+    },
+    {
+      "type": "paragraph",
+      "text": "反應 (3) H2S + OH- → H2O + HS-"
+    },
+    {
+      "type": "paragraph",
+      "text": "此反應有利於產物，表示反應物酸 H2S 比產物酸 H2O 強。"
+    },
+    {
+      "type": "paragraph",
+      "text": "酸強度關係：H2S > H2O"
+    },
+    {
+      "type": "paragraph",
+      "text": "反應 (4) H3PO4 + CH3COO- → CH3COOH + H2PO4-"
+    },
+    {
+      "type": "paragraph",
+      "text": "此反應有利於產物，表示反應物酸 H3PO4 比產物酸 CH3COOH 強。"
+    },
+    {
+      "type": "paragraph",
+      "text": "酸強度關係：H3PO4 > CH3COOH"
+    },
+    {
+      "type": "paragraph",
+      "text": "綜合以上四個關係，我們可以建立完整的酸強度順序：\n從 (2) H3O+ > H3PO4\n從 (4) H3PO4 > CH3COOH\n從 (1) CH3COOH > H2S\n從 (3) H2S > H2O\n因此，綜合順序為：H3O+ > H3PO4 > CH3COOH > H2S > H2O。"
+    },
+    {
+      "type": "heading",
+      "text": "選項分析"
+    },
+    {
+      "type": "choice",
+      "text": "(A) H3PO4 > CH3COOH > H3O+ > H2O > H2S；此順序不正確，因為 H3O+ 的酸性強於 H3PO4。"
+    },
+    {
+      "type": "choice",
+      "text": "(B) CH3COOH > H3O+ > H3PO4 > H2S > H2O；此順序不正確，因為 H3O+ 的酸性強於 CH3COOH。"
+    },
+    {
+      "type": "choice",
+      "text": "(C) H3O+ > H3PO4 > CH3COOH > H2S > H2O；此順序與推導結果一致，是正確的。"
+    },
+    {
+      "type": "choice",
+      "text": "(D) H2S > H3O+ > H3PO4 > CH3COOH > H2O；此順序不正確，因為 H3O+ 的酸性強於 H2S。"
+    }
+  ],
+  "answer": "C"
+}

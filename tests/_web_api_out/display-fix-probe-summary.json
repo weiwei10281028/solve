@@ -1,0 +1,12 @@
+{
+  "issues": [
+    "compile 結果仍含 _{rem/prod/conc}",
+    "未轉成剩餘標籤",
+    "未轉成生成標籤",
+    "未轉成濃度標籤"
+  ],
+  "has_rem_label": false,
+  "has_prod_label": false,
+  "has_conc_label": false,
+  "src_head": "（甲）加入 5.0 mL NaOH 時，形成緩衝溶液。\n$CH3COOH_{rem}=0.002-0.005\\times0.10=0.0015$\n$\\ce{CH3COO-}_{prod}=0.005\\times0.10=0.0005$\n（乙）達滴定終點時，溶液中含有 0.002 mol 醋酸鈉，總體積為 40.0 mL。\n$\\ce{CH3COO-}_{conc}=\\dfrac{0.002}{0.040}=0.05$\n$pOH=-\\\\log(5.27\\times10^{-6})\\approx 6-0.72=5.28$\n$pH=14-5.28=8.72$\n@@ANSWER@@D"
+}

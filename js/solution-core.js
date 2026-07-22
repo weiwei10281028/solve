@@ -12,7 +12,7 @@
     required: ['blocks', 'answer'],
     properties: {
       blocks: {
-        type: 'array', minItems: 1, maxItems: 48,
+        type: 'array', minItems: 1, maxItems: 32,
         items: {
           type: 'object', required: ['type', 'text'],
           additionalProperties: false,
@@ -26,27 +26,110 @@
     }
   };
 
-  const SYSTEM = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
-只回傳指定 JSON；不得輸出 Markdown、HTML、NOTE、\\htmlData、$ 或排版指令。
-每個 block 只有 type 與 text。blocks 依閱讀順序排列：heading 用於必要的短標題；paragraph 的 text 是有完整標點的說明文字；chemical_equation 的 text 是完整反應式；calculation 的 text 是一條完整算式；reaction_table 的 text 依序寫物種、起始、變化、結果；choice 的 text 以題目原標籤開頭，再寫理由與正確／錯誤結論。不要為了湊段落重複題意；說明長度依題目需要決定，不設固定字數或句數。
-一般敘述須使用正常中文標點。文字與短公式可在同一段；只有較長的反應式、連續等號或分式才獨立使用 calculation／chemical_equation，不得把整段說明硬塞成一條算式。
-選擇題先完成共同推理或計算，最後逐項分析題目實際出現的每個選項。每個 choice 的 text 必須以題目原標籤開頭，例如「（甲）……」或「（J）……」，接著寫足以判斷的關鍵理由與正確／錯誤結論；不預設選項數量、標籤形式或順序，也不得漏掉或增加選項。逐項分析引用前面的共同計算，不重複整段推導。answer 只寫最終答案。`;
+  // 唯一的化學計算符號規範：其他提示詞不得自行定義 n、W、V 或濃度的寫法。
+  const QUANTITY_NOTATION = Object.freeze({
+    amount: 'n',
+    mass: 'W',
+    volume: 'V'
+  });
+  const QUANTITY_NOTATION_PROMPT = `【化學量與濃度符號｜唯一規範】
+莫耳數寫 n(物質)，質量寫 W(物質)，體積寫 V(對象)；括號內必須寫物質、元素、樣品、氣體或溶液名稱。不可只寫 n、W、V，也不可用 m 表示質量。溶液濃度一律寫 [物種]，不可用 C(物種)、c(物種) 或 C1V1。例：n(CO2)、W(O)、W(樣品)、V(甲溶液)、[IO3-]。莫耳關係寫 n(X)＝[X] × V；濃度關係寫 [X]＝\\dfrac{n(X)}{V}。科學符號的下標與次方必須明確寫成 N_A、m^2、cm^3；數值與單位之間留一個半形空格，如 300 DU、3.0 cm、22.4 L mol^-1。本機會統一顯示下標、次方、化學式與中括弧。`;
+
+  function buildQuantityNotationPrompt(mode) {
+    if (mode === 'followup') {
+      return `${QUANTITY_NOTATION_PROMPT}\n追問中的純數學式可放在 $...$；化學計算符號 n(物質)、W(物質)、V(對象) 可寫在數學式內，不要自行改用 m。`;
+    }
+    return QUANTITY_NOTATION_PROMPT;
+  }
+
+  const SYSTEM_CORE = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
+只回傳指定 JSON；不得輸出 Markdown、HTML、$、$$ 或排版指令。公式與化學式寫在 block 的 text 字串內，由本機編譯成可換行的詳解。
+${QUANTITY_NOTATION_PROMPT}
+每個 block 只有 type 與 text，整題最多 32 個 block。heading 是固定架構；paragraph 是說明；chemical_equation 是反應式；calculation 是一條算式；reaction_table 依序寫物種、起始、變化、結果；choice 以題目原標籤開頭並判定正誤。
+【詳解架構｜必須遵守】
+題意：用一句話說明本題要判斷或求出的化學問題。
+依據與推導：只寫導出本題結果所必需的題幹資料、化學依據與計算，不重述題幹、不補充無關說明。每個完整推理段的 paragraph 必須以「• 」起首，段首只用一至二句短句；同段的 calculation 或 chemical_equation 緊接在該段之後且不再加圓點。算式一式一行；換到新的資料、化學判準或計算目的才另開一個「• 」段落。
+結果：整理可直接用於判斷選項的結論；一項結論不用編號，互不相同的多項結論才以 1、2、整理。
+選項分析：選擇題逐項依據前述結果判定，不重複整段推導；不得漏掉或增加選項。answer 只寫最終答案。
+【文字與算式分工｜必須遵守】paragraph／choice／chemical_equation 的化學式與離子請用一般文字（例：H3PO4、H3O+、CH3COOH）；禁止 $、\\ce{}、\\mathrm{} 等排版或跳脫符號，本機會自動編譯成可顯示的化學式。科學符號可保留明確的 _ 與 ^，如 N_A、m^2、cm^3；calculation 才使用 \\dfrac。`;
+
+  const SYSTEM_CALC = `【排版與算式｜必須遵守】
+【硬規則｜分段】一步一式＝一個 calculation（一條等號鏈）；說明用 paragraph。兩式之間必須用全形「；」或「。」，禁止同一 text 連寫。約等鏈（≒／\\approx）一步一式。
+1. 反應式各自一個 chemical_equation；可逆寫 <=>（本機顯示為 ⇌）。
+2. 計算中的除法一律直式分式 \\dfrac{分子}{分母}；比例關係可寫 A：B，不必改成分式。禁止 A/B、/、÷。
+3. 禁止 calculation 內文包 $。乘號一律寫「×」（Unicode 乘號，禁止寫 times 或 \\times，以免被吃成 imes）。中文標點用全形。
+4. 【數字與單位】之間禁止任何逗號（錯：0.10, M）；只可空格或緊貼（對：0.10 M／0.10M）。
+5. 根號寫 \\sqrt{...}（大括號，禁止 \\sqrt(...)）；約等寫 ≈；禁止 \\fallingdotseq。
+6. 禁止 calculation 只輸出單一數字；禁止把多條算式擠在同一 text（一步一式、一式一行）。
+7. 禁止把整條根號等號鏈包進 \\dfrac{...}（沒有分母會整段炸掉）。`;
+
+  const SYSTEM = SYSTEM_CORE + SYSTEM_CALC;
 
   function buildSystem() { return SYSTEM; }
 
-  function parse(raw) {
-    if (raw && typeof raw === 'object') return raw;
-    let text = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-    const first = text.indexOf('{'); const last = text.lastIndexOf('}');
-    if (first >= 0 && last > first) text = text.slice(first, last + 1);
-    const unescapedLatex = /(?<!\\)\\(?:frac|dfrac|times|text|mathrm|ce|approx|rightarrow|cdot|div|sqrt|left|right|log|ln|Delta|alpha|beta|gamma)\b/.test(text);
-    if (!unescapedLatex) {
-      try { return JSON.parse(text); } catch (_) { /* Gemini Lite 偶爾漏掉 LaTeX 反斜線跳脫。 */ }
+  /**
+   * JSON／API 解析會把 \times 的 \t 吃成 tab，畫面變「imes」。
+   * 此函式作用於「已解析的字串內容」（不是 JSON 原文）。
+   */
+  function restoreEatenLatexCommands(value) {
+    let s = String(value || '');
+    // \times 被 JSON 吃成 tab+imes；用 split 還原，且不可再把「\times 裡的 imes」重寫一次
+    s = s.split(String.fromCharCode(9) + 'imes').join('\\times');
+    s = s.split(String.fromCharCode(9) + 'Imes').join('\\times');
+    s = s.split(String.fromCharCode(9) + 'ext{').join('\\text{');
+    // \frac / \fallingdotseq 的 \f 被 JSON 吃成 form feed
+    s = s.split(String.fromCharCode(12) + 'rac{').join('\\frac{');
+    s = s.split(String.fromCharCode(12) + 'allingdotseq').join('\\approx');
+    s = s.replace(/\ballingdotseq\b/g, '\\approx');
+    s = s.replace(/\\fallingdotseq\b/g, '\\approx');
+    s = s.replace(/\r(?=mmathrm|mathrm|ightarrow|ight\b)/g, '\\r');
+    // 模型常把攝氏寫成不存在的 \textdegreeC；統一成一般字元，
+    // 後續若在 calculation 會自然進入數學渲染，若在敘述也不會裸露指令。
+    s = s.replace(/\\textdegree\s*(?:\{\s*\})?\s*([CFK])?\b/gi, (_, unit) => `°${unit || ''}`);
+    s = s.replace(/\\Delta\b/g, 'Δ');
+    // 僅補「單位後殘字」Mimes0.02，禁止匹配 \times 內部的 imes
+    s = s.replace(/([MLKg}])imes(?=\d)/g, '$1\\times');
+    s = s.replace(/(^|[^\\A-Za-z])imes(?=\d)/g, '$1\\times');
+    s = s.replace(/×/g, '\\times ');
+    s = s.replace(/÷/g, '\\div ');
+    s = s.replace(/≈/g, '\\approx ');
+    return s;
+  }
+
+  /** 作用於 API 回傳的 JSON 原文：tab+imes 要寫成 \\times 才能被 JSON.parse 成 \times。 */
+  function restoreEatenLatexInJsonSource(value) {
+    let s = String(value || '');
+    s = s.split(String.fromCharCode(9) + 'imes').join('\\\\times');
+    s = s.split(String.fromCharCode(9) + 'Imes').join('\\\\times');
+    s = s.split(String.fromCharCode(9) + 'ext{').join('\\\\text{');
+    s = s.split(String.fromCharCode(12) + 'rac{').join('\\\\frac{');
+    s = s.split(String.fromCharCode(12) + 'allingdotseq').join('\\\\approx');
+    s = s.replace(/\ballingdotseq\b/g, '\\\\approx');
+    s = s.replace(/([MLKg}])imes(?=\d)/g, '$1\\\\times');
+    s = s.replace(/(^|[^\\A-Za-z])imes(?=\d)/g, '$1\\\\times');
+    return s;
+  }
+
+  function deepRestoreLatex(value) {
+    if (typeof value === 'string') return restoreEatenLatexCommands(value);
+    if (Array.isArray(value)) return value.map(deepRestoreLatex);
+    if (value && typeof value === 'object') {
+      const out = {};
+      Object.keys(value).forEach((key) => { out[key] = deepRestoreLatex(value[key]); });
+      return out;
     }
-    let repaired = ''; let inString = false;
+    return value;
+  }
+
+  function escapeLatexBackslashesForJson(text) {
+    let repaired = '';
+    let inString = false;
     for (let i = 0; i < text.length; i += 1) {
       const char = text[i];
-      if (char === '"' && (i === 0 || text[i - 1] !== '\\')) inString = !inString;
+      if (char === '"') {
+        const escaped = countTrailingEscapes(text, i - 1) % 2 === 1;
+        if (!escaped) inString = !inString;
+      }
       if (inString && char === '\\') {
         const next = text[i + 1] || '';
         const jsonEscape = /["\\/bfnrt]/.test(next) && !(/[bfnrt]/.test(next) && /[A-Za-z]/.test(text[i + 2] || ''));
@@ -55,20 +138,126 @@
       }
       repaired += char;
     }
-    try { return JSON.parse(repaired); } catch (_) { return null; }
+    return repaired;
+  }
+
+  function countTrailingEscapes(text, index) {
+    let n = 0;
+    for (let i = index; i >= 0 && text[i] === '\\'; i -= 1) n += 1;
+    return n;
+  }
+
+  /** 補齊被截斷的 JSON：關閉字串與括號，並去掉殘缺的最後一個欄位。 */
+  function closeTruncatedJson(text) {
+    let s = String(text || '');
+    let inString = false;
+    for (let i = 0; i < s.length; i += 1) {
+      if (s[i] === '"' && countTrailingEscapes(s, i - 1) % 2 === 0) inString = !inString;
+    }
+    if (inString) s += '"';
+    // 去掉截斷造成的殘缺屬性：,"ans 或 ,"answer":"A 或 ,"text":"…
+    s = s
+      .replace(/,\s*"[^"]*"\s*:\s*"[^"]*"?\s*$/g, '')
+      .replace(/,\s*"[^"]*"\s*:\s*$/g, '')
+      .replace(/,\s*"[^"]*"?\s*$/g, '');
+    const stack = [];
+    inString = false;
+    for (let i = 0; i < s.length; i += 1) {
+      const ch = s[i];
+      if (ch === '"' && countTrailingEscapes(s, i - 1) % 2 === 0) {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === '{' || ch === '[') stack.push(ch);
+      else if (ch === '}' || ch === ']') {
+        if (stack.length) stack.pop();
+      }
+    }
+    while (stack.length) s += stack.pop() === '{' ? '}' : ']';
+    return s;
+  }
+
+  function tryParseJsonText(text) {
+    const attempts = [
+      text,
+      escapeLatexBackslashesForJson(text),
+      closeTruncatedJson(text),
+      closeTruncatedJson(escapeLatexBackslashesForJson(text))
+    ];
+    for (const candidate of attempts) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) { /* next */ }
+    }
+    return null;
+  }
+
+  function parse(raw) {
+    if (raw && typeof raw === 'object') return deepRestoreLatex(raw);
+    let text = restoreEatenLatexInJsonSource(String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''));
+    const first = text.indexOf('{');
+    if (first < 0) return null;
+    text = text.slice(first);
+    const parsed = tryParseJsonText(text);
+    return parsed ? deepRestoreLatex(parsed) : null;
   }
 
   function clean(value) {
     return String(value || '').replace(/[\r\n]+/g, ' ').trim();
   }
 
+  function stripHtmlData(source) {
+    let text = String(source || '');
+    for (let pass = 0; pass < 8 && /\\htmlData\b/i.test(text); pass += 1) {
+      let out = '';
+      let index = 0;
+      while (index < text.length) {
+        const start = text.indexOf('\\htmlData', index);
+        if (start < 0) { out += text.slice(index); break; }
+        out += text.slice(index, start);
+        const metaOpen = text.indexOf('{', start + 9);
+        if (metaOpen < 0 || metaOpen > start + 12) {
+          index = start + 9;
+          continue;
+        }
+        const meta = readBalancedGroup(text, metaOpen);
+        if (!meta) {
+          const close = text.indexOf('}', metaOpen + 1);
+          index = close >= 0 ? close + 1 : text.length;
+          continue;
+        }
+        if (text[meta.end] !== '{') { index = meta.end; continue; }
+        const body = readBalancedGroup(text, meta.end);
+        if (!body) {
+          out += text.slice(meta.end + 1);
+          index = text.length;
+          continue;
+        }
+        out += body.body;
+        index = body.end;
+      }
+      if (out === text) break;
+      text = out;
+    }
+    return text
+      .replace(/\\?htmlData(?:\{[^{}]*\})?/gi, '')
+      .replace(/\bhtmlDatanot\b/gi, '');
+  }
+
+  function stripQuantityCommas(value) {
+    return String(value || '')
+      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]*[,，、][\s\u00a0\u3000\r\n]*(mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2')
+      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]+(mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2');
+  }
+
   function fullwidth(value) {
-    return clean(value)
+    return stripQuantityCommas(clean(value))
       .replace(/\.{3,}/g, '……')
       .replace(/[，,]\s*[；;]/g, '；').replace(/[；;]\s*[，,]/g, '；')
       .replace(/,/g, '，').replace(/;/g, '；').replace(/:/g, '：')
       .replace(/\?/g, '？').replace(/!/g, '！')
-      .replace(/\.(?!\d)/g, '。')
       .replace(/\(([^()]*)\)/g, '（$1）')
       .replace(/([，。；：？！])\1+/g, '$1')
       .replace(/\s+([，。；：？！])/g, '$1');
@@ -92,8 +281,11 @@
 
   function normalizeEquilibriumSymbols(value) {
     return String(value || '')
+      .replace(/\\leftrightarrow|\\rightleftharpoons/g, '⇌')
+      .replace(/↔|<->/g, '⇌')
       .replace(/\bpK\s*_?\s*(?:\{\s*)?(\d+)\s*\}?/g, 'pK_{a$1}')
-      .replace(/\b(p?K)\s*_?\s*(?:\{\s*)?(sp|[abcwp])\s*(\d*)\s*\}?/g,
+      // 不可吞掉後面的 }（否則 \dfrac{K_w}{K_a} 會被拆壞）
+      .replace(/\b(p?K)_?(sp|[abcwp])(\d*)\b/g,
         (_, symbol, family, index) => `${symbol.startsWith('p') ? 'pK' : 'K'}_{${family}${index}}`);
   }
 
@@ -116,22 +308,30 @@
 
   function formatText(value, state) {
     const stash = [];
-    const noteState = state || { mCount: 0, volumeCount: 0 };
     const keep = (value) => {
       const key = `\uE200${'x'.repeat(stash.length + 1)}\uE201`;
       stash.push(value);
       return key;
     };
-    let text = clean(normalizeEquilibriumSymbols(normalizeChemMarkup(value))).replace(/\$([^$]+)\$/g, (whole, body) => {
-      const latex = normalizeEquilibriumSymbols(normalizeChemMarkup(body)).trim();
+    let text = stripHtmlData(clean(normalizeEquilibriumSymbols(normalizeChemMarkup(restoreEatenLatexCommands(value)))));
+    text = normalizeConcentrationNotation(text);
+    text = stripQuantityCommas(text);
+    text = text.replace(/\$([^$]+)\$/g, (whole, body) => {
+      let latex = normalizeEquilibriumSymbols(normalizeChemMarkup(body)).trim();
+      latex = stripQuantityCommas(latex);
       const ce = latex.match(/^\\ce\{([^{}]+)\}$/);
       if (ce) return keep(chemistry(ce[1]));
       const acid = abstractAcidLatex(latex);
       if (acid) return keep(math(acid));
       if (isChemicalToken(latex)) return keep(chemistry(latex));
-      if (/[=≈]|(?:mol|mL|L|M|mg|kg|atm|kPa|Pa)\b/i.test(latex)) return keep(math(calculation(latex, noteState)));
+      if (/[=≈]|(?:mol|mL|L|M|mg|kg|atm|kPa|Pa)\b/i.test(latex)) return keep(math(calculation(latex, state)));
       return keep(math(latex));
-    }).replace(/\\ce\s*\{([^{}]+)\}/g, (_, token) => keep(chemistry(token)))
+    })
+      // 敘述文字中的化學量也必須顯示下標；唯一轉換規則仍由
+      // normalizeQuantityNotation() 提供，避免 paragraph／choice 另有一套寫法。
+      .replace(/\b([nWV]|m)\s*[（(]\s*([^()（）]+)\s*[）)]/g, (whole) =>
+        keep(math(normalizeQuantityNotation(whole))))
+      .replace(/\\ce\s*\{([^{}]+)\}/g, (_, token) => keep(chemistry(token)))
       .replace(/\[([^\]]+)\]/g, (whole, token) => {
         const acid = abstractAcidLatex(token);
         if (acid) return keep(math(`[${acid}]`));
@@ -141,17 +341,14 @@
       .replace(/(^|[^A-Za-z\\])((?:H\d*A|HA)(?:\^?\{?\d*[+\-−⁻]\}?)?|A(?:\^?\{?\d+[+\-−⁻]\}?|[+\-−⁻]))(?=$|[^A-Za-z])/g, (whole, prefix, token) => {
         const latex = abstractAcidLatex(token);
         return latex ? prefix + keep(math(latex)) : whole;
-      }).replace(CHEM_CANDIDATE, (whole, prefix, token) => {
-      if (!isChemicalToken(token)) return whole;
-      return prefix + keep(`$\\ce{${normalizeChemToken(token)}}$`);
-    }).replace(/\d+(?:\.\d+)?\s*(?:g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h)\b/gi, (quantity) => {
-      return keep(math(calculation(quantity, noteState)));
-    }).replace(/\d+(?:\.\d+)?/g, (number) => {
-      return keep(math(number));
-    });
+      })
+      .replace(CHEM_CANDIDATE, (whole, prefix, token) => (
+        isChemicalToken(token) ? prefix + keep(chemistry(token)) : whole
+      ));
+    // 裸數字、科學記號交由 render.js 處理。
     text = fullwidth(text);
     stash.forEach((item, index) => { text = text.replace(`\uE200${'x'.repeat(index + 1)}\uE201`, item); });
-    return text;
+    return repairInlineSlashFractions(text);
   }
 
   function splitNarrative(value) {
@@ -166,10 +363,10 @@
       parts.forEach((part) => {
         if (!/[=＝]/.test(part)) { prose += part; return; }
         if (prose.trim()) {
-          lines.push(prose.trim().replace(/[，,]\s*$/, '。'));
+          lines.push(prose.trim());
           prose = '';
         }
-        lines.push(part.trim().replace(/[，,]\s*$/, '。'));
+        lines.push(part.trim());
       });
       if (prose.trim()) lines.push(prose.trim());
     });
@@ -178,23 +375,66 @@
 
   function formatNarrativeLine(value, state) {
     const source = clean(normalizeEquilibriumSymbols(normalizeChemMarkup(value)));
-    if (STRUCTURE_NARRATIVE.test(source)) return formatText(source, state);
-    if (/->|→/.test(source)) {
+    if (STRUCTURE_NARRATIVE.test(source)) return [formatText(source, state)];
+    if (/->|→|\\rightarrow|<=>|⇌/.test(source)) {
       const terminal = (source.match(/[，。；：？！]+$/) || [''])[0];
       const body = terminal ? source.slice(0, -terminal.length) : source;
       const colon = Math.max(body.lastIndexOf('：'), body.lastIndexOf(':'));
       const prefix = colon >= 0 ? body.slice(0, colon + 1) : '';
-      return `${formatText(prefix, state)}${chemistry(body.slice(colon + 1))}${fullwidth(terminal)}`;
+      const equations = splitChemicalEquations(body.slice(colon + 1));
+      if (prefix && equations.length === 1) {
+        return [`${formatText(prefix, state)}${chemistry(equations[0])}${fullwidth(terminal)}`];
+      }
+      const lines = [];
+      if (prefix) lines.push(formatText(prefix, state));
+      equations.forEach((equation, index) => {
+        const suffix = index === equations.length - 1 ? fullwidth(terminal) : '';
+        const rendered = chemistry(equation);
+        if (rendered) lines.push(`${rendered}${suffix}`);
+      });
+      return lines.filter(Boolean);
     }
-    if (/\$[^$]+\$/.test(source)) return formatText(source, state);
-    if (!/[=＝]/.test(source)) return formatText(source, state);
+    if (/\$[^$]+\$/.test(source)) {
+      const tokens = source.split(/(\$[^$]+\$)/).filter((part) => part !== '');
+      const calcCount = tokens.filter((part) => /^\$/.test(part) && /[=≈]/.test(part)).length;
+      if (calcCount >= 2) {
+        const lines = [];
+        let prose = '';
+        tokens.forEach((token) => {
+          if (/^\$/.test(token) && /[=≈]/.test(token)) {
+            if (prose.trim()) {
+              lines.push(formatText(prose, state));
+              prose = '';
+            }
+            const inner = token.replace(/^\$|\$$/g, '');
+            splitCalculation(inner).forEach((part) => {
+              const rendered = math(calculation(part, state));
+              if (rendered) lines.push(rendered);
+            });
+          } else {
+            prose += token;
+          }
+        });
+        if (prose.trim()) lines.push(formatText(prose, state));
+        return lines.filter(Boolean);
+      }
+      return [formatText(source, state)];
+    }
+    if (!/[=＝]/.test(source)) return [formatText(source, state)];
     const candidates = [
-      source.search(/\[[^\]]+\]\s*(?:[=＝\/×＊*+\-÷])/),
+      source.search(/\[[^\]]+\]\s*(?:[=＝/×＊÷*+\-])/),
       source.search(/\b(?:p?K_\{(?:sp|[abcwp])\d*\}|pH)\s*[=＝]/),
-      source.search(/\b(?:pH|[rvkmnxyCt])(?:_?\d+)?\s*(?:_[^=＝\s]+)?\s*(?:[=＝\/×＊*÷])/i),
-      source.search(/\d+(?:\.\d+)?(?:\s*[A-Za-z]+(?:\s*\^?\s*-?\d+)?)?\s*(?:[\/×＊*÷]|\^\s*\d+\s*[=＝])/)
+      source.search(/\b(?:m|n)\s*(?:_\{|\(|_)/i),
+      // 次方式（x^2、10^-5 等）出現在敘述中 → 導入數學通道，避免上標破裂
+      source.search(/[A-Za-z0-9]\s*\^\s*\{?[-+]?\d/),
+      source.search(/\b(?:pH|[rvkmnxyCt])(?:_?\d+)?\s*(?:_[^=＝\s]+)?\s*(?:[=＝/×＊÷*])/i),
+      // 5.20-1.28=3.92 這類加減乘除鏈，避免只抓到後面的 3.92/56
+      // 運算子字元類把 - 放開頭，避免 *÷ 變成範圍誤含小數點
+      source.search(/\d+(?:\.\d+)?\s*[-+−×＊÷*/]\s*\d+(?:\.\d+)?/),
+      source.search(/\d+(?:\.\d+)?(?:\s*[A-Za-z]+(?:\s*\^?\s*-?\d+)?)?\s*(?:[/×＊÷*]|\^\s*\d+\s*[=＝])/),
+      source.search(/\d+(?:\.\d+)?(?:\s*(?:g|mol|mL|L|M))?\s*[=＝]/)
     ].filter((index) => index >= 0);
-    if (!candidates.length) return formatText(source, state);
+    if (!candidates.length) return [formatText(source, state)];
     let start = Math.min(...candidates);
     if (start > 0 && source[start - 1] === '(') {
       const close = source.indexOf(')', start);
@@ -206,16 +446,34 @@
     const tail = source.slice(start);
     const proseTail = tail.search(/[,，;；](?=[^,，;；]*[\u4e00-\u9fff])/);
     if (proseTail >= 0) end = Math.min(end, start + proseTail);
+    const chineseTail = tail.search(/[\u4e00-\u9fff]/);
+    if (chineseTail > 0) end = Math.min(end, start + chineseTail);
     const punctuation = source.slice(end);
     const calcState = Object.assign({}, state, {
       narrativePrefix: source.slice(0, start),
       narrativeLine: source
     });
-    return `${formatText(source.slice(0, start), state)}${math(calculation(source.slice(start, end), calcState))}${formatText(punctuation, state)}`;
+    const calcParts = splitCalculation(source.slice(start, end));
+    if (calcParts.length > 1) {
+      const lines = [];
+      const lead = formatText(source.slice(0, start), state);
+      if (lead) lines.push(lead);
+      calcParts.forEach((part, index) => {
+        const suffix = index === calcParts.length - 1 ? formatText(punctuation, state) : '';
+        const rendered = math(calculation(part, calcState));
+        if (rendered) lines.push(`${rendered}${suffix}`);
+      });
+      return lines.filter(Boolean).flatMap((line) => breakAdjacentMathIslands(line).split('\n'));
+    }
+    return breakAdjacentMathIslands(`${formatText(source.slice(0, start), state)}${math(calculation(source.slice(start, end), calcState))}${formatText(punctuation, state)}`).split('\n').filter(Boolean);
   }
 
   function formatNarrative(value, state) {
-    return splitNarrative(value).map((line) => formatNarrativeLine(line, state)).filter(Boolean);
+    return splitNarrative(value)
+      .flatMap((line) => formatNarrativeLine(line, state))
+      .flatMap((line) => breakAdjacentMathIslands(repairInlineSlashFractions(line)).split('\n'))
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   function normalizeChoice(block) {
@@ -252,6 +510,17 @@
     return blocks.length ? { blocks, answer: source.answer || '' } : null;
   }
 
+  function auditRequiredSections(document) {
+    const headings = (document?.blocks || [])
+      .filter((block) => block?.type === 'heading')
+      .map((block) => clean(block.text));
+    const required = ['題意', '依據與推導', '結果'];
+    const issues = required.filter((name) => !headings.includes(name)).map((name) => `缺少「${name}」`);
+    const hasChoices = (document?.blocks || []).some((block) => block?.type === 'choice');
+    if (hasChoices && !headings.includes('選項分析')) issues.push('選擇題缺少「選項分析」');
+    return issues;
+  }
+
   function math(value) {
     const body = clean(value).replace(/^\$+|\$+$/g, '').trim();
     return body ? `$${body}$` : '';
@@ -259,240 +528,190 @@
 
   function chemistry(value) {
     let body = clean(normalizeChemMarkup(value)).replace(/^\\ce\s*\{?|\}$/g, '').trim()
-      .replace(/⇌|↔/g, '<=>').replace(/→/g, '->');
+      .replace(/⇌|↔|<->|\\leftrightarrow|\\rightleftharpoons/g, '<=>').replace(/→/g, '->').replace(/\\rightarrow/g, '->').replace(/\\to\b/g, '->');
     body = body.replace(CHEM_CANDIDATE, (whole, prefix, token) => prefix + (isChemicalToken(token) ? normalizeChemToken(token) : token));
-    return body ? `$\\ce{${body}}$` : '';
+    if (!body) return '';
+    // mhchem <=> 會畫成過長雙箭頭；改拆成兩側 \\ce + 短字元 ⇌
+    if (/\s*<=>\s*/.test(body)) {
+      const sides = body.split(/\s*<=>\s*/).map((s) => s.trim()).filter(Boolean);
+      if (sides.length >= 2) {
+        return `$${sides.map((side) => `\\ce{${side}}`).join(' ⇌ ')}$`;
+      }
+    }
+    return `$\\ce{${body}}$`;
+  }
+
+  /** 多條反應式黏在同一字串時拆開；每式之後各自成行。 */
+  function isLikelyReactantSide(value) {
+    const source = String(value || '').trim();
+    if (!source || /->|<=>/.test(source)) return false;
+    if (!/^[A-Z\\]/.test(source)) return false;
+    let depth = 0;
+    for (let i = 0; i < source.length; i += 1) {
+      if (source[i] === '(') depth += 1;
+      else if (source[i] === ')') {
+        depth -= 1;
+        if (depth < 0) return false;
+      }
+    }
+    return depth === 0;
+  }
+
+  function findNextReactionStart(mid) {
+    let depth = 0;
+    let best = -1;
+    let bestScore = -1;
+    for (let i = 1; i < mid.length; i += 1) {
+      const ch = mid[i];
+      if (ch === '(') { depth += 1; continue; }
+      if (ch === ')') { depth = Math.max(0, depth - 1); continue; }
+      if (depth !== 0 || !/[A-Z]/.test(ch)) continue;
+      const prev = mid[i - 1];
+      if (!(/\s/.test(prev) || /[0-9a-z)}]/.test(prev))) continue;
+      const left = mid.slice(0, i).trim();
+      const rest = mid.slice(i).trim();
+      if (!left || !isLikelyReactantSide(rest)) continue;
+      let score = 0;
+      if (/\+/.test(rest)) score += 2;
+      if (/\+/.test(left)) score += 2;
+      if (/\s/.test(prev) || /[0-9)]/.test(prev)) score += 1;
+      if (score > bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function splitChemicalEquations(value) {
+    const source = clean(value)
+      .replace(/⇌|↔|<->|\\leftrightarrow|\\rightleftharpoons/g, '<=>')
+      .replace(/→|\\rightarrow|\\to\b/g, '->');
+    if (!source) return [];
+    const arrows = [...source.matchAll(/->|<=>/g)];
+    if (arrows.length < 2) return [source];
+    const starts = [0];
+    for (let index = 0; index < arrows.length - 1; index += 1) {
+      const afterArrow = arrows[index].index + arrows[index][0].length;
+      const beforeNext = arrows[index + 1].index;
+      const mid = source.slice(afterArrow, beforeNext);
+      const offset = findNextReactionStart(mid);
+      if (offset < 0) return [source];
+      starts.push(afterArrow + offset);
+    }
+    const parts = [];
+    for (let index = 0; index < starts.length; index += 1) {
+      const end = index + 1 < starts.length ? starts[index + 1] : source.length;
+      const part = source.slice(starts[index], end).trim();
+      if (part) parts.push(part);
+    }
+    return parts.length ? parts : [source];
   }
 
   function splitCalculation(value) {
-    const parts = []; let start = 0; let depth = 0; const source = clean(value);
+    const parts = []; let start = 0; let depth = 0;
+    // 先清掉內文 $，避免中途 $ 阻擋相鄰算式拆分
+    const source = clean(String(value || '').replace(/\$+/g, ' '));
     for (let i = 0; i < source.length; i += 1) {
       if (source[i] === '{') depth += 1;
       else if (source[i] === '}') depth = Math.max(0, depth - 1);
       else if (!depth && /[,，;；]/.test(source[i])) { parts.push(source.slice(start, i)); start = i + 1; }
     }
     parts.push(source.slice(start));
-    return parts.map((part) => part.trim()).filter(Boolean);
+    return parts.map((part) => part.trim()).filter(Boolean).flatMap((part) => splitAdjacentAssignments(part));
   }
 
-  function speciesName(source) {
-    const value = String(source || '').replace(/[^A-Za-z0-9+-]/g, '');
-    if (/MnO4/i.test(value)) return '過錳酸根';
-    if (/Fe2/i.test(value)) return '亞鐵離子';
-    if (/Fe3/i.test(value)) return '鐵（III）離子';
-    if (/IO3/i.test(value)) return '碘酸根';
-    if (/HSO3/i.test(value)) return '亞硫酸氫根';
-    if (/SO4/i.test(value)) return '硫酸根';
-    if (/H3O|H\+/i.test(value)) return '氫離子';
-    if (/OH/i.test(value)) return '氫氧根';
-    if (/Ag/i.test(value)) return '銀離子';
-    if (/Cu2/i.test(value)) return '銅（II）離子';
-    if (/Cu\+|Cu1/i.test(value)) return '銅（I）離子';
-    if (/I2/i.test(value)) return '碘';
-    if (/I-/i.test(value)) return '碘離子';
-    return '';
+  /** 無標點卻緊接下一條算式時拆開，例如「=3.92g 3.92/56」「≈5.56e-10 [OH-]=」。 */
+  function splitAdjacentAssignments(source) {
+    const lhs = String.raw`(?:\[[^\]]+\]|\\(?:mathrm|text|ce)\{[^}]+\}|(?:m|n|M|N|C|V|pH|pOH|K))(?:_\{[^}]*\}|_[A-Za-z0-9]+|\([^)]*\))?`;
+    const num = String.raw`\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:\s*(?:\\times|[×x＊*])\s*10\s*\^\s*\{?[-+]?\d+\}?)?(?!\d)`;
+    const unit = String.raw`(?:\s*(?:g\s*mol(?:\s*\^\s*\{?-?1\}?|-1)|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h))?`;
+    const op = String.raw`(?:[+\-−×＊*÷=＝]|\\times|\\div|\\dfrac|/)`;
+    const opNoEq = String.raw`(?:[+\-−×＊*÷]|\\times|\\div|/)`;
+    let text = restoreEatenLatexCommands(String(source || ''));
+    text = stripQuantityCommas(text)
+      .replace(/＝/g, '=')
+      .replace(/\\fallingdotseq|≒|\\approx/g, '≈');
+    // 約等鏈拆行：…≒ a ≒ b → 各成一段
+    text = text.replace(
+      new RegExp(String.raw`(≈\s*(?:\\dfrac\{[^{}]*\}\{[^{}]*\}|${num})${unit}(?:\s*\\times\s*(?:10\s*\^\s*\{[^}]+\}|${num}))*)\s*(?=≈)`, 'g'),
+      '$1\u0001'
+    );
+    // 「=0.002 0.10…」等號結果後緊接下一個數字 → 新行（學生才看得懂）
+    text = text.replace(
+      new RegExp(String.raw`((?:=|≈)\s*${num}${unit})\s+(?=${num})`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`((?:=|≈)\s*${num})\s*(?=${lhs}\s*[=≈])`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`(${num})\s+(?=${lhs}\s*[=≈])`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`((?:=|≈)\s*${num}${unit})\s*(?=${num}\s*${op})`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`(${num}${unit})\s*(?=${num}\s*${opNoEq}\s*${num}\s*[=＝≈])`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`((?:=|≈)\s*${num}${unit})(?=${num}\s*${op})`, 'g'),
+      '$1\u0001'
+    );
+    text = text.replace(
+      new RegExp(String.raw`(${num}${unit})\s*(?=${lhs}\s*[=≈])`, 'g'),
+      '$1\u0001'
+    );
+    // 「≈ 5.56 × 10^{-10} [OH-]=…」數值後接下一個濃度／物種賦值
+    text = text.replace(
+      new RegExp(String.raw`((?:=|≈)\s*${num}${unit})\s*(?=${lhs}\s*[=≈])`, 'g'),
+      '$1\u0001'
+    );
+    // 「0.0015 mol n_…=」「0.0005mol[」「…10^{-10} [OH-]=」
+    text = text.replace(
+      new RegExp(String.raw`(${num})\s*(mol|mL|L|M|g)?\s*(?=(?:n\s*[_(]|n_\{|\\ce\{|\[[A-Z]|K_\{?|Kb\b|pOH\b|pH\b))`, 'gi'),
+      (_, n, u) => `${n}${u || ''}\u0001`
+    );
+    return text.split('\u0001').map((part) => part.trim()).filter(Boolean);
   }
 
-  function formatSpeciesLabel(value) {
-    const sub = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉' };
-    const sup = { '+': '⁺', '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
-    return String(value || '')
-      .replace(/\\ce\{([^{}]+)\}/g, '$1')
-      .replace(/\^?\{?(\d*)([+-])\}?$/g, (_, n, sign) => `${n ? [...n].map((ch) => sup[ch] || ch).join('') : ''}${sup[sign]}`)
-      .replace(/([A-Za-z\)])(\d+)/g, (_, a, n) => `${a}${[...n].map((ch) => sub[ch] || ch).join('')}`);
-  }
-
-  function speciesLabel(source) {
-    const name = speciesName(source);
-    return name ? `${formatSpeciesLabel(source)}（${name}）` : formatSpeciesLabel(source);
-  }
-
-  function contextWindow(source, offset, span = 44) {
-    return String(source || '').slice(Math.max(0, offset - span), offset + span);
-  }
-
-  function inferSpeciesFromContext(source) {
-    const text = String(source || '');
-    const bracket = [...text.matchAll(/\[([^{}\]]+)\]/g)].pop();
-    if (bracket) return speciesLabel(bracket[1]);
-    const sub = [...text.matchAll(/(?:C|n|m)_\{([^{}]+)\}/g)].pop();
-    if (sub) return speciesLabel(sub[1]);
-    const plainMatches = [...text.matchAll(/((?:[A-Z][a-z]?\d*){1,4}(?:\^?\{?\d*[+-]\}?|[+-])?)/g)].reverse();
-    for (const plain of plainMatches) {
-      if (!/^(?:M|L|K|A|B|C|D|E|V|T|PV|RT)$/.test(plain[1])) return speciesLabel(plain[1]);
+  /** 相鄰的算式數學島拆成新行，避免 $a$$b$ 擠在同一段。 */
+  function breakAdjacentMathIslands(value) {
+    let text = String(value || '');
+    for (let pass = 0; pass < 8; pass += 1) {
+      const next = text.replace(/\$([^$]+)\$\s*\$([^$]+)\$/g, (whole, left, right) => {
+        const calcish = (body) => /[=≈]|\\dfrac|\\times|\\div|\\rightarrow|->/.test(body);
+        if (calcish(left) && calcish(right)) return `$${left}$\n$${right}$`;
+        if (calcish(left) || calcish(right)) return `$${left}$；$${right}$`;
+        return whole;
+      });
+      if (next === text) break;
+      text = next;
     }
-    return '';
+    return text;
   }
 
-  function noteContext(source, offset, state = {}) {
-    return `${state.narrativePrefix || ''} ${state.narrativeLine || ''} ${contextWindow(source, offset, 70)}`;
-  }
-
-  function dilutionSpecies(state, source, offset) {
-    return inferSpeciesFromContext(`${state.narrativePrefix || ''} ${String(source || '').slice(0, offset)}`);
-  }
-
-  function isDilutionExpression(source, state = {}) {
-    const text = `${state.narrativePrefix || ''} ${state.narrativeLine || ''} ${source || ''}`;
-    return /濃度|稀釋|混合|總體積|\[[^\]]+\]/.test(text) && /\\times\s*\\dfrac/.test(source);
-  }
-
-  function quantityNote(unit, source, offset, state = {}) {
-    const ctx = noteContext(source, offset, state);
-    const before = String(source || '').slice(0, offset);
-    const species = inferSpeciesFromContext(`${state.narrativePrefix || ''} ${before}`);
-    if (unit === 'M') {
-      state.mCount += 1;
-      if (isDilutionExpression(source, state) && species) {
-        return /\\times\s*$|[＊*×]\s*$/.test(before) || /\\times\s*\\dfrac|\*\s*\(/.test(source.slice(offset))
-          ? `原 ${species} 溶液濃度`
-          : `混合後 ${species} 濃度`;
-      }
-      if (species) return `${species}濃度（M）`;
-      if (/[KQ]_(?:c|p)|平衡|ICE|解離|Ka|Kb|pH/i.test(ctx)) return '平衡濃度（M）';
-      if (/稀釋|混合|總體積|配成|定容/.test(ctx)) return '混合後濃度（M）';
-      if (/速率|rate|v[_\d]?|級數|反應時間/.test(ctx)) return '速率式濃度（M）';
-      return '溶液濃度（M）';
+  /** 行內被拆成 $3$/$4$、$3$÷$4$ 或 $3$\div$4$ 時，強制併回直式分式。 */
+  function repairInlineSlashFractions(value) {
+    let text = String(value || '');
+    const piece = String.raw`(?:\\(?:mathrm|text)\{[^{}]+\}|\d+(?:\.\d+)?(?:e[-+]?\d+)?)`;
+    for (let pass = 0; pass < 6; pass += 1) {
+      const next = text
+        .replace(new RegExp(String.raw`\$?(${piece})\$?\s*(?:\/|÷|\\div)\s*\$?(${piece})\$?`, 'g'), (whole, a, b) => {
+          if (/\\dfrac|\\ce|\\rightarrow/.test(whole)) return whole;
+          const left = String(a).replace(/^\$|\$$/g, '');
+          const right = String(b).replace(/^\$|\$$/g, '');
+          if (!left || !right) return whole;
+          return `$\\dfrac{${left}}{${right}}$`;
+        });
+      if (next === text) break;
+      text = next;
     }
-    if (/^(?:mL|L)$/i.test(unit)) {
-      const speciesForDilution = dilutionSpecies(state, source, offset);
-      if (isDilutionExpression(source, state) && /\\dfrac\{[^{}]*$/.test(String(source || '').slice(0, offset))) {
-        return speciesForDilution ? `取用的 ${speciesForDilution} 溶液體積（${unit}）` : `取用原溶液體積（${unit}）`;
-      }
-      if (isDilutionExpression(source, state) && /\\dfrac\{[^{}]*\}\{[^{}]*$/.test(String(source || '').slice(0, offset))) {
-        return `混合後總體積（${unit}）`;
-      }
-      if (/總體積|混合後|配成|定容|稀釋/.test(ctx)) return `混合後總體積（${unit}）`;
-      if (/加入|取|量取|移取|滴加/.test(ctx)) return `題目給的溶液體積（${unit}）`;
-      if (/\/|\\dfrac|V/.test(ctx)) return `濃度公式中的溶液體積（${unit}）`;
-      return `溶液體積（${unit}）`;
-    }
-    if (unit === 'mol') {
-      if (species) return `${species}物質的量（mol）`;
-      if (/限量|過量|剩餘|消耗|生成/.test(ctx)) return '反應物質的量（mol）';
-      return '物質的量（mol）';
-    }
-    if (unit === 'g mol⁻¹') return '式量／分子量，用來把質量換成莫耳數';
-    if (/g$/i.test(unit)) {
-      if (/樣品|溶質|秤|取|質量/.test(ctx)) return `樣品質量（${unit}）`;
-      return `質量（${unit}）`;
-    }
-    if (/^(?:s|min|h)$/i.test(unit)) {
-      if (/速率|反應時間|秒|時間/.test(ctx)) return `反應時間（${unit}）`;
-      return `時間（${unit}）`;
-    }
-    if (/^(?:atm|kPa|Pa)$/i.test(unit)) {
-      if (/分壓|Kp|氣體|壓力/.test(ctx)) return `氣體壓力或分壓，單位 ${unit}`;
-      return `壓力，單位 ${unit}`;
-    }
-    if (unit === 'A') return '電流（A）';
-    if (unit === 'C') return '電量（C）';
-    if (unit === 'K') return '絕對溫度（K）';
-    return `物理量（${unit}）`;
-  }
-
-  function annotateQuantities(source, state = {}) {
-    if (!Number.isFinite(state.mCount)) state.mCount = 0;
-    if (!Number.isFinite(state.volumeCount)) state.volumeCount = 0;
-    const quantity = /(\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:\s*\\times\s*10\s*\^\s*(?:\{[-+]?\d+\}|[-+]?\d+))?)\s*(g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C)/gi;
-    return source.replace(quantity, (whole, number, unit, offset) => {
-      const u = /^g\s*mol/i.test(unit) ? 'g mol⁻¹' : (unit === 'mol' ? 'mol' : unit);
-      const after = source.slice(offset + whole.length);
-      if (u === 's' && (/^\s*\^/.test(after) || /Ksp|溶解度|沉澱|飽和/.test(contextWindow(source, offset)))) return whole;
-      const note = quantityNote(u, source, offset, state);
-      return `\\htmlData{note=${note}}{${formatNumericLatex(number)}}`;
-    });
-  }
-
-  function formatNumericLatex(value) {
-    const raw = String(value || '').replace(/\s+/g, '');
-    const m = raw.match(/^(\d+(?:\.\d+)?)e([+-]?\d+)$/i);
-    return m ? `${m[1]}\\times10^{${Number(m[2])}}` : raw;
-  }
-
-  function bareNumberNote(value, source, offset, state = {}) {
-    const before = source.slice(0, offset);
-    const after = source.slice(offset + value.length);
-    const ctx = noteContext(source, offset, state);
-    const cleanValue = String(value || '').trim();
-    const lastValue = !/\d/.test(after);
-    const gasLawLike = /0\.082|PV|nRT|氣體|壓力|溫度|絕對溫度|P\/T|P\s*V|R\s*T/i.test(`${ctx} ${source}`);
-    if (gasLawLike && /\\dfrac\{\s*$/.test(before)) return '氣體壓力，代入 PV=nRT';
-    if (gasLawLike && /\\dfrac\{[^{}]*\\times\s*$/.test(before)) return '氣體體積，代入 PV=nRT';
-    if (gasLawLike && /\\dfrac\{[^{}]+\}\{\s*$/.test(before)) return '氣體常數 R';
-    if (gasLawLike && /\\dfrac\{[^{}]+\}\{[^{}]*\\times\s*$/.test(before)) return '絕對溫度，須用 K';
-    if (cleanValue === '1' && /\\dfrac\{\s*$/.test(before)) return '倒數關係的分子';
-    if (/\\dfrac\{\s*1\s*\}\{\s*$/.test(before)) return '倒數關係的分母';
-    if (/\\dfrac\{\s*$/.test(before) && /K_c|Kp|Q_c|Qp|平衡/.test(ctx)) return '平衡常數式的分子項';
-    if (/\\dfrac\{[^{}]+\}\{\s*$/.test(before) && /K_c|Kp|Q_c|Qp|平衡/.test(ctx)) return '平衡常數式的分母項';
-    if (/\\dfrac\{\s*$/.test(before) && /Ksp|溶解度|沉澱/.test(ctx)) return '溶解度積關係中的分子';
-    if (/\\dfrac\{[^{}]+\}\{\s*$/.test(before) && /Ksp|溶解度|沉澱/.test(ctx)) return '溶解度積關係中的分母';
-    if (/\\dfrac\{\s*$/.test(before) && /產率|收率|理論產量/.test(ctx)) return '實際產量';
-    if (/\\dfrac\{[^{}]+\}\{\s*$/.test(before) && /產率|收率|理論產量/.test(ctx)) return '理論產量';
-    if (isDilutionExpression(source, state) && /\\dfrac\{\s*$/.test(before)) {
-      const species = dilutionSpecies(state, source, offset);
-      return species ? `取用的 ${species} 溶液體積` : '取用原溶液體積';
-    }
-    if (isDilutionExpression(source, state) && /\\dfrac\{[^{}]+\}\{\s*$/.test(before)) return '混合後總體積';
-    if (/\\dfrac\{\s*$/.test(before)) return '比例或分式中的分子';
-    if (/\\dfrac\{[^{}]+\}\{\s*$/.test(before)) return '比例或分式中的分母';
-    if (lastValue && /[=＝]/.test(before)) return '此步計算結果';
-    if (/\\times\s*$/.test(before) || /^\s*\\times/.test(after)) return '相乘的代入數值';
-    if (/速率|rate|反應時間|時間比/.test(ctx)) {
-      if (/^\s*[\/)]/.test(after) || /\/\s*$/.test(before)) return '速率比用時間倒數表示';
-      return '反應時間或速率比較用數值';
-    }
-    if (/級數|反應級數|2\^\{?n|n\s*=/.test(ctx)) return '用速率倍數判斷反應級數';
-    if (/濃度比|倍|變為|稀釋|混合/.test(ctx)) return '濃度比或稀釋倍數';
-    if (/滴定|中和|當量點|酸鹼中和/.test(ctx)) return '酸鹼中和的莫耳數或濃度代入值';
-    if (/pH|pOH|\[H|H\+|OH-|水解/.test(ctx)) return '酸鹼計算中的氫離子或氫氧根關係';
-    if (/Ka|Kb|pKa|pKb|弱酸|弱鹼|緩衝/.test(ctx)) return '弱酸弱鹼平衡中的代入值';
-    if (/K_c|Kp|Q_c|Qp|平衡|解離|ICE|勒沙特列/.test(ctx)) return '化學平衡計算中的代入值';
-    if (/氧化|還原|電子|電荷|Faraday|法拉第|電解|氧化數/.test(ctx)) return '氧化還原或電量計算中的代入值';
-    if (/電池|電位|E\^|Nernst|能斯特|陰極|陽極/.test(ctx)) return '電化學電位或電子轉移用數值';
-    if (/焓|熵|自由能|ΔH|Delta H|kJ|熱化學|放熱|吸熱/.test(ctx)) return '熱化學能量變化的代入值';
-    if (/莫耳比|係數比|配平|反應式/.test(ctx)) return '配平方程式的莫耳比';
-    if (/氣體|分壓|PV|nRT|體積比/.test(ctx)) return '氣體定律中的比例或代入值';
-    if (/溶解度|Ksp|沉澱|飽和/.test(ctx)) return '溶解度或沉澱判斷用數值';
-    if (/沸點|凝固點|滲透壓|依數性質/.test(ctx)) return '依數性質計算中的代入值';
-    if (/半衰期|衰變|放射性|一級反應/.test(ctx)) return '一級反應或半衰期計算用數值';
-    if (/產率|收率|百分產率|理論產量/.test(ctx)) return '產率計算中的實際量或理論量';
-    if (/百分濃度|重量百分|質量百分|ppm|ppb/.test(ctx)) return '溶液組成或濃度換算用數值';
-    if (/有機|同分異構|官能基|烷|烯|炔|醇|醛|酮|酸|酯/.test(ctx)) return '有機結構或官能基判斷用數值';
-    if (/週期表|原子半徑|游離能|電負度|價電子|主族/.test(ctx)) return '週期性質判斷用數值';
-    if (/^\d+$/.test(cleanValue) && Number(cleanValue) <= 12 && /\\ce\{|[A-Z][a-z]?\d*|反應式/.test(ctx)) return '化學式或反應式中的係數';
-    if (/^\d+$/.test(cleanValue) && Number(cleanValue) <= 20) return '題目中的比例或倍數';
-    return '題目給定數值';
-  }
-
-  function annotateBareNumbers(source, state = {}) {
-    const protectedParts = [];
-    const protect = (value) => {
-      const key = `\uE300${'x'.repeat(protectedParts.length + 1)}\uE301`;
-      protectedParts.push(value);
-      return key;
-    };
-    let body = source
-      .replace(/\\htmlData\{[^{}]*\}\{(?:[^{}]|\{[^{}]*\})*\}/g, protect)
-      .replace(/\bp?K_\{(?:sp|[abcwp])\d*\}/g, protect)
-      .replace(/\\(?:ce|mathrm|text)\{(?:[^{}]|\{[^{}]*\})*\}(?:\^\{\d*[+-]\})?/g, protect);
-    const number = /\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:\s*\\times\s*10\s*\^\s*\{[-+]?\d+\})?/gi;
-    body = body.replace(number, (value, offset) => {
-      const before = body.slice(0, offset);
-      if (/[_^]\{?[-+]?\s*$/.test(before)) return value;
-      const note = bareNumberNote(value, body, offset, state);
-      return `\\htmlData{note=${note}}{${formatNumericLatex(value)}}`;
-    });
-    protectedParts.forEach((value, index) => {
-      body = body.replace(`\uE300${'x'.repeat(index + 1)}\uE301`, value);
-    });
-    return body;
-  }
-
-  /** Explicit reference markers are the only standalone NOTE markers. */
-  function isExplicitNoteMarker(value) {
-    const marker = String(value || '').trim();
-    return /^(?:\[\d+\]|\(\d+\)|註\s*\d+|note\s*\d+|[①②③④⑤⑥⑦⑧⑨⑩])$/i.test(marker);
+    return text.replace(/\$\$+/g, '$');
   }
 
   function protectLatexCommandGroups(source, commandRe, transform) {
@@ -515,19 +734,24 @@
     const units = String.raw`(?:g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C)`;
     const number = String.raw`\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:\s*\\times\s*10\s*\^\s*\{[-+]?\d+\})?(?:\s*${units})?`;
     const variable = String.raw`[A-Za-z](?:_\{[^{}]+\}|_\d+)?`;
-    const noted = String.raw`\\htmlData\{[^{}]*\}\{(?:[^{}]|\{[^{}]*\})*\}`;
+    const fraction = String.raw`\\dfrac\{[^{}]*\}\{[^{}]*\}`;
+    const chemical = String.raw`\\ce\{[^{}]+\}`;
     const bracketed = String.raw`\[[^\]]+\]`;
     const bracketProduct = String.raw`${bracketed}(?:\s*(?:\\cdot\s*)?${bracketed})+`;
-    const operand = String.raw`(?:${noted}|${bracketed}|${variable}|${number})`;
+    const operand = String.raw`(?:${fraction}|${chemical}|${bracketed}|${variable}|${number})`;
     const parenthesized = String.raw`\(([^(){}]+)\)`;
+    const division = String.raw`(?:/|\\div|÷)`;
     const sideBoundary = String.raw`(?=$|[\s=+\-\\times\\div,，;；:：。)])`;
 
-    return protectLatexCommandGroups(source, 'htmlData|ce|d?frac|text|mathrm', (body) => body
-      .replace(new RegExp(String.raw`(${bracketProduct})\s*\/\s*(${bracketed})${sideBoundary}`, 'g'), '\\dfrac{$1}{$2}')
-      .replace(new RegExp(String.raw`${parenthesized}\s*/\s*${parenthesized}`, 'g'), '\\dfrac{$1}{$2}')
-      .replace(new RegExp(String.raw`${parenthesized}\s*/\s*(${operand})${sideBoundary}`, 'g'), '\\dfrac{$1}{$2}')
-      .replace(new RegExp(String.raw`(^|[\s=+\-\\times\\div,(（])(${operand})\s*/\s*${parenthesized}`, 'g'), '$1\\dfrac{$2}{$3}')
-      .replace(new RegExp(String.raw`(^|[\s=+\-\\times\\div,(（])(${operand})\s*/\s*(${operand})${sideBoundary}`, 'g'), '$1\\dfrac{$2}{$3}'));
+    let body = protectLatexCommandGroups(source, 'ce|d?frac|text|mathrm|sqrt', (plain) => plain
+      .replace(new RegExp(String.raw`(${bracketProduct})\s*${division}\s*(${bracketed})${sideBoundary}`, 'g'), '\\dfrac{$1}{$2}')
+      .replace(new RegExp(String.raw`${parenthesized}\s*${division}\s*${parenthesized}`, 'g'), '\\dfrac{$1}{$2}')
+      .replace(new RegExp(String.raw`${parenthesized}\s*${division}\s*(${operand})${sideBoundary}`, 'g'), '\\dfrac{$1}{$2}')
+      .replace(new RegExp(String.raw`(^|[\s=+\-\\times\\div,(（])(${operand})\s*${division}\s*${parenthesized}`, 'g'), '$1\\dfrac{$2}{$3}')
+      .replace(new RegExp(String.raw`(^|[\s=+\-\\times\\div,(（])(${operand})\s*${division}\s*(${operand})${sideBoundary}`, 'g'), '$1\\dfrac{$2}{$3}')
+      // 殘留的純數字除式一律轉直式
+      .replace(/(\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*(?:\/|\\div|÷)\s*(\d+(?:\.\d+)?(?:e[-+]?\d+)?)/g, '\\dfrac{$1}{$2}'));
+    return body;
   }
 
   function readBalancedGroup(source, openIndex) {
@@ -554,16 +778,78 @@
     return { numerator: numerator.body, denominator: denominator.body, end: denominator.end };
   }
 
+  /** \dfrac{複雜分子}{=} → \sqrt{分子}=（含巢狀分式；舊正則遇巢狀會失敗）。 */
+  function repairDenomEqualsAsSqrt(source) {
+    let out = '';
+    const s = String(source || '');
+    for (let i = 0; i < s.length;) {
+      const d = readDfrac(s, i);
+      if (!d) { out += s[i]; i += 1; continue; }
+      const denom = String(d.denominator || '').replace(/\s+/g, '');
+      if (denom === '=' || denom === '＝') {
+        out += `\\sqrt{${d.numerator}}`;
+        i = d.end;
+        if (!/^\s*[=＝≈]/.test(s.slice(i)) && !/^\s*\\approx/.test(s.slice(i))) out += '=';
+        continue;
+      }
+      if (denom === '\\approx' || denom === '≈') {
+        out += `\\sqrt{${d.numerator}}`;
+        i = d.end;
+        if (!/^\s*[=＝≈]/.test(s.slice(i)) && !/^\s*\\approx/.test(s.slice(i))) out += '\\approx ';
+        continue;
+      }
+      out += `\\dfrac{${d.numerator}}{${d.denominator}}`;
+      i = d.end;
+    }
+    return out;
+  }
+
+  /** 步驟間漏等號：\dfrac{a}{b}\dfrac{c}{d}、\sqrt{a}\sqrt{b} → 補 = */
+  function insertMissingStepEquals(source) {
+    let s = String(source || '');
+    for (let pass = 0; pass < 6; pass += 1) {
+      let out = '';
+      let i = 0;
+      let changed = false;
+      while (i < s.length) {
+        if (s.startsWith('\\dfrac', i)) {
+          const d = readDfrac(s, i);
+          if (d) {
+            out += `\\dfrac{${d.numerator}}{${d.denominator}}`;
+            i = d.end;
+            const sp = (s.slice(i).match(/^\s*/) || [''])[0].length;
+            if (/^(\\dfrac|\\sqrt)/.test(s.slice(i + sp))) {
+              out += '=';
+              changed = true;
+            }
+            continue;
+          }
+        }
+        if (s.startsWith('\\sqrt{', i)) {
+          const g = readBalancedGroup(s, i + 5);
+          if (g) {
+            out += `\\sqrt{${g.body}}`;
+            i = g.end;
+            const sp = (s.slice(i).match(/^\s*/) || [''])[0].length;
+            if (/^(\\dfrac|\\sqrt)/.test(s.slice(i + sp))) {
+              out += '=';
+              changed = true;
+            }
+            continue;
+          }
+        }
+        out += s[i];
+        i += 1;
+      }
+      s = out;
+      if (!changed) break;
+    }
+    return s;
+  }
+
   function readLatexOperand(source, index) {
     const dfrac = readDfrac(source, index);
     if (dfrac) return { text: `\\dfrac{${dfrac.numerator}}{${dfrac.denominator}}`, end: dfrac.end };
-    if (source.startsWith('\\htmlData', index)) {
-      const meta = readBalancedGroup(source, index + 9);
-      if (!meta) return null;
-      const value = readBalancedGroup(source, meta.end);
-      if (!value) return null;
-      return { text: source.slice(index, value.end), end: value.end };
-    }
     const m = source.slice(index).match(/^(?:\[[^\]]+\]|[A-Za-z](?:_\{[^{}]+\}|_\d+)?|\d+(?:\.\d+)?(?:e[-+]?\d+)?(?:\\times10\^\{[-+]?\d+\})?)/i);
     return m ? { text: m[0], end: index + m[0].length } : null;
   }
@@ -575,7 +861,7 @@
       if (!first) { out += source[i]; i += 1; continue; }
       let end = first.end;
       let rendered = `\\dfrac{${first.numerator}}{${first.denominator}}`;
-      const slash = String(source || '').slice(end).match(/^\s*\/\s*/);
+      const slash = String(source || '').slice(end).match(/^\s*(?:\/|\\div|÷)\s*/);
       if (slash) {
         const second = readLatexOperand(source, end + slash[0].length);
         if (second) {
@@ -595,18 +881,69 @@
     return out;
   }
 
-  function calculation(value, state) {
-    let body = clean(normalizeEquilibriumSymbols(normalizeChemMarkup(value))).replace(/^\$+|\$+$/g, '')
+  /** 拆掉誤包根號等號鏈的 \dfrac{…}（無分母或括號未閉合）。 */
+  function unwrapBogusSqrtDfrac(value) {
+    let s = String(value || '');
+    for (let guard = 0; guard < 8; guard += 1) {
+      const at = s.indexOf('\\dfrac{');
+      if (at < 0) break;
+      const open = at + 6; // points at '{'
+      let depth = 0;
+      let close = -1;
+      for (let j = open; j < s.length; j += 1) {
+        if (s[j] === '{') depth += 1;
+        else if (s[j] === '}') {
+          depth -= 1;
+          if (depth === 0) { close = j; break; }
+        }
+      }
+      if (close < 0) {
+        const rest = s.slice(open + 1);
+        if (/\\sqrt/.test(rest) && /[=≈]/.test(rest)) {
+          s = s.slice(0, at) + rest;
+          continue;
+        }
+        break;
+      }
+      const inner = s.slice(open + 1, close);
+      const hasDenom = /^\s*\{/.test(s.slice(close + 1));
+      if (!hasDenom && /\\sqrt/.test(inner) && /[=≈]/.test(inner)) {
+        s = s.slice(0, at) + inner + s.slice(close + 1);
+        continue;
+      }
+      // 合法 dfrac：跳過此處繼續找下一個（用佔位避免死循環）
+      s = `${s.slice(0, at)}\uE300${s.slice(at + 6)}`;
+    }
+    return s.replace(/\uE300/g, '\\dfrac');
+  }
+
+  /** calculation 薄層：還原被吃的 \\times、直式分式並清除內部 $。 */
+  function calculation(value) {
+    let body = stripHtmlData(clean(normalizeEquilibriumSymbols(normalizeChemMarkup(restoreEatenLatexCommands(value)))));
+    body = normalizeConcentrationNotation(body);
+    // 剝離內文 $，避免中途 $ 弄斷；外包由 math() 統一加一層
+    body = body.replace(/\$+/g, '');
+    body = stripQuantityCommas(body);
+    body = body
       .replace(/(\d+(?:\.\d+)?)\s*g\s*\/\s*mol(?:\s*\^\s*-?\s*1)?/gi, '$1 g mol^-1')
       .replace(/[（]/g, '(').replace(/[）]/g, ')')
       .replace(/[×＊*]/g, '\\times ')
       .replace(/÷/g, '\\div ')
       .replace(/≈/g, '\\approx ')
+      .replace(/\ballingdotseq\b/g, '\\approx ')
+      .replace(/\\fallingdotseq\b/g, '\\approx ')
+      // 根號：√(x)、\sqrt(x)、\sqrt{(x)} → \sqrt{x}
+      .replace(/√\s*\(\s*([^()]+)\s*\)/g, '\\sqrt{$1}')
+      .replace(/\\sqrt\s*\{\(\s*([^()]+)\s*\)\}/g, '\\sqrt{$1}')
+      .replace(/\\sqrt\s*\(\s*([^()]+)\s*\)/g, '\\sqrt{$1}')
+      .replace(/(?<![A-Za-z\\])sqrt\s*\(\s*([^()]+)\s*\)/gi, '\\sqrt{$1}')
+      .replace(/√\s*\{([^{}]+)\}/g, '\\sqrt{$1}')
       .replace(/\b(log|ln)\s*(?=\()/g, '\\$1')
       .replace(/→/g, '\\rightarrow ')
       .replace(/\\frac\b/g, '\\dfrac')
-      .replace(/\\,/g, ' ')
-      .replace(/\\(?:mathrm|text)\{\s*([^{}]+)\s*\}/g, '$1')
+      .replace(/°\s*([CFK])\s*\^\s*\{?(-?\d+)\}?/g, '^{\\circ}\\mathrm{$1}^{$2}')
+      .replace(/°\s*([CFK])\b/g, '^{\\circ}\\mathrm{$1}')
+      .replace(/Δ/g, '\\Delta ')
       .replace(/\^\s*(-?\d+)(?![}\d])/g, '^{$1}')
       .replace(/\\?(log|ln)\s*\(\s*([^()]+)\s*\/\s*([^()]+)\s*\)/g, '\\$1\\left(\\dfrac{$2}{$3}\\right)')
       .replace(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*\)/g, '\\dfrac{$1}{$2}')
@@ -615,35 +952,56 @@
       .replace(/\b([tv])_(\d+)\b/g, '$1_{$2}')
       .replace(/\b([tv])(\d+)\b/g, '$1_{$2}')
       .replace(/\b([tv](?:_\{\d+\})?)\s*\/\s*([tv](?:_\{\d+\})?)/g, '\\dfrac{$1}{$2}');
-    const autoNote = !state || state.autoNote !== false;
+    // AI 常把「根號等號鏈」誤包進 \dfrac（無分母或未閉合）→ 拆掉外殼
+    body = unwrapBogusSqrtDfrac(body);
     body = preferDisplayFractions(body);
+    // 僅正規化已有 \\ce；裸化學式交給 render
     body = body.replace(/\\ce\{([^{}]+)\}/g, (whole, token) => `\\ce{${normalizeChemToken(token)}}`);
-    body = body.replace(/n\s*\(\s*([^()]+)\s*\)/g, (whole, token) => {
-      const acid = abstractAcidLatex(token);
-      return acid ? `n_{${acid}}` : (isChemicalToken(token) ? `n_{\\ce{${normalizeChemToken(token)}}}` : whole);
-    });
-    body = body.replace(/n_\{([^{}]+)\}/g, (whole, token) => {
-      const acid = abstractAcidLatex(token);
-      return acid ? `n_{${acid}}` : (isChemicalToken(token) ? `n_{\\ce{${normalizeChemToken(token)}}}` : whole);
-    });
+    body = normalizeQuantityNotation(body);
     body = body.replace(/\[([^\]]+)\]/g, (whole, token) => {
       const acid = abstractAcidLatex(token);
       return acid ? `[${acid}]` : (!/\\ce\{/.test(token) && isChemicalToken(token) ? `[\\ce{${normalizeChemToken(token)}}]` : whole);
     });
-    body = protectLatexCommandGroups(body, 'htmlData|ce|d?frac|text|mathrm', (plain) => plain.replace(
+    body = protectLatexCommandGroups(body, 'ce|d?frac|text|mathrm', (plain) => plain.replace(
       /(^|[^A-Za-z\\])((?:H\d*A|HA)(?:\^?\{?\d*[+\-−⁻]\}?)?|A(?:\^?\{?\d+[+\-−⁻]\}?|[+\-−⁻]))(?=$|[^A-Za-z])/g,
       (whole, prefix, token) => {
         const acid = abstractAcidLatex(token);
         return acid ? prefix + acid : whole;
       }
     ));
-    if (autoNote) body = annotateQuantities(body, state);
-    if (autoNote) body = body.replace(/=\s*(\d+)\s*\\times(?=\s*n_)/g, '=\\htmlData{note=反應係數比}{$1}\\times');
-    // Bare numbers are not safe NOTE targets: they may be formula subscripts,
-    // charges, exponents, coefficients, or an unlabelled calculation result.
     body = preferDisplayFractions(body);
     body = normalizeDisplayFractions(body);
+    body = repairDenomEqualsAsSqrt(body);
+    body = insertMissingStepEquals(body);
     return body.replace(/[=＝]\s*$/, '').trim();
+  }
+
+  function quantitySubscript(symbol, token) {
+    const subject = String(token || '').trim().replace(/^\{|\}$/g, '');
+    if (!subject) return symbol;
+    const acid = abstractAcidLatex(subject);
+    if (acid) return `${symbol}_{${acid}}`;
+    if (isChemicalToken(subject)) return `${symbol}_{\\ce{${normalizeChemToken(subject)}}}`;
+    return `${symbol}_{\\text{${subject}}}`;
+  }
+
+  function normalizeQuantityNotation(value) {
+    let body = String(value || '');
+    // m(物質) 是舊質量寫法；顯示端一律改為 W 下標。
+    body = body.replace(/\b([nWV]|m)\s*[（(]\s*([^()（）]+)\s*[）)]/g, (whole, symbol, token) =>
+      quantitySubscript(symbol === 'm' ? QUANTITY_NOTATION.mass : symbol, token));
+    body = body.replace(/\b([nWV]|m)_\{([^{}]+)\}/g, (whole, symbol, token) =>
+      quantitySubscript(symbol === 'm' ? QUANTITY_NOTATION.mass : symbol, token));
+    body = body.replace(/\b([nWV]|m)_([A-Za-z][A-Za-z0-9^+\-]*|[\u4e00-\u9fff]+)/g, (whole, symbol, token) =>
+      quantitySubscript(symbol === 'm' ? QUANTITY_NOTATION.mass : symbol, token));
+    return body;
+  }
+
+  /** 濃度顯示一律使用 [物種]；僅改明確的 C(物種)／c(物種)，不碰碳元素 C。 */
+  function normalizeConcentrationNotation(value) {
+    return String(value || '')
+      .replace(/\b[cC]\s*[（(]\s*([^()（）]+)\s*[）)]/g, (_, token) => `[${String(token || '').trim()}]`)
+      .replace(/\b[cC]_\{([^{}]+)\}/g, (_, token) => `[${String(token || '').trim()}]`);
   }
 
   function answerText(value) {
@@ -653,7 +1011,22 @@
       : fullwidth(value);
   }
 
-  function reactionTable(block, fallbackEquation = '', opts = {}) {
+  /** 同一 calculation 含多步等號鏈時標記，供補寫輪拆開。 */
+  function auditCrowdedCalculations(documentValue) {
+    const issues = [];
+    const blocks = Array.isArray(documentValue?.blocks) ? documentValue.blocks : [];
+    blocks.forEach((block, blockIndex) => {
+      if (block?.type !== 'calculation') return;
+      const source = String(block.text || block.expression || '');
+      const parts = splitCalculation(source);
+      if (parts.length > 1) {
+        issues.push(`第 ${blockIndex + 1} 個 calculation 含多步算式，應拆成多個 calculation`);
+      }
+    });
+    return { issues };
+  }
+
+  function reactionTable(block, fallbackEquation = '') {
     const encoded = clean(block.text);
     const fields = encoded.split(/[；;]\s*/).map((part) => {
       const match = part.match(/^\s*([^：:]+)\s*[：:]\s*(.+)$/);
@@ -700,13 +1073,12 @@
       if (index) head.push(ordered[index - 1].role === term.role ? '\\text{＋}' : '\\rightarrow');
       head.push(cell(formula(term)));
     });
-    const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
     const body = rows.map((row) => {
       let label = fullwidth(row.label).replace(/[{}\\]/g, '');
       if (/^(起始|變化)/.test(label)) label = label.replace(/\s*[（(]\s*mol\s*[）)]/i, '');
       const values = ordered.flatMap((term, index) => {
         const value = clean(row.values[species.indexOf(term.species)] || '—');
-        const item = cell(/^[—-]+$/.test(value) ? '\\text{—}' : calculation(value, noteState));
+        const item = cell(/^[—-]+$/.test(value) ? '\\text{—}' : calculation(value));
         return index ? ['\\text{}', item] : [item];
       });
       return [`\\text{${label || '—'}}`, ...values].join(' & ');
@@ -716,45 +1088,67 @@
     return `$\\begin{array}{l${'c'.repeat(Math.max(1, ordered.length * 2 - 1))}}${head.join(' & ')} \\\\[0.8em] ${body.slice(0, splitAt).join(' \\\\[0.8em] ')} \\\\[0.9em] \\hline \\\\[0.8em] ${body.slice(splitAt).join(' \\\\[0.8em] ')}\\end{array}$`;
   }
 
-  function compile(doc, opts = {}) {
+  function compile(doc) {
     if (!doc || !Array.isArray(doc.blocks)) return '';
     const lines = [];
     let latestEquation = '';
+    let currentSection = '';
     const blocks = doc.blocks;
     blocks.forEach((block, index) => {
       if (!BLOCK_TYPES.includes(block?.type)) return;
       const expression = clean(block.expression);
       if (block.type === 'heading') {
         const heading = fullwidth(block.text).replace(/^[【\[]|[】\]]$/g, '').replace(/[。；]+$/, '');
-        if (heading) lines.push(`【${heading}】`);
+        if (heading) {
+          currentSection = heading;
+          lines.push(`【${heading}】`);
+        }
       } else if (block.type === 'paragraph') {
         const hasReactionTable = blocks.slice(index + 1).some((item) => item?.type === 'reaction_table');
         if (latestEquation && hasReactionTable && /^反應式如下[：:]?$/.test(clean(block.text))) return;
-        const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
-        lines.push(...formatNarrative(block.text, noteState));
+        const source = clean(block.text);
+        const isDerivation = currentSection === '依據與推導';
+        const paragraph = isDerivation ? source.replace(/^[•·]\s*/, '') : source;
+        const rendered = formatNarrative(paragraph);
+        if (isDerivation && rendered.length) {
+          lines.push(`@@DERIVATION@@${rendered.shift()}`);
+          lines.push(...rendered);
+        } else {
+          lines.push(...rendered);
+        }
       } else if (block.type === 'chemical_equation') {
         const hasReactionTable = blocks.slice(index + 1).some((item) => item?.type === 'reaction_table');
         const text = clean(block.expression) && !(hasReactionTable && /^反應式如下[：:]?$/.test(clean(block.text))) ? formatText(block.text) : '';
         if (text) lines.push(text);
         latestEquation = expression || clean(block.text);
-        if (latestEquation && !hasReactionTable) lines.push(chemistry(latestEquation));
+        if (latestEquation && !hasReactionTable) {
+          splitChemicalEquations(latestEquation).forEach((equation) => {
+            const rendered = chemistry(equation);
+            if (rendered) lines.push(rendered);
+          });
+        }
       } else if (block.type === 'calculation') {
         const text = clean(block.expression) ? formatText(block.text) : '';
         if (text) lines.push(text);
-        const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
-        splitCalculation(expression || clean(block.text)).forEach((part) => lines.push(math(calculation(part, noteState))));
+        splitCalculation(expression || clean(block.text)).forEach((part) => {
+          const raw = String(part || '').trim();
+          const onlyNum = stripHtmlData(raw).replace(/\s+/g, '');
+          // 略過無等號的孤島數字。
+          if (!/[=≈]/.test(onlyNum) && /^\d+(?:\.\d+)?$/.test(onlyNum)) return;
+          const rendered = math(calculation(part));
+          if (rendered) lines.push(rendered);
+        });
       } else if (block.type === 'reaction_table') {
-        const table = reactionTable(block, latestEquation, opts);
+        const table = reactionTable(block, latestEquation);
         if (table) lines.push(table);
         else {
-          const text = formatText(block.text, { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false });
+          const text = formatText(block.text);
           if (text) lines.push(text);
         }
       } else if (block.type === 'choice') {
         const choice = normalizeChoice(block);
         if (!choice) return;
-        const noteState = { mCount: 0, volumeCount: 0, autoNote: opts.autoNote !== false };
-        const choiceLines = formatNarrative(choice.text, noteState);
+        const choiceLines = formatNarrative(choice.text);
         if (choiceLines.length) {
           lines.push(choiceMarker(choice.label, choiceLines[0]));
           lines.push(...choiceLines.slice(1));
@@ -766,14 +1160,29 @@
     return lines.join('\n');
   }
 
-  function prepare(raw, opts = {}) {
-    const document = normalizeDocument(parse(raw));
-    const text = compile(document, opts);
-    return text
-      ? { ok: true, text, document, fallback: false }
-      : { ok: false, text: String(raw || '').trim(), document: null, fallback: true };
+  function prepare(raw) {
+    try {
+      const document = normalizeDocument(parse(raw));
+      const text = compile(document);
+      return text
+        ? { ok: true, text, document, fallback: false }
+        : { ok: false, text: String(raw || '').trim(), document: null, fallback: true, reason: 'parse_or_empty' };
+    } catch (err) {
+      console.warn('SolutionCore.prepare failed', err);
+      return {
+        ok: false,
+        text: String(raw || '').trim(),
+        document: null,
+        fallback: true,
+        reason: String(err && err.message || err || 'compile_error')
+      };
+    }
   }
 
-  global.SolutionCore = Object.freeze({ SCHEMA, SYSTEM, buildSystem, parse, normalizeDocument, fullwidth, formatText, calculation, compile, prepare, isExplicitNoteMarker });
+  global.SolutionCore = Object.freeze({
+    SCHEMA, SYSTEM, SYSTEM_CORE, SYSTEM_CALC, QUANTITY_NOTATION, QUANTITY_NOTATION_PROMPT, buildSystem, buildQuantityNotationPrompt, parse, normalizeDocument, fullwidth, formatText, calculation, normalizeQuantityNotation, normalizeConcentrationNotation,
+    compile, prepare, auditRequiredSections, auditCrowdedCalculations, splitCalculation, stripHtmlData,
+    isChemicalToken, chemistry, splitChemicalEquations, restoreEatenLatexCommands, restoreEatenLatexInJsonSource, stripQuantityCommas
+  });
   if (typeof module !== 'undefined' && module.exports) module.exports = global.SolutionCore;
 })(typeof window !== 'undefined' ? window : globalThis);

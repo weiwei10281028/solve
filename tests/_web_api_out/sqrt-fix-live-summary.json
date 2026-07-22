@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "issues": [],
+  "build": "20260721-derive-eq",
+  "src": "【推導】\n（甲）加入5.0 mL NaOH後形成緩衝溶液。\nCH3COOH剩餘莫耳數為0.10 \\times ($20.0-5.0)=1.5 mmol$。\n$K_{b}=\\dfrac{K_{w}}{K_{a}}=\\dfrac{1.0\\times10^{-14}}{1.8\\times10^{-5}}\\approx 5.56\\times10^{-10}$\n$[\\ce{OH-}]=\\sqrt{K_{b}\\times C}=\\sqrt{5.56\\times10^{-10}\\times0.05}=\\sqrt{2.78\\times10^{-11}}\\approx 5.27\\times10^{-6}$\n$pH=14-5.28=8.72$\n@@ANSWER@@D",
+  "visible_head": "推導\n（甲）\n加入\n5.0\nm\nL\n5.0mL \nN\na\nO\nH\nNaOH後形成緩衝溶液。\n\nC\nH\n3\nC\nO\nO\nH\nCH\nX\n3\n\t​\n\nCOOH剩餘莫耳數為 0.10 × (\n20.0\n−\n5.0\n)\n=\n1.5\nm\nm\no\nl\n20.0−5.0)=1.5mmol。\n\n𝐾\n𝑏\n=\n𝐾\n𝑤\n𝐾\n𝑎\n=\n1.0\n×\n1\n0\n−\n14\n1.8\n×\n1\n0\n−\n5\n≈\n5.56\n×\n1\n0\n−\n10\nK\nb\n\t​\n\n=\nK\na\n\t​\n\nK\nw\n\t​\n\n\t​\n\n=\n1.8×10\n−5\n1.0×10\n−14\n\t​\n\n≈5.56×10\n−10\n\n[\nO\nH\n−\n]\n=\n𝐾\n𝑏\n×\n𝐶\n=\n5.56\n×\n1\n0\n−\n10\n×\n0.05\n=\n2.78\n×\n1\n0\n−\n11\n≈\n5.27\n×\n1\n0\n−\n6\n[OH\nX\n−\n]=\nK\nb\n\t​\n\n×C\n\t​\n\n=\n5.56×10\n−10\n×0.05\n\t​\n\n=\n2.78×10\n−11\n\t​\n\n≈5.27×10\n−6\n\n𝑝\n𝐻\n=\n14\n−\n5.28\n=\n8.72\npH=14−5.28=8.72\n\n答案\nD"
+}

@@ -461,9 +461,10 @@ body {
 .solve-spec-status.is-active { color: var(--accent, #3D6B52); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(61, 107, 82, .18); }
 .solve-validation { margin: 7px 0 0; font-size: 12px; line-height: 1.5; color: var(--accent, #3D6B52); }
 .solve-validation.is-warning { color: #9B4444; }
+.chem-rule-critical-warning { margin: 12px 0; padding: 10px 12px; border: 1px solid #B74646; border-radius: 8px; background: #FFF0F0; color: #8E2929; font-weight: 700; line-height: 1.55; }
 
-/* 非 KaTeX 的題幹、結論與 NOTE 數字採固定寬度，避免中英文混排時數字跳動。 */
-.board, .chem-markdown, .math-note-popover { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+/* 非 KaTeX 區的數字特徵；字型本身由 board.css 統一為 KaTeX_Main。 */
+.board, .chem-markdown { font-variant-numeric: lining-nums; }
 
 .action-row {
   display: flex;

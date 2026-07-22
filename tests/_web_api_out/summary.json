@@ -1,0 +1,16 @@
+[
+  {
+    "name": "titration",
+    "badge": "錯誤",
+    "issues": [
+      "解題狀態為錯誤",
+      "toast: 設定已儲存：已儲存 Key：AQ.Ab8...TKVQ（長度 53）"
+    ],
+    "samples": [],
+    "note_count": 0,
+    "notes": [],
+    "text_len": 25,
+    "screenshot": "C:\\Users\\User\\Desktop\\AI解題(7.18)\\tests\\_web_api_out\\titration.png",
+    "elapsed_s": 12.2
+  }
+]

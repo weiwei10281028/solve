@@ -1,0 +1,149 @@
+{
+  "blocks": [
+    {
+      "type": "heading",
+      "text": "題意"
+    },
+    {
+      "type": "paragraph",
+      "text": "本題為醋酸溶液以氫氧化鈉標準溶液滴定的問題，需判斷滴定過程中特定點的氫離子濃度、滴定終點的pH值以及指示劑的適用性。"
+    },
+    {
+      "type": "heading",
+      "text": "依據"
+    },
+    {
+      "type": "paragraph",
+      "text": "已知醋酸（CH3COOH）體積為20.0毫升，氫氧化鈉（NaOH）標準溶液濃度為0.10 M，滴定終點時加入20.0毫升的NaOH溶液。醋酸的解離常數Ka為1.8 × 10^-5。計算過程中可使用提示：√(500/18) = 5.27，10/5.27 ≈ 1.90。"
+    },
+    {
+      "type": "heading",
+      "text": "推導"
+    },
+    {
+      "type": "paragraph",
+      "text": "首先計算醋酸溶液的初始濃度。在滴定終點時，酸的莫耳數等於鹼的莫耳數。"
+    },
+    {
+      "type": "calculation",
+      "text": "NaOH莫耳數 = \\htmlData{note=NaOH濃度（M）}{0.10} \\times \\htmlData{note=NaOH體積（L）}{0.020} = \\htmlData{note=NaOH莫耳數（mol）}{0.002} mol"
+    },
+    {
+      "type": "paragraph",
+      "text": "因此，初始醋酸的莫耳數為0.002 mol。"
+    },
+    {
+      "type": "calculation",
+      "text": "CH3COOH初始濃度 = \\dfrac{\\htmlData{note=CH3COOH莫耳數（mol）}{0.002}}{\\htmlData{note=CH3COOH體積（L）}{0.020}} = \\htmlData{note=CH3COOH初始濃度（M）}{0.10} M"
+    },
+    {
+      "type": "paragraph",
+      "text": "評估選項(甲)：在加入5.0毫升的NaOH溶液後，溶液形成緩衝溶液。計算此時醋酸和醋酸鈉的莫耳數。"
+    },
+    {
+      "type": "chemical_equation",
+      "text": "CH3COOH + NaOH → CH3COONa + H2O"
+    },
+    {
+      "type": "reaction_table",
+      "text": "物種,起始莫耳數 (mol),變化量 (mol),平衡莫耳數 (mol)\nCH3COOH,0.002,-0.0005,0.0015\nNaOH,0.0005,-0.0005,0\nCH3COONa,0,+0.0005,0.0005"
+    },
+    {
+      "type": "calculation",
+      "text": "NaOH加入莫耳數 = \\htmlData{note=NaOH濃度（M）}{0.10} \\times \\htmlData{note=NaOH體積（L）}{0.005} = \\htmlData{note=NaOH莫耳數（mol）}{0.0005} mol"
+    },
+    {
+      "type": "paragraph",
+      "text": "此時溶液總體積為20.0毫升 + 5.0毫升 = 25.0毫升 = 0.025公升。"
+    },
+    {
+      "type": "calculation",
+      "text": "[CH3COOH] = \\dfrac{\\htmlData{note=CH3COOH莫耳數（mol）}{0.0015}}{\\htmlData{note=總體積（L）}{0.025}} = \\htmlData{note=醋酸濃度（M）}{0.06} M"
+    },
+    {
+      "type": "calculation",
+      "text": "[CH3COONa] = \\dfrac{\\htmlData{note=CH3COONa莫耳數（mol）}{0.0005}}{\\htmlData{note=總體積（L）}{0.025}} = \\htmlData{note=醋酸鈉濃度（M）}{0.02} M"
+    },
+    {
+      "type": "paragraph",
+      "text": "利用醋酸的Ka值計算氫離子濃度。"
+    },
+    {
+      "type": "calculation",
+      "text": "[H^+] = Ka \\times \\dfrac{[CH3COOH]}{[CH3COO^-]} = \\htmlData{note=醋酸Ka}{1.8 \\times 10^{-5}} \\times \\dfrac{\\htmlData{note=醋酸濃度（M）}{0.06}}{\\htmlData{note=醋酸鈉濃度（M）}{0.02}} = \\htmlData{note=氫離子濃度（M）}{5.4 \\times 10^{-5}} M"
+    },
+    {
+      "type": "paragraph",
+      "text": "評估選項(乙)：達滴定終點時，溶液中所有醋酸已轉化為醋酸鈉。此時溶液為弱酸鹽的水溶液，pH值由醋酸根離子的水解決定。"
+    },
+    {
+      "type": "chemical_equation",
+      "text": "CH3COO- + H2O ⇌ CH3COOH + OH-"
+    },
+    {
+      "type": "calculation",
+      "text": "滴定終點時CH3COONa莫耳數 = \\htmlData{note=CH3COOH初始莫耳數（mol）}{0.002} mol"
+    },
+    {
+      "type": "calculation",
+      "text": "滴定終點總體積 = \\htmlData{note=CH3COOH初始體積（mL）}{20.0} + \\htmlData{note=NaOH滴定體積（mL）}{20.0} = \\htmlData{note=總體積（mL）}{40.0} mL = \\htmlData{note=總體積（L）}{0.040} L"
+    },
+    {
+      "type": "calculation",
+      "text": "[CH3COONa] = \\dfrac{\\htmlData{note=CH3COONa莫耳數（mol）}{0.002}}{\\htmlData{note=總體積（L）}{0.040}} = \\htmlData{note=醋酸鈉濃度（M）}{0.05} M"
+    },
+    {
+      "type": "paragraph",
+      "text": "計算醋酸根離子的水解常數Kb。"
+    },
+    {
+      "type": "calculation",
+      "text": "Kb = \\dfrac{Kw}{Ka} = \\dfrac{\\htmlData{note=水離子積常數Kw}{1.0 \\times 10^{-14}}}{\\htmlData{note=醋酸Ka}{1.8 \\times 10^{-5}}} = \\htmlData{note=醋酸根Kb}{5.56 \\times 10^{-10}}"
+    },
+    {
+      "type": "paragraph",
+      "text": "設[OH-] = x，則Kb = x^2 / ([CH3COO-] - x)。假設x遠小於[CH3COO-]。"
+    },
+    {
+      "type": "calculation",
+      "text": "x^2 = Kb \\times [CH3COO^-] = \\htmlData{note=醋酸根Kb}{5.56 \\times 10^{-10}} \\times \\htmlData{note=醋酸鈉濃度（M）}{0.05} = \\htmlData{note=氫氧根離子濃度平方}{2.78 \\times 10^{-11}}"
+    },
+    {
+      "type": "calculation",
+      "text": "[OH^-] = \\sqrt{\\htmlData{note=氫氧根離子濃度平方}{2.78 \\times 10^{-11}}} = \\sqrt{\\dfrac{\\htmlData{note=500}{500}}{\\htmlData{note=18}{18}}} \\times \\htmlData{note=指數}{10^{-6}} = \\htmlData{note=氫氧根離子濃度（M）}{5.27 \\times 10^{-6}} M"
+    },
+    {
+      "type": "calculation",
+      "text": "pOH = -\\log[OH^-] = -\\log(\\htmlData{note=氫氧根離子濃度（M）}{5.27 \\times 10^{-6}}) \\approx \\htmlData{note=pOH}{5.28}"
+    },
+    {
+      "type": "calculation",
+      "text": "pH = \\htmlData{note=Kw常數}{14} - \\htmlData{note=pOH}{5.28} = \\htmlData{note=pH值}{8.72}"
+    },
+    {
+      "type": "heading",
+      "text": "結果"
+    },
+    {
+      "type": "paragraph",
+      "text": "醋酸初始濃度：0.10 M\n加入5.0毫升NaOH後氫離子濃度：5.4 × 10^-5 M\n滴定終點pH值：8.72"
+    },
+    {
+      "type": "heading",
+      "text": "選項分析"
+    },
+    {
+      "type": "choice",
+      "text": "(甲) 在加入5.0毫升的NaOH溶液後，醋酸溶液的氫離子濃度約為5.4 × 10^-5 M。此計算結果與選項敘述一致，故(甲)正確。"
+    },
+    {
+      "type": "choice",
+      "text": "(乙) 達滴定終點時，溶液的pH值為8.72，介於8和9之間。此敘述正確，故(乙)正確。"
+    },
+    {
+      "type": "choice",
+      "text": "(丙) 已知溴瑞香草酚藍變色範圍約在pH 6.0 ~ 8.0 之間。由於滴定終點的pH值為8.72，超出溴瑞香草酚藍的變色範圍，因此不適用於判斷此滴定終點。故(丙)錯誤。"
+    }
+  ],
+  "answer": "D"
+}
