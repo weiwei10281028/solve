@@ -33,11 +33,15 @@
   uploadRow.append(zone, document.getElementById('prevWrap'), document.getElementById('prevWrap2'));
   attachment.append(uploadRow, answer);
 
-  const explanation = document.createElement('section');
-  explanation.className = 'studio-field studio-note';
-  explanation.innerHTML = '<div class="studio-field-head"><h2>補充說明</h2><span>選填</span></div>';
-  explanation.append(note);
-  grid.append(attachment, explanation);
+  grid.append(attachment);
+
+  const explanation = document.createElement('details');
+  explanation.className = 'studio-advanced studio-note';
+  explanation.innerHTML = '<summary><span><b>補充說明</b><small>補充題意或指定作答範圍</small></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></summary>';
+  const explanationBody = document.createElement('div');
+  explanationBody.className = 'studio-advanced-body';
+  explanationBody.append(note, clearButton);
+  explanation.append(explanationBody);
 
   const advanced = document.createElement('details');
   advanced.className = 'studio-advanced';
@@ -49,14 +53,12 @@
   advancedBody.append(advancedFirst);
   advanced.append(advancedBody);
 
-  explanation.append(clearButton);
-
   const dock = document.createElement('div');
   dock.className = 'studio-solve-dock';
   dock.append(solveButton);
 
   actionRow.remove();
-  panel.append(grid, advanced);
+  panel.append(grid, explanation, advanced);
   document.body.append(dock);
 
   const chapterHost = document.getElementById('chapterOptions');

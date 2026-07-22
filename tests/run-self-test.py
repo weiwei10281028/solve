@@ -8,6 +8,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 BASE = os.environ.get("AI_SOLVE_TEST_BASE", "http://localhost:18080")
 BUILD = "20260721-v2"
+STUDIO_BUILD = "20260722-supplement"
 results = []
 
 
@@ -78,7 +79,7 @@ check("Unicode 化學下標對照表", "UNICODE_SUB_MAP" in render and "AFTER_BA
 check("擠行稽核仍保留", "auditCrowdedCalculations" in app and "calculation 含多步算式" in app)
 check("render 精簡無裸數字全面包$", "wrapPlainNumericRuns" not in render and "wrapScientificNotation" in render)
 check("作答格式開關已取消", "計算題四步推導" not in index and "強化依據／推論用語" not in index and "const FORMATS = Object.freeze({});" in spec)
-check("核心樣式載入新版", f"studio-theme.css?v={BUILD}" in index and f"solution-core.js?v={BUILD}" in index)
+check("核心樣式載入新版", f"studio-theme.css?v={STUDIO_BUILD}" in index and f"solution-core.js?v={BUILD}" in index)
 check("公式橫滑防止 KaTeX 折行", "plain-line-xwrap--scroll .katex" in board and "min-width: max-content" in board and "cjkCount === 0 && prose.length <= 24" in render)
 check("無 NOTE 樣式殘留", "math-note-popover" not in theme and "math-note.css" not in index)
 check("畫面不再宣稱答案鎖定", "參考答案（選填）" in index and "答案欄會被鎖定" not in index and "仍會顯示詳解並標示警告" in index)
