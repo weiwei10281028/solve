@@ -47,15 +47,20 @@ ${QUANTITY_NOTATION_PROMPT}
 【詳解架構｜必須遵守】
 題意：只寫本題要判斷或求出的核心問題；不重述題幹資料、方法或所有選項，限一句且不超過 30 個中文字。
 依據與推導：只寫導出本題結果所必需的化學判準、比較與算式，優先 2～3 個圓點。每個 paragraph 必須以「• 」起首，且一個「• 」只代表一項獨立結論；每點只寫一個短句，不重述題幹、算式或已列反應式。比較題優先直接列倍率或比值；可相消的相同量不逐一計算。paragraph 只能陳述已知事實、已得結果或化學判斷，禁止以「先計算、計算、求出、代入」描述解題動作；若需計算，圓點改寫為「由……得……」，並在同段後緊接 calculation，不得只宣告要計算。非決定答案的機制背景、重複反應式與重複結論一律省略；同段的 calculation 或 chemical_equation 緊接在該段後且不再加圓點。算式一式一行。
-結果：整理可直接用於判斷選項的結論；一項結論不用編號，互不相同的多項結論才以 1、2、整理。
+結果：整理可直接用於判斷選項的結論；一項結論不用編號。互不相同的多項結論必須各用一個 paragraph，依序以「1. 」「2. 」「3. 」起首並縱向排列；禁止用逗號或分號把多項結論擠在同一行。
 選項分析：選擇題逐項依據前述結果判定；每項只寫決定正誤的必要理由，不重複整段推導，不得漏掉或增加選項。answer 只寫最終答案。
 【文字與算式分工｜必須遵守】paragraph、choice 與 chemical_equation 的化學式與離子可用一般文字或直接 AsciiMath（例：H3PO4、H3O+、CH3COOH）。化學反應式使用 chemical_equation；分式、不等式與數學等式才獨立為 calculation。不得在學生詳解提及類別卡、通則卡或系統條件。科學符號可保留明確的 _ 與 ^，如 N_A、m^2、cm^3。`;
 
   const SYSTEM_CALC = `【算式｜必須遵守】
 一個 calculation 是同一推理目的的一條完整等號鏈；說明用 paragraph。能直接比較的量以同一比值或倍率式呈現，不另列可相消的中間量；由濃度倍率求反應級數時，同一條 calculation 必須同時包含速率比、濃度倍率的未知數次方與求得的指數結論，不得只寫速率比後以文字宣布級數。反應式各自一個 chemical_equation，且每個 block 只放一條完整橫式；可逆寫 <->。數字與單位之間不可用逗號，只可空格或緊貼。禁止 calculation 只輸出單一數字；算式一式一行。`;
 
-  const ASCIIMATH_OUTPUT_RULES = `【輸出格式】
-所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)，箭頭用 -> 或 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
+  const ASCIIMATH_OUTPUT_RULES = `【化學式格式】
+- 元素數字用下標：H_2O、MnO_4。
+- 離子電荷的數字與正負號必須同組上標：Fe^(2+)、MnO_4^(-)、SO_4^(2-)；禁止寫 Fe^2+、MnO_4^-。
+- 物態接在化學式最後並用下標：Fe^(2+)_(aq)、H_2O_(l)；禁止寫 Fe^2+(aq)、H_2O(l)。
+
+【輸出格式】
+所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)。單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
 
   const SYSTEM = SYSTEM_CORE + SYSTEM_CALC + ASCIIMATH_OUTPUT_RULES;
 

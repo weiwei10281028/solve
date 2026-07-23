@@ -394,7 +394,7 @@ body[data-theme="lunar"] .board {
 .am-solution .am-choice-label { white-space: nowrap; font-weight: 700; }
 .am-solution .am-choice-body { min-width: 0; }
 .am-solution .am-choice-body p { margin: 0; }
-.am-solution .am-result-list { display: grid; gap: .7rem; margin: .3rem 0 .95rem; }
+.am-solution .am-result-list { display: grid; gap: .7rem; margin: .3rem 0 .95rem; padding: 0; list-style: none; }
 .am-solution .am-result-item { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: .42rem; align-items: baseline; }
 .am-solution .am-result-index { white-space: nowrap; font-weight: 700; }
 .am-solution .am-result-body { min-width: 0; overflow-wrap: break-word; }
@@ -410,8 +410,7 @@ body[data-theme="lunar"] .board {
 .am-solution .am-derivation-text { margin: 0; }
 .am-solution .am-derivation-body .am-display-scroll { margin: .55rem 0 .8rem; }
 .am-solution .am-derivation-body .am-derivation-text + .am-display-scroll { margin-top: .55rem; }
-.am-math--inline { display: inline-block; max-width: 100%; overflow: visible; vertical-align: baseline; }
-.am-math--inline mjx-container { display: inline-block; vertical-align: baseline !important; transform: translateY(-.015em); }
+.am-math--inline { display: inline-block; max-width: 100%; margin-inline: .025em; overflow: visible; vertical-align: baseline; }
 .am-display-scroll,
 .am-table-scroll {
   box-sizing: border-box;
@@ -449,6 +448,12 @@ body[data-theme="lunar"] .board {
 .am-display-scroll mjx-script mjx-frac,
 .am-display-scroll mjx-script mjx-frac * { font-size: 100% !important; }
 .am-solution mjx-container { color: inherit; font-size: 1em; line-height: inherit; }
+.am-solution .am-math--inline mjx-container {
+  display: inline-block;
+  font-size: .96em !important;
+  vertical-align: baseline !important;
+  transform: translateY(-.01em);
+}
 .am-reaction-table { min-width: max-content; border-collapse: collapse; font-size: .94em; }
 .am-reaction-table :is(th, td) { padding: .45rem .65rem; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); text-align: center; }
 .am-reaction-table th { font-weight: 700; }

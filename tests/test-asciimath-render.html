@@ -3,20 +3,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AsciiMath 詳解渲染測試</title>
-<link rel="stylesheet" href="../css/app.css?v=20260722-asciimath">
-<link rel="stylesheet" href="../css/board.css?v=20260722-asciimath">
-<link rel="stylesheet" href="../css/studio-theme.css?v=20260722-asciimath">
+<link rel="stylesheet" href="../css/app.css?v=20260723-asciimath-type-list">
+<link rel="stylesheet" href="../css/board.css?v=20260723-asciimath-type-list">
+<link rel="stylesheet" href="../css/studio-theme.css?v=20260723-asciimath-type-list">
 <style>.panel { display: block !important; }</style>
 <body class="app-page">
   <main class="page-main"><section class="panel panel-result result-card"><div class="board"><div class="board-scroll" id="fixture"></div></div></section></main>
-  <script src="../js/ascii-solution-render.js?v=20260722-asciimath"></script>
+  <script src="../js/ascii-solution-render.js?v=20260723-asciimath-type-list"></script>
   <script>
     AsciiSolutionRender.renderInto(document.getElementById('fixture'), {
       blocks: [
         { type: 'heading', text: '依據與推導' },
         { type: 'chemical_equation', expression: 'Ca(OH)_2 + CO_2 -> CaCO_3 + H_2O ; n(CaCO_3) = frac(8.00)(100) = 0.08 mol' },
         { type: 'chemical_equation', expression: 'Fe_xO_y + y CO -> x Fe + y CO_2' },
+        { type: 'chemical_equation', expression: 'MnO_4^- + 5Fe^2+ + 8H^+ -> Mn^2+ + 5Fe^3+ + 4H_2O' },
         { type: 'paragraph', text: '由反應式可得氧與二氧化碳的莫耳數相同。' },
+        { type: 'paragraph', text: 'pH 為 7，MgCl2 式量為 95，選項 A 與 B 的英數字級應與中文一致。' },
         { type: 'calculation', expression: 'n(O) = n(CO_2) = 0.08 mol' },
         { type: 'calculation', expression: 'W(O) = 0.08 * 16 = 1.28 g' },
         { type: 'calculation', expression: 'n(Fe) = frac(3.92)(56) = 0.07 mol' },
