@@ -23,6 +23,31 @@ function formatError(msg) {
   return msg;
 }
 
+function parseUsageMetadata(data) {
+  const usage = data?.usageMetadata;
+  if (!usage || typeof usage !== 'object') return null;
+  const promptTokens = Number(usage.promptTokenCount);
+  const completionTokens = Number(usage.candidatesTokenCount);
+  const totalTokens = Number(usage.totalTokenCount);
+  if (!Number.isFinite(promptTokens) && !Number.isFinite(completionTokens)) return null;
+  return {
+    promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
+    completionTokens: Number.isFinite(completionTokens) ? completionTokens : 0,
+    totalTokens: Number.isFinite(totalTokens)
+      ? totalTokens
+      : (Number.isFinite(promptTokens) ? promptTokens : 0) + (Number.isFinite(completionTokens) ? completionTokens : 0)
+  };
+}
+
+function recordTokenUsage(usage, cfg, genOpts, round) {
+  if (!usage || typeof window === 'undefined' || !window.__tokenAudit?.record) return;
+  window.__tokenAudit.record(usage, {
+    stage: genOpts.tokenStage || 'api',
+    model: cfg?.model || '',
+    round
+  });
+}
+
 async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
   const apiKey = cleanKey(cfg.key); cfg.key = apiKey;
   const contents = apiMessages.map(msg => {
@@ -71,7 +96,7 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
         .replace(/\u0009imes/gi, '\\\\times')
         .replace(/([A-Za-z0-9}\\]])imes(?=\\s*(?:\\d|10\\b|\\\\))/gi, '$1\\\\times');
     }
-    if (text) return { text, finishReason: candidate?.finishReason || 'UNKNOWN' };
+    if (text) return { text, finishReason: candidate?.finishReason || 'UNKNOWN', usage: parseUsageMetadata(data) };
     throw new Error(`Gemini 沒有回傳文字。原因：${candidate?.finishReason || data.promptFeedback?.blockReason || '未知原因'}`);
   } catch (err) {
     if (err?.name === 'AbortError') throw new Error(`Gemini 請求逾時（超過 ${Math.round(timeoutMs / 1000)} 秒），請稍後再試。`);
@@ -99,12 +124,21 @@ function looksIncomplete(text, finishReason) {
 }
 
 async function callAPI(cfg, apiMessages, systemText, genOpts = {}) {
-  const maxContinue = genOpts.maxContinue ?? 2; let messages = apiMessages.map(m => ({ ...m })); let combined = '';
+  const maxContinue = genOpts.maxContinue ?? 2;
+  let messages = apiMessages.map(m => ({ ...m }));
+  let combined = '';
+  const usageTotal = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
   const jsonMode = !!(genOpts.responseFormat || genOpts.responseSchema || /APPLICATION_JSON/i.test(genOpts.responseMimeType || ''));
   for (let round = 0; round <= maxContinue; round++) {
-    const { text, finishReason } = await callGemini(cfg, messages, systemText, genOpts);
+    const { text, finishReason, usage } = await callGemini(cfg, messages, systemText, genOpts);
+    if (usage) {
+      usageTotal.promptTokens += usage.promptTokens;
+      usageTotal.completionTokens += usage.completionTokens;
+      usageTotal.totalTokens += usage.totalTokens;
+      recordTokenUsage(usage, cfg, genOpts, round);
+    }
     combined = combined ? (jsonMode ? `${combined}${text}` : `${combined}\n${text}`) : text;
-    if (!looksIncomplete(combined, finishReason)) return { text: combined, truncated: false };
+    if (!looksIncomplete(combined, finishReason)) return { text: combined, truncated: false, usage: usageTotal };
     if (round >= maxContinue) break;
     if (jsonMode) {
       // JSON 被截斷後，從字元中斷處續寫常會遺失引號／括號；改為重新產生一份較精煉的完整 JSON。
@@ -118,5 +152,5 @@ async function callAPI(cfg, apiMessages, systemText, genOpts = {}) {
       messages = [...apiMessages, { role: 'assistant', content: combined }, { role: 'user', content: continueHint }];
     }
   }
-  return { text: combined, truncated: true };
+  return { text: combined, truncated: true, usage: usageTotal };
 }

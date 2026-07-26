@@ -34,82 +34,48 @@ function isCalcCompact() {
   return !!document.getElementById('calcCompactToggle')?.checked;
 }
 
+const REF_ANSWER_DEEP_CHECK_KEY = 'solver-ref-answer-deep-check';
+const LEGACY_REF_ANSWER_VERIFICATION_KEY = 'solver-ref-answer-verify';
+
+function isRefAnswerDeepCheckEnabled() {
+  return !!document.getElementById('refAnswerCheckToggle')?.checked;
+}
+
+function initRefAnswerCheckToggle() {
+  const el = document.getElementById('refAnswerCheckToggle');
+  if (!el) return;
+  const saved = loadSetting(
+    REF_ANSWER_DEEP_CHECK_KEY,
+    loadSetting(LEGACY_REF_ANSWER_VERIFICATION_KEY, '0')
+  );
+  el.checked = saved === '1' || saved === 'true';
+  el.addEventListener('change', () => {
+    const value = el.checked ? '1' : '0';
+    localStorage.setItem(REF_ANSWER_DEEP_CHECK_KEY, value);
+    sessionStorage.setItem(REF_ANSWER_DEEP_CHECK_KEY, value);
+  });
+}
+
+function logInjectedSolveSpec(formatRoute, advancedBlock) {
+  const promptText = String(advancedBlock || '').trim();
+  if (!promptText) return;
+  const chapters = formatRoute?.solveSpec?.chapters
+    ?.filter((item) => item?.applicability !== 'not-applicable')
+    ?.map((item) => ({
+      chapter: item.label,
+      mode: item.applicability === 'forced' ? 'forced' : item.applicability,
+      topics: item.topics?.filter((topic) => topic.applicability === 'applicable').map((topic) => topic.label) || []
+    })) || [];
+  console.info('章節提醒已加入', {
+    enabled: true,
+    route: formatRoute?.id || 'plain',
+    chapters,
+    promptPreview: promptText.slice(0, 500)
+  });
+}
+
 function buildSolveResponseSchema() {
   return JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA));
-}
-
-const ANSWER_VERIFICATION_SYSTEM = `你是獨立的化學答案驗證者。只回傳 JSON，不寫學生詳解。參考答案只是待驗證命題，不保證正確；禁止為了迎合參考答案反向硬湊理由。請只依題目資料重新計算，檢查物料守恆、電荷／原子守恆、單位、有效數字、公式與每個選項語意，再判斷參考答案是否一致。\n\n輸出格式：{"consistent":true,"constraints":["獨立算出的必要中間量"],"checks":["已執行的關鍵檢查"],"warnings":["矛盾或風險；沒有則空陣列"]}\n若無法由題目確認參考答案，consistent 必須為 false。constraints 只寫可由題目獨立驗算的條件；禁止輸出給學生看的詳解。`;
-const ANSWER_VERIFICATION_SCHEMA = {
-  type: 'object', required: ['consistent', 'constraints', 'checks', 'warnings'],
-  properties: {
-    consistent: { type: 'boolean' },
-    constraints: { type: 'array', items: { type: 'string' } },
-    checks: { type: 'array', items: { type: 'string' } },
-    warnings: { type: 'array', items: { type: 'string' } }
-  }
-};
-
-function normalizeAnswerVerification(raw) {
-  const fallback = {
-    consistent: false,
-    parseFailed: true,
-    constraints: [],
-    checks: [],
-    warnings: ['獨立驗證回覆無法解析']
-  };
-  try {
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!parsed || typeof parsed !== 'object') return fallback;
-    const list = (value) => Array.isArray(value) ? value.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12) : [];
-    return {
-      consistent: parsed?.consistent === true,
-      parseFailed: false,
-      constraints: list(parsed?.constraints),
-      checks: list(parsed?.checks),
-      warnings: list(parsed?.warnings)
-    };
-  } catch (_) {
-    return fallback;
-  }
-}
-
-/** 獨立驗證／通則卡意圖：與主模型錯開，優先 3.5 系列。 */
-function verificationModelFor(mainModel) {
-  const main = String(mainModel || '');
-  if (main === 'gemini-3.5-flash') return 'gemini-3.5-flash-lite';
-  if (main === 'gemini-3.5-flash-lite') return 'gemini-3.5-flash';
-  if (main === 'gemini-3.1-flash-lite') return 'gemini-3.5-flash';
-  return 'gemini-3.5-flash';
-}
-
-/** 解題前依題意預判化學通則卡（可含圖片）；失敗時不阻斷解題。 */
-async function detectChemRuleCardHit(cfg, textQuestion, imageItems, textOnly) {
-  if (typeof window.ChemRuleCards === 'undefined' || !window.ChemRuleCards.buildIntentUserText) {
-    return { card: null, source: 'intent', intent_summary: '', reason: '', parseFailed: true };
-  }
-  const intentText = window.ChemRuleCards.buildIntentUserText(textQuestion);
-  const intentMessages = textOnly
-    ? [{ role: 'user', content: intentText }]
-    : [{
-      role: 'user',
-      content: [
-        ...(imageItems || []).map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
-        { type: 'text', text: intentText }
-      ]
-    }];
-  const intentCfg = { ...cfg, model: verificationModelFor(cfg.model) };
-  try {
-    const intentRes = await callAPI(intentCfg, intentMessages, window.ChemRuleCards.INTENT_SYSTEM, {
-      temperature: 0,
-      maxOutputTokens: 400,
-      timeoutMs: 60000,
-      maxContinue: 0,
-      responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: window.ChemRuleCards.INTENT_SCHEMA } }
-    });
-    return window.ChemRuleCards.resolveFromIntent(window.ChemRuleCards.parseIntentResult(intentRes.text));
-  } catch (_) {
-    return { card: null, source: 'intent', intent_summary: '', reason: '題意預判失敗，略過通則卡', parseFailed: true };
-  }
 }
 
 function normalizeNumericExpression(value) {
@@ -225,8 +191,7 @@ function updateSolveSpecStatus() {
   const chapterStatus = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.describeRoute
     ? window.SolveSpec.describeRoute(route)
     : '未啟用題型規格，將依題目自動判斷。';
-  const chemStatus = '化學通則卡：解題時依題意自動參考（與章節選項分開）。';
-  status.textContent = [chemStatus, chapterStatus].filter(Boolean).join(' ');
+  status.textContent = chapterStatus;
   status.classList.toggle('is-active', route.id !== 'plain');
 }
 
@@ -249,6 +214,7 @@ function initSolveOptionToggles() {
   resetStoichiometryToggle();
   resetCalcCompactToggle();
   resetSolveSpec();
+  initRefAnswerCheckToggle();
 }
 
 function initStoichiometryToggle() {
@@ -478,6 +444,15 @@ function clearAll() {
   updateSolveButtonState();
 }
 
+function esc(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
@@ -548,28 +523,6 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   if (solveOpts?.formatRoute && typeof window.SolveSpec?.describeRoute === 'function') {
     lines.push('格式：' + window.SolveSpec.describeRoute(solveOpts.formatRoute));
   }
-  if (solveOpts?.chemRuleAudit?.issues?.length) {
-    const cardNote = solveOpts?.chemRuleHit?.card
-      ? `通則卡「${solveOpts.chemRuleHit.card.title_zh}」：詳解不符 `
-      : '通則卡檢查：';
-    lines.push((solveOpts.chemRuleAudit.state === 'confirmed-no-blue' ? '紅色警告｜' : '') + cardNote + solveOpts.chemRuleAudit.issues.slice(0, 2).join('；'));
-    warning = true;
-  } else if (solveOpts?.chemRuleHit?.card && solveOpts?.chemRuleAudit) {
-    lines.push('通則卡檢查：未發現違反已確認條件的內容');
-  }
-  if (solveOpts?.chemRuleAudit?.ratioInfo && Number.isFinite(solveOpts.chemRuleAudit.ratioInfo.ratio)) {
-    const r = solveOpts.chemRuleAudit.ratioInfo;
-    lines.push(`本機碘酸比值≈${r.ratio.toFixed(4)}${r.ratio <= 1 / 3 + 1e-9 ? '（≤1/3→應不變藍）' : ''}`);
-  }
-  if (solveOpts?.chemRuleAudit?.warnings?.length) {
-    lines.push('通則卡提醒：' + solveOpts.chemRuleAudit.warnings.slice(0, 2).join('；'));
-    warning = true;
-  }
-  if (solveOpts?.chemRuleHit?.card) {
-    lines.push('化學通則卡：已參考「' + solveOpts.chemRuleHit.card.title_zh + '」');
-  } else if (solveOpts?.chemRuleHit) {
-    lines.push('化學通則卡：未參考');
-  }
   if (solveOpts?.forceStoichiometry && !autoFallback && typeof window.checkStoichiometryTableRequired === 'function') {
     const issues = window.checkStoichiometryTableRequired(reply, '', questionCtx);
     const ok = !issues.length;
@@ -587,27 +540,8 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   }
   if (refAnswer && typeof window.answersMatch === 'function') {
     const ok = window.answersMatch(reply, refAnswer);
-    lines.push(ok ? '指定答案：一致' : '指定答案：不一致（已顯示詳解，請人工核對）');
+    lines.push(ok ? '對齊參考答案：已成功' : '對齊參考答案：未能在題目條件下對齊');
     warning = warning || !ok;
-  }
-  if (solveOpts?.verificationResult) {
-    const vr = solveOpts.verificationResult;
-    if (vr.parseFailed) {
-      lines.push('獨立驗證：回覆無法解析（不阻擋顯示）');
-      warning = true;
-    } else if (vr.consistent === true) {
-      lines.push('獨立驗證：與參考答案一致');
-    } else {
-      const detail = vr.warnings?.length ? `：${vr.warnings.slice(0, 2).join('、')}` : '';
-      lines.push(`獨立驗證：未通過${detail}（已顯示詳解）`);
-      warning = true;
-    }
-  }
-  if (solveOpts?.answerAlignAttempted) {
-    lines.push(solveOpts.answerAligned
-      ? '對齊參考答案：已成功'
-      : '對齊參考答案：未能在守恆前提下對齊');
-    warning = warning || !solveOpts.answerAligned;
   }
   if (solveOpts?.calculationAudit?.issues?.length) {
     lines.push('本機算式提醒：' + solveOpts.calculationAudit.issues.slice(0, 2).join('；')
@@ -672,16 +606,6 @@ async function setMainSolution(text, options = {}) {
   scrollBoard(el);
 }
 
-function showChemRuleWarning(audit) {
-  if (audit?.state !== 'confirmed-no-blue' || !(audit?.issues || []).length) return;
-  const host = document.getElementById('mainSolution');
-  if (!host) return;
-  const notice = document.createElement('div');
-  notice.className = 'chem-rule-critical-warning';
-  notice.textContent = '紅色警告：本機已依題幹確認此條件下不變藍、時間不適用；下列詳解仍含相衝突的時間或選項結論，請勿採信該部分。';
-  host.prepend(notice);
-}
-
 function appendFollowupUser(text) {
   document.getElementById('followupArea').hidden = false;
   const block = document.createElement('div');
@@ -692,10 +616,10 @@ function appendFollowupUser(text) {
   return block;
 }
 
-function fillFollowupReply(block, text) {
+async function fillFollowupReply(block, text) {
   const reply = block.querySelector('.followup-reply');
   reply.classList.remove('followup-pending');
-  renderAiInto(reply, text);
+  await renderAiInto(reply, text);
   block.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -760,90 +684,89 @@ async function startSolve() {
   clearThreads();
   clearSolveValidation();
   setBusy(true);
+  window.__tokenAudit?.beginSession?.('solve');
 
   try {
-    if (!textOnly) {
-      setBadge('準備題目中…', '#F9F3E6', '#8A6D3B');
+    if (typeof window.SolutionCore === 'undefined') throw new Error('solution-core.js 未載入');
+    if (!window.QuestionAnalysisPrompt?.SYSTEM
+      || typeof window.buildQuestionAnalysisUserText !== 'function'
+      || typeof window.parseQuestionAnalysis !== 'function'
+      || typeof window.assembleSolveUserContent !== 'function') {
+      throw new Error('兩段式提示詞未載入。請按 Ctrl+Shift+R 強制重新整理後再試。');
     }
 
-    setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
+    // 第一段：讀取文字／圖片，只產生本題解題備忘錄。
+    setBadge('審題中…', '#F9F3E6', '#8A6D3B');
+    const analysisUserText = window.buildQuestionAnalysisUserText(textQuestion);
+    const analysisMessages = textOnly
+      ? [{ role: 'user', content: analysisUserText }]
+      : [{
+        role: 'user',
+        content: [
+          ...imgDataURLs.map(item => ({
+            type: 'image_url',
+            image_url: { url: item.dataUrl, detail: 'high' }
+          })),
+          { type: 'text', text: analysisUserText }
+        ]
+      }];
+    const analysisReply = await callAPI(cfg, analysisMessages, window.QuestionAnalysisPrompt.SYSTEM, {
+      temperature: 0,
+      maxOutputTokens: 3072,
+      timeoutMs: 90000,
+      maxContinue: 0,
+      tokenStage: 'question_analysis',
+      responseFormat: {
+        text: { mimeType: 'APPLICATION_JSON', schema: window.QuestionAnalysisPrompt.SCHEMA }
+      }
+    });
+    const questionAnalysis = window.parseQuestionAnalysis(analysisReply.text, textQuestion);
+    if (!questionAnalysis) {
+      throw new Error('題目審題備忘錄格式不完整，請重新作答。');
+    }
+    window.__lastQuestionAnalysis = questionAnalysis;
+
+    const questionSource = questionAnalysis.questionText;
     const scopeInput = typeof extractExplicitScopePhrase === 'function'
-      ? extractExplicitScopePhrase(textQuestion)
+      ? extractExplicitScopePhrase([textQuestion, questionSource].filter(Boolean).join('\n'))
       : '';
     const formatRoute = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.route
-      ? window.SolveSpec.route(getSolveSpec(), textQuestion, {
+      ? window.SolveSpec.route(getSolveSpec(), questionSource, {
         forceStoichiometry: isForceStoichiometry(),
         forceCalcCompact: isCalcCompact()
       })
       : { id: 'plain', origin: 'auto', solveSpec: getSolveSpec(), forceStoichiometry: isForceStoichiometry(), forceCalcCompact: isCalcCompact() };
     const solveSpec = formatRoute.solveSpec;
+    const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
+      ? window.SolveSpec.buildActiveBlock(formatRoute) : '';
+    logInjectedSolveSpec(formatRoute, advancedBlock);
+
     const solveOpts = {
       textOnly,
-      questionBody: textQuestion,
+      questionBody: questionSource,
       supplement: textQuestion,
       hasImage,
       imageCount: imgDataURLs.length,
       detailed: detailMode,
       scopeInput,
       refAnswer,
+      refAnswerDeepCheckEnabled: isRefAnswerDeepCheckEnabled(),
       forceStoichiometry: formatRoute.forceStoichiometry,
       forceCalcCompact: formatRoute.forceCalcCompact,
       solveSpec,
-      formatRoute
+      formatRoute,
+      questionAnalysis
     };
-    // 只由使用者明確輸入的範圍控制分題標題；圖片中的題號不是多題指令。
-    const questionSource = String(solveOpts.questionBody || scopeInput || textQuestion || '').trim();
-    const advancedBlock = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.buildActiveBlock
-      ? window.SolveSpec.buildActiveBlock(formatRoute) : '';
 
-    setBadge('判別化學通則卡…', '#F9F3E6', '#8A6D3B');
-    const chemRuleQuestion = [textQuestion, scopeInput].filter(Boolean).join('\n');
-    let chemRuleHit = await detectChemRuleCardHit(cfg, chemRuleQuestion, imgDataURLs, textOnly);
-    let chemRuleBlock = typeof window.ChemRuleCards !== 'undefined' && window.ChemRuleCards.buildReferenceBlock
-      ? window.ChemRuleCards.buildReferenceBlock(chemRuleHit)
-      : '';
-    if (chemRuleHit?.card && typeof window.ChemRuleCards.buildPrecomputedBoundaryBlock === 'function') {
-      const boundary = window.ChemRuleCards.buildPrecomputedBoundaryBlock(chemRuleQuestion, chemRuleHit);
-      if (boundary) chemRuleBlock = [chemRuleBlock, boundary].filter(Boolean).join('\n\n');
-    }
-    if (typeof window.SolutionCore === 'undefined') throw new Error('solution-core.js 未載入');
-    let systemText = window.SolutionCore.buildSystem();
-    let verificationResult = null;
-
-    solveOpts.chemRuleHit = chemRuleHit;
-
-    // 有參考答案時，另一個 Flash 先從題目獨立計算；主解題模型看不到參考答案。
-    if (solveOpts.refAnswer) {
-      setBadge('驗證答案條件中…', '#F9F3E6', '#8A6D3B');
-      const verificationUserText = typeof window.buildAnswerVerificationUserText === 'function'
-        ? window.buildAnswerVerificationUserText(scopeInput, solveOpts.refAnswer, solveOpts, advancedBlock, chemRuleBlock)
-        : `【題目】\n${textQuestion}\n\n【待驗證參考答案】${solveOpts.refAnswer}`;
-      const verificationMessages = textOnly
-        ? [{ role: 'user', content: verificationUserText }]
-        : [{
-          role: 'user', content: [
-            ...imgDataURLs.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
-            { type: 'text', text: verificationUserText }
-          ]
-        }];
-      const verificationCfg = { ...cfg, model: verificationModelFor(cfg.model) };
-      const verification = await callAPI(verificationCfg, verificationMessages, ANSWER_VERIFICATION_SYSTEM, {
-        temperature: 0,
-        maxOutputTokens: 1800,
-        timeoutMs: 90000,
-        maxContinue: 0,
-        responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: ANSWER_VERIFICATION_SCHEMA } }
-      });
-      verificationResult = normalizeAnswerVerification(verification.text);
-    }
-    // 主解題模型不接收參考答案或驗證結論，避免先入為主與反向硬湊。
-    // user 訊息：短通則卡與章節提醒在題目之前；多模態時也先提供文字條件。
-    if (typeof window.assembleSolveUserContent !== 'function') {
-      throw new Error('prompts.js 未載入（assembleSolveUserContent 不存在）。請按 Ctrl+Shift+R 強制重新整理；若仍失敗，請用「啟動網頁.bat」開啟並確認主控台是否有 js 語法錯誤。');
-    }
-    const assembled = window.assembleSolveUserContent(questionSource, advancedBlock, chemRuleBlock);
+    // 第二段：唯一的解題提示，接收備忘錄、進階設定與待核對參考答案。
+    const assembled = window.assembleSolveUserContent(
+      questionSource,
+      questionAnalysis.memo,
+      advancedBlock,
+      refAnswer,
+      { verifyReference: solveOpts.refAnswerDeepCheckEnabled }
+    );
     const fullUserText = assembled.fullText;
-
     if (textOnly) {
       apiMessages = [{
         role: 'user',
@@ -854,30 +777,34 @@ async function startSolve() {
         type: 'image_url',
         image_url: { url: item.dataUrl, detail: 'high' }
       }));
-      const contentParts = [];
-      if (assembled.constraintPrefix) {
-        contentParts.push({ type: 'text', text: assembled.constraintPrefix });
-      }
-      contentParts.push(...imageParts);
-      contentParts.push({ type: 'text', text: assembled.questionBody });
       apiMessages = [{
-        role: 'user',
-        content: contentParts
+        role: 'user', content: [
+          ...imageParts,
+          { type: 'text', text: fullUserText }
+        ]
       }];
     }
 
     const responseSchema = buildSolveResponseSchema();
-    setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
     const mainGenerationOptions = {
       temperature: 0.25,
       maxOutputTokens: 8192,
       timeoutMs: 120000,
-      maxContinue: 1,
+      maxContinue: 0,
+      tokenStage: 'main_solve',
       responseFormat: {
         text: { mimeType: 'APPLICATION_JSON', schema: responseSchema }
       }
     };
-    let { text: reply, truncated } = await callAPI(cfg, apiMessages, systemText, mainGenerationOptions);
+    setBadge('撰寫詳解中…', '#F9F3E6', '#8A6D3B');
+    const mainSolve = await callAPI(
+      cfg,
+      apiMessages,
+      window.SolutionCore.buildSystem(),
+      mainGenerationOptions
+    );
+    let reply = mainSolve.text;
+    const truncated = mainSolve.truncated;
     window.__lastRawReply = reply;
     let prepared = window.SolutionCore.prepare(reply);
     if (!prepared.ok) {
@@ -891,109 +818,13 @@ async function startSolve() {
       throw new Error(`AI 詳解格式不完整，請重新作答。${tip}`);
     }
     reply = prepared.text;
-    // 本機算式驗算只作軟提醒，不自動重打、不擋顯示；真錯可填指定答案再解一次。
-    let calculationAudit = auditCalculationDocument(prepared.document);
+    // 本機算式驗算只作軟提醒，不觸發額外 AI 提示。
+    const calculationAudit = auditCalculationDocument(prepared.document);
     const answerMatchesRef = () => !solveOpts.refAnswer
       || typeof window.answersMatch !== 'function'
       || window.answersMatch(reply, solveOpts.refAnswer);
-
-    // 化學通則卡：只做本機檢查與提示，不再另開修正 API（省額度；錯因應靠解前短注入）。
-    const chemRuleAudit = typeof window.ChemRuleCards !== 'undefined' && window.ChemRuleCards.auditDocument
-      ? window.ChemRuleCards.auditDocument(prepared.document, chemRuleHit, chemRuleQuestion)
-      : { issues: [], warnings: [], ratioInfo: null, state: 'insufficient-data' };
-    const noBlueViolation = typeof window.ChemRuleCards?.hasNoBlueTimeViolation === 'function'
-      && window.ChemRuleCards.hasNoBlueTimeViolation(chemRuleAudit);
-    if (noBlueViolation && typeof window.ChemRuleCards?.buildCorrectionUserBlock === 'function') {
-      setBadge('通則卡修正中…', '#F9F3E6', '#8A6D3B');
-      const fixBlock = window.ChemRuleCards.buildCorrectionUserBlock(chemRuleAudit, reply);
-      const fixMessages = textOnly
-        ? [{ role: 'user', content: `${fullUserText}\n\n${fixBlock}` }]
-        : [{
-          role: 'user',
-          content: [
-            ...(assembled.constraintPrefix ? [{ type: 'text', text: assembled.constraintPrefix }] : []),
-            ...imgDataURLs.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
-            { type: 'text', text: `${assembled.questionBody}\n\n${fixBlock}` }
-          ]
-        }];
-      try {
-        const fixed = await callAPI(cfg, fixMessages, systemText, { ...mainGenerationOptions, temperature: 0 });
-        const fixedPrepared = window.SolutionCore.prepare(fixed.text);
-        if (fixedPrepared.ok) {
-          const fixedAudit = window.ChemRuleCards.auditDocument(fixedPrepared.document, chemRuleHit, chemRuleQuestion);
-          if (!window.ChemRuleCards.hasNoBlueTimeViolation(fixedAudit)) {
-            prepared = fixedPrepared;
-            reply = prepared.text;
-            truncated = truncated || fixed.truncated;
-            calculationAudit = auditCalculationDocument(prepared.document);
-            Object.assign(chemRuleAudit, fixedAudit);
-          } else {
-            console.warn('通則卡修正後仍不符', fixedAudit.issues);
-          }
-        }
-      } catch (err) {
-        console.warn('通則卡修正 API 失敗', err);
-      }
-    }
-    if (chemRuleAudit.issues.length) {
-      const cardName = chemRuleHit?.card?.title_zh || '化學通則卡';
-      console.warn(`「${cardName}」檢查未通過（詳解不符通則）`, chemRuleAudit.issues);
-    }
-    solveOpts.chemRuleAudit = chemRuleAudit;
-
-    // 參考答案：盡量對齊；驗證失敗或無法對齊只警告，不擋顯示。
-    solveOpts.verificationResult = verificationResult;
-    solveOpts.answerAlignAttempted = false;
+    solveOpts.answerAlignAttempted = !!solveOpts.refAnswer;
     solveOpts.answerAligned = answerMatchesRef();
-    const stillNoBlueViolation = typeof window.ChemRuleCards?.hasNoBlueTimeViolation === 'function'
-      && window.ChemRuleCards.hasNoBlueTimeViolation(chemRuleAudit);
-    const refConflictsChemRule = stillNoBlueViolation
-      && solveOpts.refAnswer
-      && /\bE\b|[（(]E[）)]/.test(String(solveOpts.refAnswer || ''));
-    if (solveOpts.refAnswer && !solveOpts.answerAligned && !refConflictsChemRule) {
-      setBadge('對齊參考答案中…', '#F9F3E6', '#8A6D3B');
-      solveOpts.answerAlignAttempted = true;
-      const alignPrompt = [
-        fullUserText,
-        `【參考答案】${solveOpts.refAnswer}`,
-        verificationResult ? `【獨立驗證結果】\n${JSON.stringify(verificationResult)}` : '',
-        `【目前詳解】\n${reply}`,
-        '請在不違反題目數據、物料／電荷守恆、單位與選項語意的前提下，把最終 answer 與選項結論對齊參考答案，並同步修正推理。若參考答案與題目矛盾、無法合理對齊，維持你獨立算出的答案，並在 answer 寫該答案。數字與單位間禁止逗號；乘號用 ×；分式用 \\dfrac。仍只回傳指定 JSON。'
-      ].filter(Boolean).join('\n\n');
-      const alignMessages = textOnly
-        ? [{ role: 'user', content: alignPrompt }]
-        : [{ role: 'user', content: [
-          ...imgDataURLs.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl, detail: 'high' } })),
-          { type: 'text', text: alignPrompt }
-        ] }];
-      try {
-        const aligned = await callAPI({ ...cfg, model: 'gemini-3.5-flash' }, alignMessages, systemText, {
-          ...mainGenerationOptions,
-          temperature: 0
-        });
-        const alignedPrepared = window.SolutionCore.prepare(aligned.text);
-        if (!alignedPrepared.ok) {
-          console.warn('對齊回覆無法解析，保留原詳解', String(aligned.text || '').slice(0, 400));
-          toast('對齊參考答案失敗，改以獨立詳解顯示');
-        } else {
-          const alignedCalc = auditCalculationDocument(alignedPrepared.document);
-          prepared = alignedPrepared;
-          reply = prepared.text;
-          truncated = truncated || aligned.truncated;
-          calculationAudit = alignedCalc;
-          solveOpts.answerAligned = answerMatchesRef();
-          if (alignedCalc.issues.length) {
-            console.warn('對齊後本機算式提醒（不擋顯示）', alignedCalc.issues);
-          }
-          if (!solveOpts.answerAligned) {
-            toast('無法在守恆前提下對齊參考答案，已顯示獨立詳解');
-          }
-        }
-      } catch (alignErr) {
-        console.warn('對齊參考答案失敗', alignErr);
-        toast('對齊參考答案失敗，改以獨立詳解顯示');
-      }
-    }
 
     const crowdAudit = typeof window.SolutionCore.auditCrowdedCalculations === 'function'
       ? window.SolutionCore.auditCrowdedCalculations(prepared.document)
@@ -1011,13 +842,10 @@ async function startSolve() {
     apiMessages.push({ role: 'assistant', content: reply });
     window.__lastCompiledReply = reply;
     await setMainSolution(prepared.document);
-    showChemRuleWarning(chemRuleAudit);
     renderSolveValidation(reply, solveOpts, solveOpts.refAnswer);
     setBadge('詳解完成', '#EAF2ED', '#3D6B52');
-    if (verificationResult?.parseFailed) {
-      toast('參考答案未能獨立驗證（驗證回覆異常），已顯示詳解');
-    } else if (solveOpts.refAnswer && !solveOpts.answerAligned) {
-      toast('詳解答案與參考答案不同，請查看上方驗證提示');
+    if (solveOpts.refAnswer && !solveOpts.answerAligned) {
+      toast('詳解未能對齊參考答案，請查看上方核對提示');
     }
     if (truncated) toast('詳解可能未寫完，可往下捲動或追問補完');
   } catch (err) {
@@ -1026,6 +854,7 @@ async function startSolve() {
     setMainSolution(`❌ ${formatError(err.message)}`);
     setBadge('錯誤', '#F9EDED', '#9B4444');
   } finally {
+    window.__tokenAudit?.endSession?.();
     if (activeSolveEpoch === solveEpoch) setBusy(false);
   }
 }
@@ -1038,6 +867,7 @@ async function sendFollowUp() {
   input.value = '';
   const block = appendFollowupUser(text);
   setBusy(true);
+  window.__tokenAudit?.beginSession?.('followup');
   setBadge('回覆中…', '#F9F3E6', '#8A6D3B');
   try {
     const followUserText = typeof window.buildFollowUpUserText === 'function'
@@ -1052,17 +882,21 @@ async function sendFollowUp() {
       temperature: 0.25,
       maxOutputTokens: 4096,
       timeoutMs: 90000,
-      maxContinue: 1
+      maxContinue: 1,
+      tokenStage: 'followup'
     };
     const { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
     apiMessages.push({ role: 'assistant', content: reply });
-    fillFollowupReply(block, reply);
+    await fillFollowupReply(block, reply);
     setBadge('追問完成', '#EAF2ED', '#3D6B52');
   } catch (err) {
     apiMessages.pop();
-    fillFollowupReply(block, `❌ ${formatError(err.message)}`);
+    await fillFollowupReply(block, `❌ ${formatError(err.message)}`);
     setBadge('錯誤', '#F9EDED', '#9B4444');
-  } finally { setBusy(false); }
+  } finally {
+    window.__tokenAudit?.endSession?.();
+    setBusy(false);
+  }
 }
 
 onProviderChange();

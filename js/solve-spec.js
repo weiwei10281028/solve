@@ -25,7 +25,7 @@
       topic('intermolecular_forces', '分子間作用力', '倫敦分散力、偶極－偶極力與氫鍵', /分子間作用力|凡得瓦|分散力|偶極.*偶極|氫鍵|沸點|黏度|表面張力/, ['可用作用力', '強弱比較依據', '巨觀性質結論'], '比較時依序檢查氫鍵、偶極與可極化性／分子量；明確區分分子內共價鍵與分子間作用力。')
     ]),
 
-    stoichiometry: chapter('物質與反應', '化學反應規律與化學計量', '反應式配平、莫耳比、限量試劑、產率與化學程序', /化學方程式|配平|化學計量|莫耳比|限量試劑|過量試劑|理論產率|百分產率|實際產率|質量.*莫耳|莫耳.*質量/, ['配平反應式', '已知量轉成莫耳', '係數比與限量判斷', '結論與單位'], '涉及量的題目必先寫配平反應式並追蹤單位；限量試劑須由各反應物可生成量或消耗比例判定。', [
+    stoichiometry: chapter('物質與反應', '化學反應規律與化學計量', '反應式配平、莫耳比、限量試劑、產率與化學程序', /化學方程式|配平|化學計量|莫耳比|限量試劑|過量試劑|理論產率|百分產率|實際產率|質量.*莫耳|莫耳.*質量|莫耳質量|分子量|式量|\d+(?:\.\d+)?\s*(?:g|克|mol|莫耳)|沉澱|氣體.*(?:產生|生成|通入)|完全反應/, ['配平反應式', '已知量轉成莫耳', '係數比與限量判斷', '結論與單位'], '涉及量的題目必先寫配平反應式並追蹤單位；限量試劑須由各反應物可生成量或消耗比例判定。', [
       topic('equation_balancing', '反應式與配平', '化學方程式、係數、守恆與代數配平', /配平|化學方程式|代數法|反應式係數|原子守恆/, ['物種與反應式', '元素／電荷守恆', '最簡整數係數'], '不可改變化學式下標；以係數滿足每種原子（必要時含電荷）守恆，最後化為最簡整數比。'),
       topic('mole_ratio', '莫耳比與換算', '質量、粒子數、氣體體積與莫耳數的轉換', /莫耳數|mol|阿伏加厥|分子量|莫耳質量|STP|標準狀況|氣體體積/, ['已知量與單位', '莫耳換算', '化學係數比與目標量'], '先把已知量轉成莫耳，再使用反應式係數比；最後才轉回所求單位並保留合理有效數字。'),
       topic('limiting_yield', '限量試劑與產率', '限量／過量試劑、理論產率與百分產率', /限量試劑|過量試劑|理論產率|實際產率|百分產率|產率/, ['各反應物可反應量', '限量試劑判定', '產率計算與結論'], '以同一目標產物比較各反應物的最大生成量，或比較可反應的莫耳比例；百分產率以實際產率除以理論產率。')
@@ -165,15 +165,15 @@
     next.autoCandidates = detected;
     next.chapters = next.chapters.map((item) => {
       const source = CHAPTERS[item.id];
-      const applicability = !text || !detected.length ? 'uncertain' : (detected.includes(item.id) ? 'applicable' : 'not-applicable');
-      const matchedTopicIds = applicability === 'not-applicable' ? [] : source.topics.filter((entry) => entry.match.test(text)).slice(0, 3).map((entry) => entry.id);
+      const applicability = detected.includes(item.id) ? 'applicable' : 'forced';
+      const matchedTopicIds = source.topics.filter((entry) => entry.match.test(text)).slice(0, 3).map((entry) => entry.id);
       return {
         ...item,
         applicability,
         matchedTopicIds,
         topics: item.topics.map((entry) => ({
           ...entry,
-          applicability: applicability === 'not-applicable' ? 'not-applicable' : (matchedTopicIds.includes(entry.id) ? 'applicable' : 'available')
+          applicability: matchedTopicIds.includes(entry.id) ? 'applicable' : 'available'
         }))
       };
     });
@@ -227,7 +227,7 @@
       lines.push('【反應方程式表達】完整詳解、計算與逐項分析不得刪減；只額外加入配平反應式與 reaction_table（物種欄、起始、變化、結果／平衡列）。');
     }
     if (routeValue.forceCalcCompact) {
-      lines.push('【計算精簡】同一推理的代數合併成 1～2 條等號鏈；保留理由與關鍵中間量，不得省略化學推理。');
+      lines.push('【計算精簡】同一推理的代數可合併，但判斷答案所需的關鍵中間量、單位與化學推理不得省略。');
     }
     const specBlock = buildUserBlock(routeValue.solveSpec);
     if (specBlock) lines.push(specBlock);

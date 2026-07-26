@@ -8,6 +8,9 @@
   const MATH_HINT_RE = /[\\/_^=<>*+]|->|<->|[→⟶⇌↔⇄⟷]|\d+(?:\.\d+)?\s*[A-Za-z]|\b[A-Z][A-Za-z]*\d|\b[A-Za-z]+_\d/;
   let mathJaxPromise = null;
 
+  // AsciiMath 會把 pm 視為 ±，也會把 g/mol、g/L 等單位誤排成數學分式；單位保留為一般文字節點。
+  const PROTECTED_UNITS_RE = /(\b(?:g|mg|kg|mol|mmol)\s*\/\s*\(?\s*(?:mol|mmol|L|mL)\s*\)?|\b(?:ppm|ppb|ppt)\b)/gi;
+
   function escapeHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -39,12 +42,15 @@
       .replace(/\s*[⇌↔⇄⟷]\s*/g, ' <-> ')
       .replace(/\s*[→⟶]\s*/g, ' -> ')
       .replace(/\^\s*\(\s*aq\s*\)/gi, '_(aq)')
+      .replace(/([A-Z][a-z]?)_(\d{2,})(?!\d)/g, '$1_($2)')
+      // AsciiMath 的 xx 會由 MathJax 排成二元運算子 ×，不是英文字母 x。
+      .replace(/\*/g, ' xx ')
       // AsciiMath 將 Fe^2+ 視為「Fe 的 2 次方再加 1」，使 + 留在基線。
       // 化學離子的數字電荷須包成同一組上標；一般 x^2 + y 不受影響。
       .replace(/([A-Z][A-Za-z0-9_()]*)\^(\d+)([+-])(?=\s|$|[),.;:])/g, '$1^($2$3)')
-      // AI 偶爾在 V(...)、n(...)、W(...) 中漏掉組成數字的底線。
+      // 將舊式函數記號收斂為本專案的下標量符號。
       .replace(/([nVW])\(\s*([A-Z][A-Za-z0-9]*)\s*\)/g, (_, quantity, species) =>
-        `${quantity}(${species.replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2')})`)
+        `${quantity}_(${species.replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2')})`)
       // 反應式的加號固定與前後物種分開；電荷組內的 2+／+ 因後面緊接 ) 不受影響。
       .replace(/\+(?!\))/g, ' + ')
       // AsciiMath 不接受在既有上標後直接再接 _(aq)。以空白基底承接物態下標；
@@ -52,9 +58,19 @@
       .replace(/_\(\s*(aq|l|s|g)\s*\)/gi, '""_(($1))');
   }
 
+  function normaliseUnitText(value) {
+    const text = String(value || '').replace(/\s+/g, '');
+    const unit = text.match(/^([a-z]+)\/\(?([a-z]+)\)?$/i);
+    return unit ? `${unit[1]}/${unit[2]}` : text;
+  }
+
   function math(value, display) {
-    const body = escapeHtml(normaliseAsciiMath(value).trim());
-    return `<span class="am-math am-math--${display ? 'display' : 'inline'}">\`${body}\`</span>`;
+    const className = `am-math am-math--${display ? 'display' : 'inline'}`;
+    return String(value || '').split(PROTECTED_UNITS_RE).map((part, index) => {
+      if (index % 2) return `<span class="am-unit">${escapeHtml(normaliseUnitText(part))}</span>`;
+      const body = escapeHtml(normaliseAsciiMath(part).trim());
+      return body ? `<span class="${className}">\`${body}\`</span>` : '';
+    }).join('');
   }
 
   function renderInline(value) {
@@ -69,7 +85,8 @@
       const segment = ascii ? buffer.trim() : buffer;
       const candidate = ascii ? trimLoosePunctuation(segment) : segment;
       if (ascii && isLikelyAsciiMath(candidate)) {
-        parts.push(math(candidate, false));
+        // 保持段落行內流動，但使用與獨立公式一致的 MathJax 尺寸。
+        parts.push(math(candidate, true));
         const tail = segment.slice(candidate.length);
         if (tail) parts.push(escapeHtml(tail));
       } else {

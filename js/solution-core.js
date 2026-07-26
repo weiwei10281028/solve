@@ -32,35 +32,32 @@
     mass: 'W',
     volume: 'V'
   });
-  const QUANTITY_NOTATION_PROMPT = `【化學量與濃度符號｜唯一規範】
-莫耳數寫 n(物質)，質量寫 W(物質)，體積寫 V(對象)；括號內必須寫物質、元素、樣品、氣體或溶液名稱。不可只寫 n、W、V，也不可用 m 表示質量。溶液濃度一律寫 [物種]，不可用 C(物種)、c(物種) 或 C1V1。例：n(CO2)、W(O)、W(樣品)、V(甲溶液)、[IO3-]。莫耳關係寫 n(X) = [X] * V；濃度關係寫 [X] = frac(n(X))(V)。科學符號的下標與次方必須明確寫成 N_A、m^2、cm^3；數值與單位之間留一個半形空格，如 300 DU、3.0 cm、22.4 L mol^-1。`;
+  const QUANTITY_NOTATION_PROMPT = '';
 
   function buildQuantityNotationPrompt(_mode) {
     return QUANTITY_NOTATION_PROMPT;
   }
 
-  const SYSTEM_CORE = `你是台灣高中化學老師。使用繁體中文，依題目正確、清楚地解題。
-只回傳指定 JSON；不得輸出 Markdown、HTML、$、$$、LaTeX 或其他排版指令。公式與化學式寫在 block 的 text 字串內。
-${QUANTITY_NOTATION_PROMPT}
-每個 block 只有 type 與 text，整題最多 32 個 block。heading 是固定架構，且只可為「題意、依據與推導、結果、選項分析」；第一個 heading 必須是「題意」，不得在它前面加入題號、題名、章節或類別。paragraph 是說明；chemical_equation 是反應式；calculation 是一條算式；reaction_table 依序寫物種、起始、變化、結果；choice 以題目原標籤開頭並判定正誤。
-【先列必要方程式與計算｜必須遵守】題幹、判斷或結果需要完整化學反應式時，先以一個獨立 chemical_equation block 寫出完整反應物、箭頭與產物；不得把箭頭反應式塞入 paragraph 或 choice，也不得拆開同一反應式。題目提到、要求或必須用到某物種的濃度時，必須先以 calculation 寫出 [物種] = frac(n(物種))(V) 的代入與數值結果；不得只寫「計算濃度」或只重述濃度資料。之後才用 paragraph 說明該反應式或濃度如何用於判斷。
-【詳解架構｜必須遵守】
-題意：只寫本題要判斷或求出的核心問題；不重述題幹資料、方法或所有選項，限一句且不超過 30 個中文字。
-依據與推導：只寫導出本題結果所必需的化學判準、比較與算式，優先 2～3 個圓點。每個 paragraph 必須以「• 」起首，且一個「• 」只代表一項獨立結論；每點只寫一個短句，不重述題幹、算式或已列反應式。比較題優先直接列倍率或比值；可相消的相同量不逐一計算。paragraph 只能陳述已知事實、已得結果或化學判斷，禁止以「先計算、計算、求出、代入」描述解題動作；若需計算，圓點改寫為「由……得……」，並在同段後緊接 calculation，不得只宣告要計算。非決定答案的機制背景、重複反應式與重複結論一律省略；同段的 calculation 或 chemical_equation 緊接在該段後且不再加圓點。算式一式一行。
-結果：整理可直接用於判斷選項的結論；一項結論不用編號。互不相同的多項結論必須各用一個 paragraph，依序以「1. 」「2. 」「3. 」起首並縱向排列；禁止用逗號或分號把多項結論擠在同一行。
-選項分析：選擇題逐項依據前述結果判定；每項只寫決定正誤的必要理由，不重複整段推導，不得漏掉或增加選項。answer 只寫最終答案。
-【文字與算式分工｜必須遵守】paragraph、choice 與 chemical_equation 的化學式與離子可用一般文字或直接 AsciiMath（例：H3PO4、H3O+、CH3COOH）。化學反應式使用 chemical_equation；分式、不等式與數學等式才獨立為 calculation。不得在學生詳解提及類別卡、通則卡或系統條件。科學符號可保留明確的 _ 與 ^，如 N_A、m^2、cm^3。`;
+  const SYSTEM_CORE = `你是解題 AI，也是台灣高中化學老師。使用繁體中文，根據原題與「本題解題備忘錄」撰寫完整詳解。
+備忘錄只供內部參考；你必須自行核對原題，若兩者衝突，以原題為準。不得在詳解中提及備忘錄或提示詞。
+只回傳指定 JSON；不得輸出 Markdown、HTML、LaTeX、$、$$ 或其他排版指令。
+每個 block 只有 type 與 text。可用類型：heading、paragraph、chemical_equation、calculation、reaction_table、choice。
+第一個 heading 固定為「題意」，接著使用「依據與推導」；選擇題最後使用「選項分析」，非選擇題不使用。answer 只寫最終答案。
+paragraph 為說明文字；chemical_equation 只放一條完整反應式；calculation 只放一條完整算式；choice 以題目原標籤開頭並判定正誤。
+題意須說明本題要求；依據與推導須寫出所用原理及由條件得到結論的過程；選擇題須逐項分析所有選項並明確判定正誤。
+請務必實際完成必要計算與驗算；凡答案依賴數值、比例、守恆、平衡、反應係數、單位換算或選項比較，必須在 calculation block 中列出關鍵推導，不得只根據題意或備忘錄直接下結論。
+若提供參考答案，須先獨立完成計算與驗算；若參考答案與題目及正確推導相容，answer 與「選項分析」必須對齊。若確與計算、守恆或題目條件矛盾，才依正確推導作答，不得為對齊而硬湊。
+若提供使用者啟用的進階設定，僅在適用時納入詳解，且不得省略上述完整推導與逐項分析。`;
 
-  const SYSTEM_CALC = `【算式｜必須遵守】
-一個 calculation 是同一推理目的的一條完整等號鏈；說明用 paragraph。能直接比較的量以同一比值或倍率式呈現，不另列可相消的中間量；由濃度倍率求反應級數時，同一條 calculation 必須同時包含速率比、濃度倍率的未知數次方與求得的指數結論，不得只寫速率比後以文字宣布級數。反應式各自一個 chemical_equation，且每個 block 只放一條完整橫式；可逆寫 <->。數字與單位之間不可用逗號，只可空格或緊貼。禁止 calculation 只輸出單一數字；算式一式一行。`;
+  const SYSTEM_CALC = '';
 
   const ASCIIMATH_OUTPUT_RULES = `【化學式格式】
-- 元素數字用下標：H_2O、MnO_4。
+- 元素數字用下標：H_2O、MnO_4；多位數下標須加括號：C_7H_(14)N_3，禁止寫 H_14。
 - 離子電荷的數字與正負號必須同組上標：Fe^(2+)、MnO_4^(-)、SO_4^(2-)；禁止寫 Fe^2+、MnO_4^-。
 - 物態接在化學式最後並用下標：Fe^(2+)_(aq)、H_2O_(l)；禁止寫 Fe^2+(aq)、H_2O(l)。
 
 【輸出格式】
-所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)。單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
+所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)。單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n_(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
 
   const SYSTEM = SYSTEM_CORE + SYSTEM_CALC + ASCIIMATH_OUTPUT_RULES;
 
@@ -510,10 +507,22 @@ ${QUANTITY_NOTATION_PROMPT}
     return `@@CHOICE[${String(label).replace(/[\]\r\n]/g, '')}]@@ ${text}`;
   }
 
+  function ensureChoiceAnalysisHeading(blocks) {
+    if (!Array.isArray(blocks)) return blocks;
+    const hasChoice = blocks.some((block) => block?.type === 'choice');
+    const hasChoiceHeading = blocks.some((block) => block?.type === 'heading' && clean(block.text) === '選項分析');
+    if (!hasChoice || hasChoiceHeading) return blocks;
+    const firstChoice = blocks.findIndex((block) => block?.type === 'choice');
+    if (firstChoice < 0) return blocks;
+    const next = blocks.slice();
+    next.splice(firstChoice, 0, { type: 'heading', text: '選項分析' });
+    return next;
+  }
+
   function normalizeDocument(value) {
     const source = Array.isArray(value) && value.length === 1 ? value[0] : value;
     if (!source || typeof source !== 'object') return null;
-    if (Array.isArray(source.blocks)) return source;
+    if (Array.isArray(source.blocks)) return { ...source, blocks: ensureChoiceAnalysisHeading(source.blocks) };
     const blocks = [];
     ['paragraph', 'chemical_equation', 'calculation'].forEach((type) => {
       const items = Array.isArray(source[type]) ? source[type] : [source[type]];
@@ -521,14 +530,14 @@ ${QUANTITY_NOTATION_PROMPT}
     });
     const choices = Array.isArray(source.choice) ? source.choice : (source.choice ? [source.choice] : []);
     choices.forEach((item) => blocks.push({ type: 'choice', ...(item || {}) }));
-    return blocks.length ? { blocks, answer: source.answer || '' } : null;
+    return blocks.length ? { blocks: ensureChoiceAnalysisHeading(blocks), answer: source.answer || '' } : null;
   }
 
   function auditRequiredSections(document) {
     const headings = (document?.blocks || [])
       .filter((block) => block?.type === 'heading')
       .map((block) => clean(block.text));
-    const required = ['題意', '依據與推導', '結果'];
+    const required = ['題意', '依據與推導'];
     const issues = required.filter((name) => !headings.includes(name)).map((name) => `缺少「${name}」`);
     const hasChoices = (document?.blocks || []).some((block) => block?.type === 'choice');
     if (hasChoices && !headings.includes('選項分析')) issues.push('選擇題缺少「選項分析」');
@@ -942,6 +951,7 @@ ${QUANTITY_NOTATION_PROMPT}
       // 單位先標準化成 KaTeX 直立字與薄空白，避免 214gmol^-1 的 -1
       // 跟在分母基線上或與 mol 黏在一起。
       .replace(/(\d+(?:\.\d+)?)\s*g\s*(?:\/\s*mol|mol)(?:\s*\^\s*\{\s*-\s*1\s*\}|\s*\^\s*-\s*1|\s*-\s*1)/gi, '$1\\,\\mathrm{g\\,mol^{-1}}')
+      .replace(/(\d+(?:\.\d+)?)\s*(ppm|ppb|ppt)\b/gi, (_, number, unit) => `${number}\\,\\mathrm{${unit.toLowerCase()}}`)
       .replace(/(\d+(?:\.\d+)?)\s*(mmol|mol|mL|mg|kg|atm|kPa|Pa|L|M|g)\b/g, '$1\\,\\mathrm{$2}')
       .replace(/[（]/g, '(').replace(/[）]/g, ')')
       .replace(/[×＊*]/g, '\\times ')
@@ -1026,6 +1036,69 @@ ${QUANTITY_NOTATION_PROMPT}
     return /^[A-Z](?:\s*[,，、]\s*[A-Z])+$/.test(answer)
       ? answer.split(/\s*[,，、]\s*/).join('、')
       : fullwidth(value);
+  }
+
+  function normalizeAnswerSource(source) {
+    if (!source) return '';
+    if (typeof source === 'object') {
+      if (source.answer) return String(source.answer).trim();
+      if (source.document?.answer) return String(source.document.answer).trim();
+    }
+    let text = String(source).trim();
+    const marked = text.match(/@@ANSWER@@\s*(.+)$/m);
+    if (marked) return marked[1].trim();
+    if (text.startsWith('{')) {
+      try {
+        const doc = parse(text);
+        if (doc?.answer) return String(doc.answer).trim();
+      } catch (_) { /* ignore */ }
+    }
+    return text;
+  }
+
+  function expandLetterRun(text) {
+    const stripped = String(text || '')
+      .replace(/答案\s*[:：]?/gi, '')
+      .replace(/[（(]\s*([A-Za-z])\s*[）)]/g, '$1')
+      .replace(/[、,，\s]+/g, '');
+    const upper = stripped.replace(/[^A-Za-z]/g, '').toUpperCase();
+    if (!upper || !/^[A-Z]+$/.test(upper) || upper.length > 10) return [];
+    return [...upper];
+  }
+
+  function letterKeySet(source) {
+    const text = normalizeAnswerSource(source);
+    if (!text) return '';
+    const numbered = [...text.matchAll(/(?:^|[\s,，、;；])(?:\d+\s*[.\)、．]\s*)([A-Za-z]+)/g)];
+    if (numbered.length) {
+      const letters = numbered.flatMap((match) => expandLetterRun(match[1]));
+      return [...new Set(letters)].sort().join('');
+    }
+    return [...new Set(expandLetterRun(text))].sort().join('');
+  }
+
+  function normalizeNumericAnswer(text) {
+    const match = String(text || '').replace(/\s/g, '').match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+    return match ? match[0] : null;
+  }
+
+  /** 比對詳解與參考答案（選項字母或數值）。 */
+  function answersMatch(reply, refAnswer) {
+    const refText = normalizeAnswerSource(refAnswer);
+    if (!refText) return true;
+    const gotText = normalizeAnswerSource(reply);
+    const refLetters = letterKeySet(refText);
+    const gotLetters = letterKeySet(gotText);
+    if (refLetters && gotLetters) return refLetters === gotLetters;
+    const refNum = normalizeNumericAnswer(refText);
+    const gotNum = normalizeNumericAnswer(gotText);
+    if (refNum && gotNum) {
+      const a = Number(refNum);
+      const b = Number(gotNum);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return Math.abs(a - b) <= Math.max(1e-9, Math.abs(a) * 1e-4);
+    }
+    return refText === gotText;
   }
 
   /** 同一 calculation 含多步等號鏈時標記，供補寫輪拆開。 */
@@ -1203,7 +1276,9 @@ ${QUANTITY_NOTATION_PROMPT}
   global.SolutionCore = Object.freeze({
     SCHEMA, SYSTEM, SYSTEM_CORE, SYSTEM_CALC, QUANTITY_NOTATION, QUANTITY_NOTATION_PROMPT, buildSystem, buildQuantityNotationPrompt, parse, normalizeDocument, fullwidth, formatText, calculation, normalizeQuantityNotation, normalizeConcentrationNotation,
     compile, prepare, auditRequiredSections, auditCrowdedCalculations, splitCalculation, stripHtmlData,
-    isChemicalToken, chemistry, splitChemicalEquations, restoreEatenLatexCommands, restoreEatenLatexInJsonSource, stripQuantityCommas
+    isChemicalToken, chemistry, splitChemicalEquations, restoreEatenLatexCommands, restoreEatenLatexInJsonSource, stripQuantityCommas,
+    normalizeAnswerSource, letterKeySet, answersMatch
   });
+  global.answersMatch = answersMatch;
   if (typeof module !== 'undefined' && module.exports) module.exports = global.SolutionCore;
 })(typeof window !== 'undefined' ? window : globalThis);

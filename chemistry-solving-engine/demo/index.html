@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>高中化學解題引擎測試頁</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #202124; }
+    main { max-width: 1200px; margin: auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: stretch; }
+    textarea, pre { box-sizing: border-box; width: 100%; min-height: 560px; padding: 16px; border: 1px solid #c9cdd3; border-radius: 10px; background: white; overflow: auto; }
+    button { align-self: center; padding: 12px 20px; border: 0; border-radius: 8px; cursor: pointer; font-size: 16px; }
+    select { padding: 8px; margin-bottom: 12px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } textarea, pre { min-height: 320px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>高中化學解題引擎測試頁</h1>
+  <p>此頁只測試 JSON 輸入與計算結果，不會產生自然語言詳解。</p>
+  <label>範例：
+    <select id="example">
+      <option value="weakAcid">弱酸</option>
+      <option value="buffer">弱酸半中和</option>
+      <option value="equivalence">弱酸當量點</option>
+      <option value="strong">強酸</option>
+    </select>
+  </label>
+  <div class="grid">
+    <textarea id="input"></textarea>
+    <button id="run">執行計算 →</button>
+    <pre id="output"></pre>
+  </div>
+</main>
+<script type="module">
+  import { solveChemistry } from "../dist/index.js";
+  const examples = {
+    weakAcid: { engine: "acid_base", operation: "weak_acid", input: { species: "CH3COOH", concentration: 0.1, Ka: 1.8e-5, volumeL: 1 } },
+    buffer: { engine: "acid_base", operation: "neutralization", input: { acid: { strength: "weak", species: "CH3COOH", concentration: 0.1, volumeL: 0.1, equivalents: 1, Ka: 1.8e-5 }, base: { strength: "strong", species: "NaOH", concentration: 0.1, volumeL: 0.05, equivalents: 1 } } },
+    equivalence: { engine: "acid_base", operation: "neutralization", input: { acid: { strength: "weak", species: "CH3COOH", concentration: 0.1, volumeL: 0.1, equivalents: 1, Ka: 1.8e-5 }, base: { strength: "strong", species: "NaOH", concentration: 0.1, volumeL: 0.1, equivalents: 1 } } },
+    strong: { engine: "acid_base", operation: "strong_acid_base", input: { kind: "acid", concentration: 0.1, equivalents: 1, volumeL: 1 } }
+  };
+  const input = document.querySelector("#input");
+  const output = document.querySelector("#output");
+  const example = document.querySelector("#example");
+  function loadExample() { input.value = JSON.stringify(examples[example.value], null, 2); output.textContent = ""; }
+  example.addEventListener("change", loadExample);
+  document.querySelector("#run").addEventListener("click", () => {
+    try { output.textContent = JSON.stringify(solveChemistry(JSON.parse(input.value)), null, 2); }
+    catch (e) { output.textContent = JSON.stringify({ success: false, error: String(e) }, null, 2); }
+  });
+  loadExample();
+</script>
+</body>
+</html>

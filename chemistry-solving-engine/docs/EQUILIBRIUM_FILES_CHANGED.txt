@@ -1,0 +1,11 @@
+engines/equilibrium/index.ts
+engines/equilibrium/router.ts
+engines/equilibrium/validation.ts
+engines/equilibrium/solvers/dilution-effect.ts
+engines/equilibrium/solvers/reaction-quotient.ts
+engines/equilibrium/solvers/le-chatelier.ts
+core/engine-interface.ts
+core/engine-registry.ts
+tests/equilibrium.test.js
+REQUEST_RESPONSE_EXAMPLES.json
+FILES_CHANGED.txt

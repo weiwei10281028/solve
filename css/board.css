@@ -410,7 +410,25 @@ body[data-theme="lunar"] .board {
 .am-solution .am-derivation-text { margin: 0; }
 .am-solution .am-derivation-body .am-display-scroll { margin: .55rem 0 .8rem; }
 .am-solution .am-derivation-body .am-derivation-text + .am-display-scroll { margin-top: .55rem; }
-.am-math--inline { display: inline-block; max-width: 100%; margin-inline: .025em; overflow: visible; vertical-align: baseline; }
+.am-math--inline,
+.am-solution p > .am-math,
+.am-solution .am-result-body > .am-math,
+.am-solution .am-choice-body > .am-math {
+  display: inline-block;
+  max-width: 100%;
+  margin-inline: .045em;
+  overflow: visible;
+  vertical-align: baseline;
+}
+.am-solution p:has(mjx-frac),
+.am-solution .am-choice:has(mjx-frac),
+.am-solution .am-result-item:has(mjx-frac) {
+  line-height: 2.35;
+}
+.am-solution p:has(mjx-frac) {
+  margin-bottom: 1.05rem;
+}
+.am-unit { display: inline-block; margin-inline: .14em; white-space: nowrap; font-style: normal; }
 .am-display-scroll,
 .am-table-scroll {
   box-sizing: border-box;

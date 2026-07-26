@@ -1,0 +1,124 @@
+{
+  "dilution_effect": {
+    "request": {
+      "engine": "equilibrium",
+      "operation": "dilution_effect",
+      "input": {
+        "reaction": {
+          "reactants": [{ "species": "HA", "coefficient": 1, "phase": "aq" }],
+          "products": [
+            { "species": "H", "coefficient": 1, "phase": "aq" },
+            { "species": "A", "coefficient": 1, "phase": "aq" }
+          ]
+        },
+        "K": 0.01,
+        "initialActivities": { "HA": 1, "H": 0.1, "A": 0.1 },
+        "dilutionFactor": 10,
+        "mode": "add_water",
+        "dissociatedSide": "products"
+      }
+    },
+    "response": {
+      "success": true,
+      "engine": "equilibrium",
+      "operation": "dilution_effect",
+      "method": "instantaneous_q_after_dilution",
+      "result": {
+        "QBefore": 0.01,
+        "QAfterInstantaneousDilution": 0.001,
+        "K": 0.01,
+        "equilibriumShift": "forward",
+        "degreeOfDissociationTrend": "increase"
+      },
+      "intermediates": {
+        "mode": "add_water",
+        "dilutionFactor": 10,
+        "controlledSpecies": [],
+        "initialActivities": { "HA": 1, "H": 0.1, "A": 0.1 },
+        "postDilutionActivities": { "HA": 0.1, "H": 0.01, "A": 0.01 },
+        "effectiveDeltaNu": 1,
+        "dissociatedSide": "products"
+      },
+      "checks": {
+        "initialStateAtEquilibrium": true,
+        "allActiveSpeciesProvided": true,
+        "postDilutionQuotientFinite": true
+      },
+      "trace": [],
+      "warnings": []
+    }
+  },
+  "reaction_quotient_direction": {
+    "request": {
+      "engine": "equilibrium",
+      "operation": "reaction_quotient_direction",
+      "input": {
+        "reaction": {
+          "reactants": [{ "species": "N2O4", "coefficient": 1, "phase": "g" }],
+          "products": [{ "species": "NO2", "coefficient": 2, "phase": "g" }]
+        },
+        "activities": { "N2O4": 0.5, "NO2": 0.1 },
+        "K": 0.1
+      }
+    },
+    "response": {
+      "success": true,
+      "engine": "equilibrium",
+      "operation": "reaction_quotient_direction",
+      "method": "reaction_quotient_comparison",
+      "result": { "Q": 0.02, "K": 0.1, "direction": "forward" },
+      "intermediates": {
+        "numerator": 0.01,
+        "denominator": 0.5,
+        "includedSpecies": ["N2O4", "NO2"],
+        "omittedSpecies": [],
+        "relativeTolerance": 1e-9
+      },
+      "checks": {
+        "quotientFinite": true,
+        "allActiveSpeciesProvided": true,
+        "equilibriumComparisonCompleted": true
+      },
+      "trace": [],
+      "warnings": []
+    }
+  },
+  "le_chatelier_disturbance": {
+    "request": {
+      "engine": "equilibrium",
+      "operation": "le_chatelier_disturbance",
+      "input": {
+        "reaction": {
+          "reactants": [{ "species": "N2O4", "coefficient": 1, "phase": "g" }],
+          "products": [{ "species": "NO2", "coefficient": 2, "phase": "g" }]
+        },
+        "disturbance": "volume_change",
+        "change": "decrease"
+      }
+    },
+    "response": {
+      "success": true,
+      "engine": "equilibrium",
+      "operation": "le_chatelier_disturbance",
+      "method": "le_chatelier_stoichiometric_rule",
+      "result": {
+        "equilibriumShift": "reverse",
+        "qBasedVerification": null
+      },
+      "intermediates": {
+        "disturbance": "volume_change",
+        "change": "decrease",
+        "gasReactantMoles": 1,
+        "gasProductMoles": 2,
+        "deltaGasMoles": 1
+      },
+      "checks": {
+        "disturbanceClassified": true,
+        "reactionStoichiometryAvailable": true,
+        "qVerificationConsistent": null
+      },
+      "trace": [],
+      "warnings": []
+    }
+  }
+}

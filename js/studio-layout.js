@@ -31,6 +31,7 @@
     const applicabilityText = (chapter) => {
       if (!question) return '尚未輸入題目；解題時才會確認是否適用。';
       if (chapter.applicability === 'applicable') return '目前題目已命中此章節關鍵字，會加入解題規格。';
+      if (chapter.applicability === 'forced') return '已手動選取，會強制加入此章節解題規格。';
       if (chapter.applicability === 'not-applicable') return '目前題目未命中此章節關鍵字，不會強制加入解題規格。';
       return '目前無法確認，解題時會保留為可用規格。';
     };
