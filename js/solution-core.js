@@ -38,16 +38,17 @@
     return QUANTITY_NOTATION_PROMPT;
   }
 
-  const SYSTEM_CORE = `你是解題 AI，也是台灣高中化學老師。使用繁體中文，根據原題與「本題解題備忘錄」撰寫完整詳解。
+  const SYSTEM_CORE = `你是解題 AI，也是台灣高中化學老師。使用繁體中文，根據原題與「本題解題備忘錄」撰寫精簡詳解。
 備忘錄只供內部參考；你必須自行核對原題，若兩者衝突，以原題為準。不得在詳解中提及備忘錄或提示詞。
 只回傳指定 JSON；不得輸出 Markdown、HTML、LaTeX、$、$$ 或其他排版指令。
 每個 block 只有 type 與 text。可用類型：heading、paragraph、chemical_equation、calculation、reaction_table、choice。
 第一個 heading 固定為「題意」，接著使用「依據與推導」；選擇題最後使用「選項分析」，非選擇題不使用。answer 只寫最終答案。
 paragraph 為說明文字；chemical_equation 只放一條完整反應式；calculation 只放一條完整算式；choice 以題目原標籤開頭並判定正誤。
-題意須說明本題要求；依據與推導須寫出所用原理及由條件得到結論的過程；選擇題須逐項分析所有選項並明確判定正誤。
+題意須 30 字以內，只寫本題要求，不重抄數據。依據與推導只保留必要原理、關鍵判定與關鍵算式，避免重複敘述。選項分析每個選項一句話，明確判定正誤。
 請務必實際完成必要計算與驗算；凡答案依賴數值、比例、守恆、平衡、反應係數、單位換算或選項比較，必須在 calculation block 中列出關鍵推導，不得只根據題意或備忘錄直接下結論。
+若題目問觀察現象或變色時間，必須先判斷現象成立條件；條件不成立時，不得再外推時間，也不得把該選項判為正確。
 若提供參考答案，須先獨立完成計算與驗算；若參考答案與題目及正確推導相容，answer 與「選項分析」必須對齊。若確與計算、守恆或題目條件矛盾，才依正確推導作答，不得為對齊而硬湊。
-若提供使用者啟用的進階設定，僅在適用時納入詳解，且不得省略上述完整推導與逐項分析。`;
+若提供使用者啟用的進階設定，僅在適用時納入詳解，且不得省略必要推導與選項判斷。`;
 
   const SYSTEM_CALC = '';
 
@@ -507,6 +508,102 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
     return `@@CHOICE[${String(label).replace(/[\]\r\n]/g, '')}]@@ ${text}`;
   }
 
+  function replaceLatexCommandGroups(source, commandRe, groupCount, mapper) {
+    let text = String(source || '');
+    let out = '';
+    let index = 0;
+    const re = new RegExp(String.raw`\\(?:${commandRe})\b`, 'g');
+    let match;
+    while ((match = re.exec(text))) {
+      out += text.slice(index, match.index);
+      let cursor = re.lastIndex;
+      const groups = [];
+      while (groups.length < groupCount) {
+        while (/\s/.test(text[cursor] || '')) cursor += 1;
+        if (text[cursor] !== '{') break;
+        const group = readBalancedGroup(text, cursor);
+        if (!group) break;
+        groups.push(group.body);
+        cursor = group.end;
+      }
+      if (groups.length === groupCount) {
+        out += mapper(groups, match[0]);
+        index = cursor;
+        re.lastIndex = cursor;
+      } else {
+        out += match[0];
+        index = re.lastIndex;
+      }
+    }
+    return out + text.slice(index);
+  }
+
+  function latexToAsciiMath(value) {
+    let text = stripHtmlData(clean(restoreEatenLatexCommands(value)))
+      .replace(/^\s*\$+\s*|\s*\$+\s*$/g, '');
+    for (let pass = 0; pass < 4; pass += 1) {
+      const next = replaceLatexCommandGroups(text, 'd?frac|tfrac', 2, (groups) =>
+        `frac(${latexToAsciiMath(groups[0])})(${latexToAsciiMath(groups[1])})`);
+      if (next === text) break;
+      text = next;
+    }
+    text = replaceLatexCommandGroups(text, 'sqrt', 1, (groups) => `sqrt(${latexToAsciiMath(groups[0])})`);
+    text = replaceLatexCommandGroups(text, 'ce', 1, (groups) => latexToAsciiMath(groups[0]));
+    text = replaceLatexCommandGroups(text, 'mathrm|text', 1, (groups) => groups[0]);
+    return text
+      .replace(/\\left|\\right/g, '')
+      .replace(/\\,/g, ' ')
+      .replace(/\\times\b|×|＊/g, ' xx ')
+      .replace(/\\div\b|÷/g, ' / ')
+      .replace(/\\approx\b|≈|\\fallingdotseq\b/g, ' approx ')
+      .replace(/\\leq?\b|≤/g, ' <= ')
+      .replace(/\\geq?\b|≥/g, ' >= ')
+      .replace(/\\rightarrow\b|\\to\b|→/g, ' -> ')
+      .replace(/\\leftrightarrow\b|\\rightleftharpoons\b|⇌|↔/g, ' <-> ')
+      .replace(/_\{([^{}]+)\}/g, (_, body) => body.length > 1 ? `_(${body})` : `_${body}`)
+      .replace(/\^\{([^{}]+)\}/g, (_, body) => `^(${body})`)
+      .replace(/\\([A-Za-z]+)\b/g, '$1')
+      .replace(/[{}]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function sanitizeAsciiMathText(value) {
+    const source = clean(value).replace(/\$+([^$]+?)\$+/g, (_, body) => latexToAsciiMath(body));
+    return /\\(?:d?frac|tfrac|sqrt|ce|mathrm|text|times|approx|rightarrow|leftrightarrow|rightleftharpoons)\b/.test(source)
+      ? latexToAsciiMath(source)
+      : source;
+  }
+
+  function compactQuestionIntent(value) {
+    const source = clean(value);
+    if (Array.from(source).length <= 30) return source;
+    const first = (source.match(/^[^。！？；;]+/) || [''])[0].trim();
+    const candidate = first || source;
+    return Array.from(candidate).slice(0, 30).join('');
+  }
+
+  function normalizeAsciiDocumentFields(document) {
+    if (!document || !Array.isArray(document.blocks)) return document;
+    let section = '';
+    const blocks = document.blocks.map((block) => {
+      if (!block || typeof block !== 'object') return block;
+      const next = { ...block };
+      if (next.type === 'heading') {
+        next.text = fullwidth(next.text).replace(/^[【\[]|[】\]]$/g, '').replace(/[。；]+$/, '');
+        section = next.text;
+        return next;
+      }
+      ['text', 'expression'].forEach((key) => {
+        if (typeof next[key] !== 'string') return;
+        next[key] = sanitizeAsciiMathText(next[key]);
+      });
+      if (section === '題意' && next.type === 'paragraph') next.text = compactQuestionIntent(next.text);
+      return next;
+    });
+    return { ...document, blocks, answer: clean(document.answer) };
+  }
+
   function ensureChoiceAnalysisHeading(blocks) {
     if (!Array.isArray(blocks)) return blocks;
     const hasChoice = blocks.some((block) => block?.type === 'choice');
@@ -522,7 +619,7 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
   function normalizeDocument(value) {
     const source = Array.isArray(value) && value.length === 1 ? value[0] : value;
     if (!source || typeof source !== 'object') return null;
-    if (Array.isArray(source.blocks)) return { ...source, blocks: ensureChoiceAnalysisHeading(source.blocks) };
+    if (Array.isArray(source.blocks)) return normalizeAsciiDocumentFields({ ...source, blocks: ensureChoiceAnalysisHeading(source.blocks) });
     const blocks = [];
     ['paragraph', 'chemical_equation', 'calculation'].forEach((type) => {
       const items = Array.isArray(source[type]) ? source[type] : [source[type]];
@@ -530,7 +627,7 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
     });
     const choices = Array.isArray(source.choice) ? source.choice : (source.choice ? [source.choice] : []);
     choices.forEach((item) => blocks.push({ type: 'choice', ...(item || {}) }));
-    return blocks.length ? { blocks: ensureChoiceAnalysisHeading(blocks), answer: source.answer || '' } : null;
+    return blocks.length ? normalizeAsciiDocumentFields({ blocks: ensureChoiceAnalysisHeading(blocks), answer: source.answer || '' }) : null;
   }
 
   function auditRequiredSections(document) {

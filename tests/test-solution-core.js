@@ -95,15 +95,30 @@ assert((tolerantResultHtml.match(/class="am-result-item"/g) || []).length === 2 
 assert(/`H_2 &lt;-&gt; 2H`/.test(tolerantResultHtml), 'Unicode 可逆箭頭未正規化為 AsciiMath');
 assert(/單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->/.test(Core.buildSystem()), '主提示詞缺少箭頭對照');
 assert(/務必實際完成必要計算與驗算/.test(Core.buildSystem()), '第二段提示詞未強制實際計算與驗算');
-assert(/選擇題須逐項分析所有選項/.test(Core.buildSystem()), '第二段提示詞未要求逐項選項分析');
+assert(/題意須 30 字以內/.test(Core.buildSystem()), '第二段提示詞未限制題意長度');
+assert(/現象成立條件/.test(Core.buildSystem()), '第二段提示詞未要求先判定現象成立條件');
 assert(/answer 與「選項分析」必須對齊/.test(Core.buildSystem()), '第二段提示詞未保留參考答案對齊');
 
 const promptContext = { window: { SolutionCore: Core } };
 vm.runInNewContext(prompts, promptContext);
+assert(/選項前提不成立/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未要求標出選項前提不成立');
 assert(
   Object.keys(promptContext.window.QuestionAnalysisPrompt.SCHEMA.properties).join(',') === 'questionText,memo',
   '第一段審題格式應只保留完整題目與自由備忘錄'
 );
+const latexLeak = Core.prepare(JSON.stringify({
+  blocks: [
+    { type: 'heading', text: '題意' },
+    { type: 'paragraph', text: '本題要求由秒錶反應判斷哪些選項正確並計算是否會變藍' },
+    { type: 'heading', text: '依據與推導' },
+    { type: 'paragraph', text: '濃度為 $0.004\\,\\mathrm{M}$。' },
+    { type: 'calculation', text: '$r_1=\\frac{1}{50}=0.02\\,\\mathrm{s}^{-1}$' }
+  ],
+  answer: 'A'
+}));
+assert(latexLeak.ok, '含 LaTeX 包裝的 JSON 應可正規化');
+assert(!/\$|\\frac|\\mathrm/.test(JSON.stringify(latexLeak.document)), '正規化後 document 不應殘留 $ 或 LaTeX 指令');
+assert(Array.from(latexLeak.document.blocks[1].text).length <= 30, '題意 paragraph 未壓到 30 字內');
 const twoStageUserText = promptContext.window.assembleSolveUserContent(
   '題目文字與選項',
   '先核對守恆並完成必要計算。',
