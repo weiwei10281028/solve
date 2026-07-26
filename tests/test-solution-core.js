@@ -165,6 +165,7 @@ assert(promptContext.window.buildLocalAuditCardBlock('請比較酸鹼強弱。',
 
 const acidBaseStem = '弱酸以強鹼滴定，已知 Ka、濃度與體積，求不同加入體積下的 pH，並判斷緩衝區、當量點與過量區。';
 const acidBaseAuditBlock = promptContext.window.buildLocalAuditCardBlock(acidBaseStem, 'TYPE=酸鹼計算；MUST=先判滴定區段再選公式');
+assert(/兩溶液等體積混合且該物種未反應、未額外加入時，C_after=C_initial\/2/.test(acidBaseAuditBlock), '酸鹼計算卡未要求等體積混合後濃度減半');
 assert(/CARD=酸鹼計算/.test(acidBaseAuditBlock), '酸鹼計算題未命中酸鹼通則卡');
 assert(/ORDER:n=C\*V\*equiv -> neutralize\/region -> dominant_species -> equilibrium -> pH/.test(acidBaseAuditBlock), '酸鹼卡未要求先做莫耳與區段判斷');
 assert(/禁止平均pH/.test(acidBaseAuditBlock), '酸鹼卡缺少禁止 pH 平均');
@@ -174,6 +175,7 @@ assert(/polyprotic逐當量點/.test(acidBaseAuditBlock), '酸鹼卡缺少多質
 assert(!/(?:^|\n)[A-E]:/.test(acidBaseAuditBlock), '酸鹼通則卡不得針對特定選項字母');
 const equilibriumStem = 'N2(g) + 3H2(g) ⇌ 2NH3(g) 已達平衡。定溫壓縮容器後，請比較擾動瞬間 Q 與 K，判斷平衡移動與各物種的新平衡趨勢。';
 const equilibriumAuditBlock = promptContext.window.buildLocalAuditCardBlock(equilibriumStem, 'TYPE=化學平衡；MUST=先寫擾動瞬間的 Q 再與 K 比較');
+assert(/兩溶液等體積混合且該物種未反應、未額外加入時，C_after=C_initial\/2/.test(equilibriumAuditBlock), '平衡卡未要求等體積混合後濃度減半');
 assert(/CARD=化學平衡/.test(equilibriumAuditBlock), '平衡移動題未命中化學平衡通則卡');
 assert(/ORDER:write reaction -> valid Q\/K expression -> post-disturbance Q -> compare Q\/K -> shift -> final trend/.test(equilibriumAuditBlock), '平衡卡未強制先算擾動後 Q');
 assert(/同一反應僅temperature改變K/.test(equilibriumAuditBlock), '平衡卡未限制 K 僅由溫度改變');
