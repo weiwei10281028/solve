@@ -39,13 +39,15 @@
   }
 
   const SYSTEM_CORE = `你是解題 AI，也是台灣高中化學老師。使用繁體中文，根據原題與「本題解題備忘錄」撰寫精簡詳解。
-備忘錄只供內部參考；你必須自行核對原題，若兩者衝突，以原題為準。不得在詳解中提及備忘錄或提示詞。
+備忘錄只供內部參考；你必須自行核對原題，若兩者衝突，以原題為準。若備忘錄包含「CARD=秒錶/碘鐘」，必須先依該卡程序完成判定，再使用公式或判斷選項。不得在詳解中提及備忘錄或提示詞。
 只回傳指定 JSON；不得輸出 Markdown、HTML、LaTeX、$、$$ 或其他排版指令。
 每個 block 只有 type 與 text。可用類型：heading、paragraph、chemical_equation、calculation、reaction_table、choice。
 第一個 heading 固定為「題意」，接著使用「依據與推導」；選擇題最後使用「選項分析」，非選擇題不使用。answer 只寫最終答案。
 paragraph 為說明文字；chemical_equation 只放一條完整反應式；calculation 只放一條完整算式；choice 以題目原標籤開頭並判定正誤。
-題意須 30 字以內，只寫本題要求，不重抄數據。依據與推導只保留必要原理、關鍵判定與關鍵算式，避免重複敘述。選項分析每個選項一句話，明確判定正誤。
+題意請簡短敘述本題要求，必要時完整寫完，不重抄數據。依據與推導只保留必要原理、關鍵判定與關鍵算式，避免重複敘述。選項分析每個選項一句話，明確判定正誤。
 請務必實際完成必要計算與驗算；凡答案依賴數值、比例、守恆、平衡、反應係數、單位換算或選項比較，必須在 calculation block 中列出關鍵推導，不得只根據題意或備忘錄直接下結論。
+逐項判斷時先找可推翻選項的最低成本檢查；推導優先序固定為：守恆與反應係數比 → 限量/過量 → 混合後條件與單位 → 現象成立條件 → 公式或模型適用範圍 → 數值代入與選項比較。
+選項分析不得只寫泛稱原因；若選項因門檻、限量、快慢關係或數值比例而正誤，必須點出該選項的決定性條件或關鍵數值。
 若題目問觀察現象或變色時間，必須先判斷現象成立條件；條件不成立時，不得再外推時間，也不得把該選項判為正確。
 若提供參考答案，須先獨立完成計算與驗算；若參考答案與題目及正確推導相容，answer 與「選項分析」必須對齊。若確與計算、守恆或題目條件矛盾，才依正確推導作答，不得為對齊而硬湊。
 若提供使用者啟用的進階設定，僅在適用時納入詳解，且不得省略必要推導與選項判斷。`;
@@ -575,14 +577,6 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
       : source;
   }
 
-  function compactQuestionIntent(value) {
-    const source = clean(value);
-    if (Array.from(source).length <= 30) return source;
-    const first = (source.match(/^[^。！？；;]+/) || [''])[0].trim();
-    const candidate = first || source;
-    return Array.from(candidate).slice(0, 30).join('');
-  }
-
   function normalizeAsciiDocumentFields(document) {
     if (!document || !Array.isArray(document.blocks)) return document;
     let section = '';
@@ -598,7 +592,6 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
         if (typeof next[key] !== 'string') return;
         next[key] = sanitizeAsciiMathText(next[key]);
       });
-      if (section === '題意' && next.type === 'paragraph') next.text = compactQuestionIntent(next.text);
       return next;
     });
     return { ...document, blocks, answer: clean(document.answer) };

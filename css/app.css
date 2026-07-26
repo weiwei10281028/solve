@@ -461,6 +461,40 @@ body {
 .solve-spec-status.is-active { color: var(--accent, #3D6B52); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(61, 107, 82, .18); }
 .solve-validation { margin: 7px 0 0; font-size: 12px; line-height: 1.5; color: var(--accent, #3D6B52); }
 .solve-validation.is-warning { color: #9B4444; }
+.question-analysis-debug {
+  margin: 10px 0 12px;
+  border: 1px solid rgba(61, 107, 82, .22);
+  border-radius: 8px;
+  background: #F7FBF8;
+  color: var(--ink, #2A2520);
+}
+.question-analysis-debug summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent, #3D6B52);
+}
+.question-analysis-debug-body { padding: 0 10px 10px; }
+.question-analysis-debug-label {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-muted, #6F665C);
+  text-transform: uppercase;
+}
+.question-analysis-debug pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #FFFFFF;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.55;
+}
 .chem-rule-critical-warning { margin: 12px 0; padding: 10px 12px; border: 1px solid #B74646; border-radius: 8px; background: #FFF0F0; color: #8E2929; font-weight: 700; line-height: 1.55; }
 
 /* 非 KaTeX 區的數字特徵；字型本身由 board.css 統一為 KaTeX_Main。 */

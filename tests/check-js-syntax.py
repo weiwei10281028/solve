@@ -14,15 +14,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 JS = ROOT / "js"
 FILES = [
-    "solve-spec.js", "chem-rule-cards.js", "prompts.js", "app.js",
+    "solve-spec.js", "prompts.js", "app.js",
     "ascii-solution-render.js", "solution-core.js", "chem-structure.js",
 ]
 REQUIRED = {
     "solve-spec.js": ["global.SolveSpec", "function buildUserBlock"],
-    "chem-rule-cards.js": ["global.ChemRuleCards", "buildReferenceBlock", "auditDocument", "buildDecisionRuleBlock", "iodine-clock"],
     "prompts.js": [
         "window.buildSolveUserText",
         "window.getSystemPromptForSolve",
+        "CARD=化學平衡",
+        "CARD=溶度積與沉澱",
+        "CARD=氧化還原與電化學",
+        "CARD=化學計量與限量試劑",
+        "CARD=氣體與水上集氣",
+        "CARD=熱化學",
+        "CARD=有機反應與官能基檢驗",
+        "CARD=有機酸衍生物、酸鹼與聚合",
+        "function isChemicalEquilibrium",
+        "function isSolubilityPrecipitation",
+        "function isRedoxElectrochemistry",
+        "function isStoichiometryLimitingReagent",
+        "function isGasLawsWaterDisplacement",
+        "function isThermochemistry",
+        "function isOrganicFunctionalGroupTests",
+        "function isOrganicAcylPolymer",
     ],
     "ascii-solution-render.js": ["global.AsciiSolutionRender", "function renderInto", "function ensureMathJax"],
     "app.js": ["window.SolutionCore.prepare", "responseFormat:"],

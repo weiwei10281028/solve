@@ -11,7 +11,7 @@
    │
    ├─ 提示詞層（優先權由高到低）
    │    L0  使用者手動勾選章節／作答格式／進階功能（最高）
-   │    L4  化學通則卡（自動命中，僅補充參考）
+   │    L4  化學通則卡（依題意自動命中）
    │    L1  主 SYSTEM 骨架（JSON schema、heading、block 類型、算式紀律）
    │
    ▼
@@ -45,9 +45,8 @@ board（詳解區）── board.css：方格紙底、KaTeX_Main 統一字形、
 | `js/compiler.js` | 雙通道單一外部入口 facade：`mathPass` / `chemPass` / `compileDocument` / `prepare` |
 | `js/render.js` | 薄渲染層：Markdown → KaTeX；選項 grid、公式橫滑、答案盒 |
 | `js/app.js` | 解題流程編排、API 呼叫、L0 優先權注入、預設 Gemini 3.5 Flash |
-| `js/prompts.js` | 主解題／獨立驗證／追問提示詞組裝 |
+| `js/prompts.js` | 主解題提示詞與化學通則卡的唯一來源；依題意自動注入 |
 | `js/solve-spec.js` | 章節類型與作答格式（使用者手動勾選 = L0 最高優先） |
-| `js/chem-rule-cards.js` | 化學通則卡（自動命中 = L4 補充參考，不得覆寫使用者章節） |
 | `css/board.css` | 詳解板書視覺（TUTOR FORMOSA 風格） |
 
 ## 字形

@@ -8,6 +8,15 @@ const PROVIDERS = {
       { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
       { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' }
     ]
+  },
+  openai: {
+    label: 'OpenAI GPT',
+    keyPlaceholder: 'sk-...',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    models: [
+      { id: 'gpt-5-nano', name: 'GPT-5 nano（最快回覆）' },
+      { id: 'gpt-5-mini', name: 'GPT-5 mini（穩定解題）' }
+    ]
   }
 };
 
@@ -221,25 +230,42 @@ function initStoichiometryToggle() {
   initSolveOptionToggles();
 }
 const MAX_IMAGES = 2;
-const GEMINI_MODEL_IDS = new Set(PROVIDERS.gemini.models.map(m => m.id));
-const savedModel = loadSetting('aim', 'gemini-3.5-flash');
+function providerModelIds(provider) {
+  return new Set((PROVIDERS[provider]?.models || []).map(m => m.id));
+}
+function defaultModelFor(provider) {
+  return PROVIDERS[provider]?.models?.[0]?.id || '';
+}
+function providerKeyName(provider) { return `aik:${provider}`; }
+function providerModelName(provider) { return `aim:${provider}`; }
+function loadProviderKey(provider) {
+  return cleanKey(loadSetting(providerKeyName(provider), provider === loadSetting('aip', 'gemini') ? loadSetting('aik', '') : ''));
+}
+function loadProviderModel(provider) {
+  const saved = loadSetting(providerModelName(provider), provider === loadSetting('aip', 'gemini') ? loadSetting('aim', '') : '');
+  return providerModelIds(provider).has(saved) ? saved : defaultModelFor(provider);
+}
+const savedProvider = PROVIDERS[loadSetting('aip', 'gemini')] ? loadSetting('aip', 'gemini') : 'gemini';
 const cfg = {
-  provider: 'gemini',
-  key: cleanKey(loadSetting('aik', '')),
-  model: savedModel || 'gemini-3.5-flash'
+  provider: savedProvider,
+  key: loadProviderKey(savedProvider),
+  model: loadProviderModel(savedProvider)
 };
-if (!GEMINI_MODEL_IDS.has(cfg.model)) cfg.model = 'gemini-3.5-flash';
-localStorage.setItem('aip', 'gemini');
-sessionStorage.setItem('aip', 'gemini');
-if (cfg.model !== savedModel) localStorage.setItem('aim', cfg.model);
 
 function onProviderChange() {
-  const p = PROVIDERS[document.getElementById('providerSel').value];
+  const provider = document.getElementById('providerSel').value;
+  const p = PROVIDERS[provider];
   const sel = document.getElementById('modelSel');
   sel.innerHTML = p.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  sel.value = provider === cfg.provider ? cfg.model : loadProviderModel(provider);
   document.getElementById('keyInput').placeholder = p.keyPlaceholder;
   document.getElementById('keyHelp').href = p.keyUrl;
   document.getElementById('keyLink').href = p.keyUrl;
+  if (document.getElementById('overlay').classList.contains('show')) {
+    const key = provider === cfg.provider ? cfg.key : loadProviderKey(provider);
+    document.getElementById('keyInput').value = key;
+    document.getElementById('keyStatus').textContent = keySummary(key);
+  }
 }
 
 function openModal() {
@@ -257,9 +283,13 @@ function saveSettings() {
   cfg.key = cleanKey(document.getElementById('keyInput').value);
   cfg.model = document.getElementById('modelSel').value;
   localStorage.setItem('aip', cfg.provider);
+  localStorage.setItem(providerKeyName(cfg.provider), cfg.key);
+  localStorage.setItem(providerModelName(cfg.provider), cfg.model);
   localStorage.setItem('aik', cfg.key);
   localStorage.setItem('aim', cfg.model);
   sessionStorage.setItem('aip', cfg.provider);
+  sessionStorage.setItem(providerKeyName(cfg.provider), cfg.key);
+  sessionStorage.setItem(providerModelName(cfg.provider), cfg.model);
   sessionStorage.setItem('aik', cfg.key);
   sessionStorage.setItem('aim', cfg.model);
   document.getElementById('keyInput').value = cfg.key;
@@ -316,7 +346,7 @@ document.addEventListener('paste', e => {
 });
 
 function getSolveModeTag() {
-  const modelMeta = PROVIDERS.gemini.models.find(m => m.id === cfg.model);
+  const modelMeta = PROVIDERS[cfg.provider]?.models?.find(m => m.id === cfg.model);
   const modelLabel = modelMeta?.name?.split('（')[0]?.trim() || cfg.model;
   return modelLabel;
 }
@@ -496,6 +526,48 @@ function clearSolveValidation() {
   el.classList.remove('is-warning');
 }
 
+function clearQuestionAnalysisDebug() {
+  const panel = document.getElementById('questionAnalysisDebug');
+  if (!panel) return;
+  panel.hidden = true;
+  const memo = document.getElementById('questionAnalysisMemo');
+  const raw = document.getElementById('questionAnalysisRaw');
+  if (memo) memo.textContent = '';
+  if (raw) raw.textContent = '';
+}
+
+function renderQuestionAnalysisDebug(questionAnalysis, rawText, localAuditCardBlock = '') {
+  const panel = document.getElementById('questionAnalysisDebug');
+  if (!panel) return;
+  const memo = document.getElementById('questionAnalysisMemo');
+  const raw = document.getElementById('questionAnalysisRaw');
+  const memoText = [String(questionAnalysis?.memo || '(沒有 memo)'), String(localAuditCardBlock || '').trim()]
+    .filter(Boolean)
+    .join('\n\n');
+  if (memo) memo.textContent = memoText;
+  if (raw) raw.textContent = String(rawText || '(沒有 raw JSON)');
+  panel.hidden = false;
+}
+
+function formatTokenAuditLine() {
+  const audit = window.__tokenAudit?.getSession?.() || window.__tokenAudit?.getLast?.();
+  const entries = Array.isArray(audit?.entries) ? audit.entries : [];
+  if (!entries.length) return '';
+  const stageLabels = {
+    question_analysis: '審題',
+    main_solve: '主解題',
+    followup: '追問'
+  };
+  const items = entries.map((entry) => {
+    const label = stageLabels[entry.stage] || entry.stage || 'API';
+    const input = Number(entry.promptTokens) || 0;
+    const output = Number(entry.completionTokens) || 0;
+    const total = Number(entry.totalTokens) || input + output;
+    return `${label} ${input}/${output}/${total}`;
+  });
+  return `Token（輸入/輸出/合計）：${items.join('；')}`;
+}
+
 function getCalcCompactValidation(reply) {
   if (!isCalcCompact()) return null;
   const mathLines = String(reply || '').split(/\n+/).filter((line) => /(?:=|＝)/.test(line) && /(?:\$|\d)/.test(line));
@@ -550,6 +622,8 @@ function renderSolveValidation(reply, solveOpts, refAnswer) {
   } else if (solveOpts?.calculationAudit?.checked) {
     lines.push(`本機算式驗算：${solveOpts.calculationAudit.checked} 組等號一致`);
   }
+  const tokenLine = formatTokenAuditLine();
+  if (tokenLine) lines.unshift(tokenLine);
   if (!lines.length) return clearSolveValidation();
   el.hidden = false;
   el.textContent = '設定驗證｜' + lines.join('｜');
@@ -683,6 +757,7 @@ async function startSolve() {
   document.getElementById('chatInputWrap').classList.add('show');
   clearThreads();
   clearSolveValidation();
+  clearQuestionAnalysisDebug();
   setBusy(true);
   window.__tokenAudit?.beginSession?.('solve');
 
@@ -712,7 +787,7 @@ async function startSolve() {
       }];
     const analysisReply = await callAPI(cfg, analysisMessages, window.QuestionAnalysisPrompt.SYSTEM, {
       temperature: 0,
-      maxOutputTokens: 3072,
+      maxOutputTokens: 2048,
       timeoutMs: 90000,
       maxContinue: 0,
       tokenStage: 'question_analysis',
@@ -724,7 +799,13 @@ async function startSolve() {
     if (!questionAnalysis) {
       throw new Error('題目審題備忘錄格式不完整，請重新作答。');
     }
-    window.__lastQuestionAnalysis = questionAnalysis;
+    const auditCardSource = [questionAnalysis.questionText, textQuestion].filter(Boolean).join('\n');
+    const localAuditCardBlock = typeof window.buildLocalAuditCardBlock === 'function'
+      ? window.buildLocalAuditCardBlock(auditCardSource, questionAnalysis.memo)
+      : '';
+    window.__lastQuestionAnalysis = { ...questionAnalysis, localAuditCardBlock };
+    window.__lastQuestionAnalysisRaw = analysisReply.text;
+    renderQuestionAnalysisDebug(questionAnalysis, analysisReply.text, localAuditCardBlock);
 
     const questionSource = questionAnalysis.questionText;
     const scopeInput = typeof extractExplicitScopePhrase === 'function'
@@ -764,7 +845,10 @@ async function startSolve() {
       questionAnalysis.memo,
       advancedBlock,
       refAnswer,
-      { verifyReference: solveOpts.refAnswerDeepCheckEnabled }
+      {
+        verifyReference: solveOpts.refAnswerDeepCheckEnabled,
+        localAuditCardBlock
+      }
     );
     const fullUserText = assembled.fullText;
     if (textOnly) {
