@@ -6,10 +6,11 @@
   const CJK_RE = /[\u3400-\u9fff]/;
   const DISPLAY_RE = /(?:=|->|<->|>=|<=|!=|→|⟶|⇌|↔|⇄|⟷)/;
   const MATH_HINT_RE = /[\\/_^=<>*+]|->|<->|[→⟶⇌↔⇄⟷]|\d+(?:\.\d+)?\s*[A-Za-z]|\b[A-Z][A-Za-z]*\d|\b[A-Za-z]+_\d/;
+  const EQUILIBRIUM_ARROW_RE = /(?:⇌|↔|⇄|⟷|<->|<=>|\\leftrightarrow|\\rightleftharpoons|rightleftharpoons)/;
   let mathJaxPromise = null;
 
   // AsciiMath 會把 pm 視為 ±，也會把 g/mol、g/L 等單位誤排成數學分式；單位保留為一般文字節點。
-  const PROTECTED_UNITS_RE = /(\b(?:g|mg|kg|mol|mmol)\s*\/\s*\(?\s*(?:mol|mmol|L|mL)\s*\)?|\b(?:ppm|ppb|ppt)\b)/gi;
+  const PROTECTED_UNITS_RE = /(\b(?:g|mg|kg|J|kJ|mol|mmol)\s*\/\s*\(?\s*(?:mol|mmol|L|mL)\s*\)?|\b(?:ppm|ppb|ppt)\b)/gi;
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
@@ -39,7 +40,7 @@
   function normaliseAsciiMath(value) {
     return String(value || '')
       // 顯示端容錯：即使模型誤用 Unicode 箭頭，也統一交給 AsciiMath。
-      .replace(/\s*[⇌↔⇄⟷]\s*/g, ' <-> ')
+      .replace(/\s*(?:⇌|↔|⇄|⟷|<->|<=>|\\leftrightarrow|\\rightleftharpoons)\s*/g, ' rightleftharpoons ')
       .replace(/\s*[→⟶]\s*/g, ' -> ')
       .replace(/\^\s*\(\s*aq\s*\)/gi, '_(aq)')
       .replace(/([A-Z][a-z]?)_(\d{2,})(?!\d)/g, '$1_($2)')
@@ -61,15 +62,47 @@
   function normaliseUnitText(value) {
     const text = String(value || '').replace(/\s+/g, '');
     const unit = text.match(/^([a-z]+)\/\(?([a-z]+)\)?$/i);
-    return unit ? `${unit[1]}/${unit[2]}` : text;
+    return unit ? (unit[1] === 'kJ' && /\/\(/.test(text) ? `kJ/(${unit[2]})` : `${unit[1]}/${unit[2]}`) : text;
+  }
+
+  // AsciiMath 會忽略一般空白；將量值與單位拆成可見的 HTML 節點，
+  // 才能確保「0.10 M NaCl」不會在畫面上黏成「0.10MNaCl」。
+  const QUANTITY_UNIT_RE = /(\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*(mmol|mol|mL|mg|kg|atm|kPa|Pa|ppm|ppb|ppt|L|M|g)(?=$|[^a-z])/g;
+
+  function mathToken(value, className) {
+    const body = escapeHtml(normaliseAsciiMath(value).trim());
+    return body ? `<span class="${className}">\`${body}\`</span>` : '';
+  }
+
+  function mathWithVisibleQuantitySpacing(value, className) {
+    const source = String(value || '');
+    const parts = [];
+    let cursor = 0;
+    let match;
+    while ((match = QUANTITY_UNIT_RE.exec(source))) {
+      const prefix = source.slice(cursor, match.index);
+      if (prefix) parts.push(mathToken(prefix, className));
+      // 化學式後緊接下一個量值（如 NaCl30mL）時，也補上可見間距。
+      if (prefix && !/\s$/.test(prefix) && /[A-Za-z)]$/.test(prefix)) {
+        parts.push('<span class="am-token-gap" aria-hidden="true"></span>');
+      }
+      parts.push(mathToken(match[1], className));
+      parts.push(`<span class="am-unit">${escapeHtml(match[2])}</span>`);
+      cursor = QUANTITY_UNIT_RE.lastIndex;
+    }
+    const tail = source.slice(cursor);
+    if (tail) parts.push(mathToken(tail, className));
+    return parts.join('');
   }
 
   function math(value, display) {
     const className = `am-math am-math--${display ? 'display' : 'inline'}`;
     return String(value || '').split(PROTECTED_UNITS_RE).map((part, index) => {
       if (index % 2) return `<span class="am-unit">${escapeHtml(normaliseUnitText(part))}</span>`;
-      const body = escapeHtml(normaliseAsciiMath(part).trim());
-      return body ? `<span class="${className}">\`${body}\`</span>` : '';
+      return part.split(new RegExp(`(${EQUILIBRIUM_ARROW_RE.source})`, 'g')).map((segment) => {
+        if (EQUILIBRIUM_ARROW_RE.test(segment)) return '<span class="am-equilibrium-arrow" aria-label="可逆反應">⇌</span>';
+        return mathWithVisibleQuantitySpacing(segment, className);
+      }).join('');
     }).join('');
   }
 
@@ -108,7 +141,13 @@
   }
 
   function displayFormula(value) {
-    return `<div class="am-display-scroll" tabindex="0" role="region" aria-label="公式（可橫向滑動）"><div class="am-display-content">${math(value, true)}</div></div>`;
+    const source = String(value || '').trim();
+    const terms = source.split(/\s*=\s*/);
+    const shouldWrap = source.length > 84 && terms.length > 2;
+    const content = shouldWrap
+      ? terms.map((term, index) => `<div class="am-display-line">${index ? '<span class="am-display-equals">=</span>' : ''}${math(term, true)}</div>`).join('')
+      : math(source, true);
+    return `<div class="am-display-scroll" tabindex="0" role="region" aria-label="公式（可橫向滑動）"><div class="am-display-content${shouldWrap ? ' am-display-content--wrapped' : ''}">${content}</div></div>`;
   }
 
   function normaliseText(value) {

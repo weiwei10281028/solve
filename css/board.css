@@ -416,7 +416,7 @@ body[data-theme="lunar"] .board {
 .am-solution .am-choice-body > .am-math {
   display: inline-block;
   max-width: 100%;
-  margin-inline: .045em;
+  margin-inline: .14em;
   overflow: visible;
   vertical-align: baseline;
 }
@@ -429,6 +429,7 @@ body[data-theme="lunar"] .board {
   margin-bottom: 1.05rem;
 }
 .am-unit { display: inline-block; margin-inline: .14em; white-space: nowrap; font-style: normal; }
+.am-token-gap { display: inline-block; width: .24em; }
 .am-display-scroll,
 .am-table-scroll {
   box-sizing: border-box;
@@ -457,6 +458,35 @@ body[data-theme="lunar"] .board {
   overflow: visible;
   white-space: nowrap;
   text-align: left;
+}
+.am-display-content--wrapped {
+  display: block;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  white-space: normal;
+}
+.am-display-line {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.am-display-equals {
+  flex: 0 0 1.2em;
+  font-family: "Cambria Math", "STIX Two Math", serif;
+  font-size: 1.08em;
+  text-align: center;
+}
+.am-equilibrium-arrow {
+  display: inline-block;
+  margin: 0 .24em;
+  font-family: "Cambria Math", "STIX Two Math", serif;
+  font-size: 1.2em;
+  line-height: 1;
+  vertical-align: middle;
 }
 .am-display-scroll mjx-container,
 .am-display-scroll mjx-container * { max-width: none !important; }

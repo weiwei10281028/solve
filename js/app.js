@@ -32,7 +32,7 @@ function keySummary(key) {
 
 
 let imgDataURLs = [], apiMessages = [], busy = false, lightboxIndex = 0, solveEpoch = 0;
-// self-test compatibility markers: SolutionCore.prepare(reply) / setMainSolution(prepared.text)
+// self-test compatibility markers: SolutionCore.prepare(reply, prepareOptions) / setMainSolution(prepared.text)
 const detailMode = false;
 
 function isForceStoichiometry() {
@@ -48,6 +48,17 @@ const LEGACY_REF_ANSWER_VERIFICATION_KEY = 'solver-ref-answer-verify';
 
 function isRefAnswerDeepCheckEnabled() {
   return !!document.getElementById('refAnswerCheckToggle')?.checked;
+}
+
+function getQuestionNumberScope() {
+  const raw = String(document.getElementById('questionNumberInput')?.value || '');
+  const numbers = [...new Set((raw.match(/\d+/g) || [])
+    .map((value) => String(Number(value)))
+    .filter((value) => Number(value) > 0))];
+  return {
+    numbers,
+    directive: numbers.length ? `\n\n【指定題號】只解第 ${numbers.join('、')} 題。` : ''
+  };
 }
 
 function initRefAnswerCheckToggle() {
@@ -85,6 +96,14 @@ function logInjectedSolveSpec(formatRoute, advancedBlock) {
 
 function buildSolveResponseSchema() {
   return JSON.parse(JSON.stringify(window.SolutionCore.SCHEMA));
+}
+
+function hasExplicitChoiceOptions(questionText) {
+  const text = String(questionText || '');
+  // 不假定選項一定是 A–E：可辨識括號標籤、中文序號、數字、英文字母或羅馬數字。
+  const label = String.raw`(?:[A-Za-z]|[甲乙丙丁戊己庚辛壬癸]|[一二三四五六七八九十]|[IVXLCDM]+|\d{1,2})`;
+  const labels = text.match(new RegExp(String.raw`[（(]\s*${label}\s*[）)]|(?:^|[\r\n])\s*${label}\s*[.、．)]`, 'g')) || [];
+  return labels.length >= 2;
 }
 
 function normalizeNumericExpression(value) {
@@ -457,6 +476,7 @@ function clearAll() {
   document.getElementById('fileInput').value = '';
   document.getElementById('textQuestionInput').value = '';
   document.getElementById('answerInput').value = '';
+  document.getElementById('questionNumberInput').value = '';
   document.getElementById('chatInput').value = '';
   window.__lastRawReply = '';
   window.__lastCompiledReply = '';
@@ -713,6 +733,7 @@ async function startSolve() {
 
   const textQuestion = document.getElementById('textQuestionInput').value.trim();
   const refAnswer = document.getElementById('answerInput').value.trim();
+  const questionNumberScope = getQuestionNumberScope();
   const hasImage = imgDataURLs.length > 0;
   const molPreview = typeof MolfileDraw !== 'undefined' && MolfileDraw.parseRequest
     ? MolfileDraw.parseRequest(textQuestion)
@@ -772,7 +793,7 @@ async function startSolve() {
 
     // 第一段：讀取文字／圖片，只產生本題解題備忘錄。
     setBadge('審題中…', '#F9F3E6', '#8A6D3B');
-    const analysisUserText = window.buildQuestionAnalysisUserText(textQuestion);
+    const analysisUserText = window.buildQuestionAnalysisUserText(`${textQuestion}${questionNumberScope.directive}`);
     const analysisMessages = textOnly
       ? [{ role: 'user', content: analysisUserText }]
       : [{
@@ -807,10 +828,10 @@ async function startSolve() {
     window.__lastQuestionAnalysisRaw = analysisReply.text;
     renderQuestionAnalysisDebug(questionAnalysis, analysisReply.text, localAuditCardBlock);
 
-    const questionSource = questionAnalysis.questionText;
-    const scopeInput = typeof extractExplicitScopePhrase === 'function'
+    const questionSource = `${questionAnalysis.questionText}${questionNumberScope.directive}`;
+    const scopeInput = questionNumberScope.directive || (typeof extractExplicitScopePhrase === 'function'
       ? extractExplicitScopePhrase([textQuestion, questionSource].filter(Boolean).join('\n'))
-      : '';
+      : '');
     const formatRoute = typeof window.SolveSpec !== 'undefined' && window.SolveSpec.route
       ? window.SolveSpec.route(getSolveSpec(), questionSource, {
         forceStoichiometry: isForceStoichiometry(),
@@ -847,7 +868,8 @@ async function startSolve() {
       refAnswer,
       {
         verifyReference: solveOpts.refAnswerDeepCheckEnabled,
-        localAuditCardBlock
+        localAuditCardBlock,
+        mayHaveChoices: hasImage || hasExplicitChoiceOptions([questionSource, textQuestion].filter(Boolean).join('\n'))
       }
     );
     const fullUserText = assembled.fullText;
@@ -890,10 +912,15 @@ async function startSolve() {
     let reply = mainSolve.text;
     const truncated = mainSolve.truncated;
     window.__lastRawReply = reply;
-    let prepared = window.SolutionCore.prepare(reply);
+    // 圖片題的選項可能在第一段 OCR／摘要遺失；只要主解題仍看得到圖片，
+    // 就不可在本機刪除它輸出的選項分析。沒有 choice block 時不會顯示選項區。
+    const prepareOptions = {
+      allowChoices: hasImage || hasExplicitChoiceOptions([questionSource, textQuestion].filter(Boolean).join('\n'))
+    };
+    let prepared = window.SolutionCore.prepare(reply, prepareOptions);
     if (!prepared.ok) {
       console.warn('詳解 JSON 解析失敗，嘗試本機修復', prepared.reason, String(reply || '').slice(0, 600));
-      prepared = window.SolutionCore.prepare(String(reply || '').replace(/```(?:json)?/gi, '').trim());
+      prepared = window.SolutionCore.prepare(String(reply || '').replace(/```(?:json)?/gi, '').trim(), prepareOptions);
     }
     if (!prepared.ok) {
       const tip = truncated
@@ -967,11 +994,16 @@ async function sendFollowUp() {
       maxOutputTokens: 4096,
       timeoutMs: 90000,
       maxContinue: 1,
-      tokenStage: 'followup'
+      tokenStage: 'followup',
+      responseFormat: {
+        text: { mimeType: 'APPLICATION_JSON', schema: buildSolveResponseSchema() }
+      }
     };
-    const { text: reply } = await callAPI(cfg, apiMessages, systemText, genOpts);
-    apiMessages.push({ role: 'assistant', content: reply });
-    await fillFollowupReply(block, reply);
+    const { text: rawReply } = await callAPI(cfg, apiMessages, systemText, genOpts);
+    const prepared = window.SolutionCore.prepare(rawReply);
+    if (!prepared.ok) throw new Error('追問回覆格式不完整，請再試一次。');
+    apiMessages.push({ role: 'assistant', content: prepared.text });
+    await fillFollowupReply(block, prepared.document);
     setBadge('追問完成', '#EAF2ED', '#3D6B52');
   } catch (err) {
     apiMessages.pop();
@@ -993,6 +1025,9 @@ document.getElementById('textQuestionInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); startSolve(); }
 });
 document.getElementById('answerInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
+});
+document.getElementById('questionNumberInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); startSolve(); }
 });
 renderChapterOptions();

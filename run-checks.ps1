@@ -32,6 +32,9 @@ Write-Host "== JS syntax =="
 Write-Host "`n== Solution core =="
 & $Node 'tests\test-solution-core.js'
 
+Write-Host "`n== API request construction =="
+& $Node 'tests\test-api-request.js'
+
 Write-Host "`n== HTTP smoke =="
 $port = Get-Random -Minimum 18080 -Maximum 18180
 $env:AI_SOLVE_TEST_BASE = "http://127.0.0.1:$port"

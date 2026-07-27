@@ -38,19 +38,13 @@
     return QUANTITY_NOTATION_PROMPT;
   }
 
-  const SYSTEM_CORE = `你是解題 AI，也是台灣高中化學老師。使用繁體中文，根據原題與「本題解題備忘錄」撰寫精簡詳解。
-備忘錄只供內部參考；你必須自行核對原題，若兩者衝突，以原題為準。若備忘錄包含「CARD=秒錶/碘鐘」，必須先依該卡程序完成判定，再使用公式或判斷選項。不得在詳解中提及備忘錄或提示詞。
-只回傳指定 JSON；不得輸出 Markdown、HTML、LaTeX、$、$$ 或其他排版指令。
-每個 block 只有 type 與 text。可用類型：heading、paragraph、chemical_equation、calculation、reaction_table、choice。
-第一個 heading 固定為「題意」，接著使用「依據與推導」；選擇題最後使用「選項分析」，非選擇題不使用。answer 只寫最終答案。
-paragraph 為說明文字；chemical_equation 只放一條完整反應式；calculation 只放一條完整算式；choice 以題目原標籤開頭並判定正誤。
-題意請簡短敘述本題要求，必要時完整寫完，不重抄數據。依據與推導只保留必要原理、關鍵判定與關鍵算式，避免重複敘述。選項分析每個選項一句話，明確判定正誤。
-請務必實際完成必要計算與驗算；凡答案依賴數值、比例、守恆、平衡、反應係數、單位換算或選項比較，必須在 calculation block 中列出關鍵推導，不得只根據題意或備忘錄直接下結論。
-逐項判斷時先找可推翻選項的最低成本檢查；推導優先序固定為：守恆與反應係數比 → 限量/過量 → 混合後條件與單位 → 現象成立條件 → 公式或模型適用範圍 → 數值代入與選項比較。
-選項分析不得只寫泛稱原因；若選項因門檻、限量、快慢關係或數值比例而正誤，必須點出該選項的決定性條件或關鍵數值。
-若題目問觀察現象或變色時間，必須先判斷現象成立條件；條件不成立時，不得再外推時間，也不得把該選項判為正確。
-若提供參考答案，須先獨立完成計算與驗算；若參考答案與題目及正確推導相容，answer 與「選項分析」必須對齊。若確與計算、守恆或題目條件矛盾，才依正確推導作答，不得為對齊而硬湊。
-若提供使用者啟用的進階設定，僅在適用時納入詳解，且不得省略必要推導與選項判斷。`;
+  const SYSTEM_CORE = `你是台灣高中化學老師。使用繁體中文，依原題寫精簡、正確的詳解；「本題解題備忘錄」只供內部核對，與原題衝突時以原題為準，且不得提及備忘錄或提示詞。
+只回傳指定 JSON，不得輸出 Markdown、HTML、LaTeX、$、$$ 或其他排版指令。每個 block 只有 type 與 text。
+【固定結構】有選項的題目必須且只能依序輸出三個 heading：「題意」→「依據與推導」→「選項分析」；不可省略、改名、重複或插入其他 heading。沒有選項時只輸出前兩個 heading，answer 直接回答所求。
+【內容】題意用一兩句交代所求，不重抄數據。依據與推導先用一小段說明本題核心概念或判斷依據，再列必要的反應式與計算；不寫繁瑣的通則、重複敘述或只為湊步驟的符號推演。計算題只保留判斷所需的公式、代入與結果；calculation 必須是可橫向閱讀的短等式鏈，最多保留兩個等號，例如「n_(Fe) = frac(3.92)(56) = 0.07 mol」，不可把同一鏈拆成左式、等號、分式、結果等零碎 calculation。只有改變求解目標或原理時才另起一行。
+判斷題先確認現象成立條件；計算依序檢查守恆與反應係數比、限量／過量、混合後條件與單位，再代入必要數值。
+完成推理與驗算後才開始輸出；驗算只在內部進行。詳解不得出現「檢驗／重新檢驗／核對」、替代算法、嘗試過程、錯誤候選或向右補寫的驗算結果。
+選項分析先直接判定每個選項正誤，再以必要公式或因果關係說明。計算型選項力求一句說清；觀念或圖表型選項可用一到三句完整交代機制。錯誤選項必須指出錯誤處並給出正確說法；不可只用整體趨勢代替逐項驗證。不要補充與判斷無關的背景，也不要重複結論。答案若依賴數值、守恆、平衡、係數或單位，必須保留最少但足夠的關鍵推導。若提供參考答案，僅在其與原題及推導相容時對齊；否則依正確推導作答。`;
 
   const SYSTEM_CALC = '';
 
@@ -58,9 +52,10 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
 - 元素數字用下標：H_2O、MnO_4；多位數下標須加括號：C_7H_(14)N_3，禁止寫 H_14。
 - 離子電荷的數字與正負號必須同組上標：Fe^(2+)、MnO_4^(-)、SO_4^(2-)；禁止寫 Fe^2+、MnO_4^-。
 - 物態接在化學式最後並用下標：Fe^(2+)_(aq)、H_2O_(l)；禁止寫 Fe^2+(aq)、H_2O(l)。
+- 數值與其單位之間必須有一個空格；數值加單位後若接化學式、物種名稱或其他符號，也必須保留一個空格。例如 0.10 M NaCl、20.0 mL HCl、2.0 mmol Ag^(+)；此規則適用於 paragraph、calculation、choice 與 answer，禁止寫 0.10MNaCl。
 
 【輸出格式】
-所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)。單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->。例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n_(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
+所有公式一律直接使用 AsciiMath，不使用 LaTeX、KaTeX、mhchem、Markdown、反引號、$、$$、[[...]]、HTML 或其他包裝格式。下標用 _、次方用 ^、根號用 sqrt(...)、分式用 frac(分子)(分母)。單向反應直接寫 ->；可逆或平衡反應直接寫 ⇌。能量莫耳單位一律寫 kJ/(mol)，禁止寫 kJ/mol。 例如 chemical_equation：Fe_xO_y + y CO -> x Fe + y CO_2；calculation：n_(Fe) = frac(3.92)(56) = 0.07 mol。paragraph 與 choice 可自然混用中文及必要的 AsciiMath。`;
 
   const SYSTEM = SYSTEM_CORE + SYSTEM_CALC + ASCIIMATH_OUTPUT_RULES;
 
@@ -96,7 +91,7 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
     s = s.split(String.fromCharCode(12) + 'allingdotseq').join('\\approx');
     s = s.replace(/\ballingdotseq\b/g, '\\approx');
     s = s.replace(/\\fallingdotseq\b/g, '\\approx');
-    s = s.replace(/\r(?=mmathrm|mathrm|ightarrow|ight\b)/g, '\\r');
+    s = s.replace(/\r(?=mmathrm|mathrm|ightarrow|ightleftharpoons\b|ight\b)/g, '\\r');
     // 模型常把攝氏寫成不存在的 \textdegreeC；統一成一般字元，
     // 後續若在 calculation 會自然進入數學渲染，若在敘述也不會裸露指令。
     s = s.replace(/\\textdegree\s*(?:\{\s*\})?\s*([CFK])?\b/gi, (_, unit) => `°${unit || ''}`);
@@ -597,30 +592,54 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
     return { ...document, blocks, answer: clean(document.answer) };
   }
 
-  function ensureChoiceAnalysisHeading(blocks) {
+  function ensureCoreHeadings(blocks) {
     if (!Array.isArray(blocks)) return blocks;
+    const aliases = new Map([
+      ['題意', '題意'], ['已知與目標', '題意'], ['已知條件', '題意'],
+      ['依據與推導', '依據與推導'], ['依據', '依據與推導'], ['推導', '依據與推導'], ['解題步驟', '依據與推導'],
+      ['選項分析', '選項分析'], ['選項判斷', '選項分析']
+    ]);
     const hasChoice = blocks.some((block) => block?.type === 'choice');
-    const hasChoiceHeading = blocks.some((block) => block?.type === 'heading' && clean(block.text) === '選項分析');
-    if (!hasChoice || hasChoiceHeading) return blocks;
-    const firstChoice = blocks.findIndex((block) => block?.type === 'choice');
-    if (firstChoice < 0) return blocks;
-    const next = blocks.slice();
-    next.splice(firstChoice, 0, { type: 'heading', text: '選項分析' });
+    const sections = { '題意': [], '依據與推導': [], '選項分析': [] };
+    let section = '題意';
+    blocks.forEach((block) => {
+      if (!block) return;
+      if (block.type === 'heading') {
+        const canonical = aliases.get(clean(block.text));
+        if (canonical) section = canonical;
+        return;
+      }
+      if (block.type === 'choice') section = '選項分析';
+      // 模型漏標「依據與推導」時，第一條公式起一律視為推導內容。
+      if (section === '題意' && ['chemical_equation', 'calculation', 'reaction_table'].includes(block.type)) section = '依據與推導';
+      sections[section].push(block);
+    });
+    const next = [
+      { type: 'heading', text: '題意' }, ...sections['題意'],
+      { type: 'heading', text: '依據與推導' }, ...sections['依據與推導']
+    ];
+    if (hasChoice) next.push({ type: 'heading', text: '選項分析' }, ...sections['選項分析']);
     return next;
   }
 
-  function normalizeDocument(value) {
+  function normalizeDocument(value, options = {}) {
+    const normalizeBlocks = (blocks) => {
+      const visible = options.allowChoices === false
+        ? blocks.filter((block) => block?.type !== 'choice' && !(block?.type === 'heading' && clean(block.text) === '選項分析'))
+        : ensureCoreHeadings(blocks);
+      return normalizeAsciiDocumentFields({ blocks: visible, answer: '' }).blocks;
+    };
     const source = Array.isArray(value) && value.length === 1 ? value[0] : value;
     if (!source || typeof source !== 'object') return null;
-    if (Array.isArray(source.blocks)) return normalizeAsciiDocumentFields({ ...source, blocks: ensureChoiceAnalysisHeading(source.blocks) });
+    if (Array.isArray(source.blocks)) return normalizeAsciiDocumentFields({ ...source, blocks: normalizeBlocks(source.blocks) });
     const blocks = [];
     ['paragraph', 'chemical_equation', 'calculation'].forEach((type) => {
       const items = Array.isArray(source[type]) ? source[type] : [source[type]];
       items.filter(Boolean).forEach((item) => blocks.push({ type, ...(typeof item === 'string' ? { text: item } : item) }));
     });
     const choices = Array.isArray(source.choice) ? source.choice : (source.choice ? [source.choice] : []);
-    choices.forEach((item) => blocks.push({ type: 'choice', ...(item || {}) }));
-    return blocks.length ? normalizeAsciiDocumentFields({ blocks: ensureChoiceAnalysisHeading(blocks), answer: source.answer || '' }) : null;
+    if (options.allowChoices !== false) choices.forEach((item) => blocks.push({ type: 'choice', ...(item || {}) }));
+    return blocks.length ? normalizeAsciiDocumentFields({ blocks: normalizeBlocks(blocks), answer: source.answer || '' }) : null;
   }
 
   function auditRequiredSections(document) {
@@ -1344,9 +1363,9 @@ paragraph 為說明文字；chemical_equation 只放一條完整反應式；calc
     return lines.join('\n');
   }
 
-  function prepare(raw) {
+  function prepare(raw, options = {}) {
     try {
-      const document = normalizeDocument(parse(raw));
+      const document = normalizeDocument(parse(raw), options);
       const text = compilePlainDocument(document);
       return text
         ? { ok: true, text, document, fallback: false }

@@ -38,7 +38,7 @@ check("舊詳解套件不再載入", all(token not in index for token in ["katex
 check("公式輸入工具已移除", "formulaTools" not in index and "formulaInput" not in index)
 check("淺色網格與深色停用", "background-image:" in board and "body[data-theme=\"lunar\"] .board" in board and "background-image: none" in board)
 check("主題不覆寫網格", "background-color: var(--board-bg)" in theme)
-check("主流程直接使用結構化回覆", "window.SolutionCore.prepare(reply)" in app and "await setMainSolution(prepared.document)" in app)
+check("主流程直接使用結構化回覆", "window.SolutionCore.prepare(reply, prepareOptions)" in app and "await setMainSolution(prepared.document)" in app)
 
 for path in ["/index.html", "/js/ascii-solution-render.js"]:
     try:

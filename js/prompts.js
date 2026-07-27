@@ -5,12 +5,15 @@ function parseRequestedSolveScope(input) {
   return numbers.length ? { mode: 'partial', numbers } : { mode: 'default', numbers: [] };
 }
 
-const QUESTION_ANALYSIS_SYSTEM = `你是給第二段解題 AI 使用的審題壓縮器。使用繁體中文，只做風險標記，不寫詳解，不給最終答案。
-第二段會重新閱讀完整題目；questionText 保留原題，memo 只放必要指令，不摘要、不重抄數據、不列普通公式。
-memo 用機器可讀短句，最多 5 行、總長盡量少於 220 字。格式：
+const QUESTION_ANALYSIS_SYSTEM = `你是給第二段解題 AI 使用的審題與資料擷取器。使用繁體中文；先讀取題幹、選項、表格、圖表與示意圖，再建立可核對的題目文字與備忘錄。不寫完整詳解或最後答案。
+questionText 必須忠實保留原題的條件、數字、單位、題號與實際屬於該題的選項；只要畫面有選項，必須逐項保留標籤與全文，不可只留下題幹或答案。相鄰題目殘留的文字或選項不可併入。圖表不清楚時保留可辨識內容，不可猜測。
+memo 用機器可讀短句，最多 10 行、總長盡量少於 700 字。只保留會影響答案的已確認資料與最低成本判斷，格式依適用情況使用：
 TYPE=題型；MUST=最優先門檻/計量/現象檢查
-A:查決定性條件；B:查決定性條件；...
-只保留會改變答案的最低成本檢查；省略「主張、必查、可能推翻點」等長標籤。
+DATA:題幹、表格或圖表中已確認的關鍵數值、單位與來源
+DIAGRAM:軸的物種/量、方向、刻度；關鍵點的成對座標與化學意義
+DERIVE:一至三個可防止誤讀的守恆、莫耳比、臨界條件或換算關係
+CHECK:最容易混用的軸、點位、單位或相鄰題資訊；無法確認時寫 UNCERTAIN:原因
+不得只寫「查圖」、「由圖可知」或「注意單位」；有圖表時必須直接列出本題需要的讀值與單位。雙軸、反向軸或同一點對應兩個物種時，必須同時寫出配對讀值。DATA 是已擷取證據，不可填入題目以外的數字；DERIVE 只做必要的短推論，不可變成完整詳解。
 固定優先序：守恆/係數比 > 限量/過量 > 混合後條件/單位 > 現象成立 > 模型適用 > 數值比較。
 若題目為秒錶/碘鐘反應，memo 第一行必含「TYPE=秒錶反應」，MUST 優先寫混合後莫耳數、顯色門檻、時間比較是否可用。
 若題目為化學平衡移動題，memo 第一行必含「TYPE=化學平衡」，MUST 優先寫擾動瞬間的 Q 與 K 比較；溫度改變時另註明 K 改變。
@@ -163,6 +166,25 @@ const ORGANIC_ACYL_POLYMER_RULE_CARD = [
   'CHECK/FORBID: 羧酸、酚、醇與酯分開；水解前後檢驗分開；禁止把酸鹼成鹽當氧化還原、把油脂與肥皂當同一類、超出題目引入機構或立體化學'
 ].join('\n');
 
+const PAIRED_METAL_OXIDE_ATOMIC_MASS_RULE_CARD = [
+  'CARD=兩種金屬氧化物與原子量',
+  'ORDER:只設兩氧化物為 M_2O_x、M_2O_y，金屬原子量為 A -> 由兩個氧質量百分比分別求 A/x、A/y -> 由 x/y = (A/y)/(A/x) 取最小整數比 -> 代回求 A。',
+  'PERCENT:對 M_2O_x，frac(16x)(2A+16x) = O% ，整理為 A/x = frac(8(1-O%))(O%)；第二式同理。百分比先改為小數。',
+  'PRESENT:只列假設、兩個百分比方程式與 x、y、A 的結論；例如算得 A/x = 27.4、A/y = 7.84 時，x/y = 7.84/27.4 ≈ 2/7，所以 x=2、y=7、A≈54.8。',
+  'FORBID:不可改用 MO_x、MO_y 重設題目，不可另做比例定律、氧化數猜測、錯誤候選或選項排除；題目未要求時不必回算百分比或寫最簡式。'
+].join('\n');
+
+function isPairedMetalOxideAtomicMass(questionText, analysisMemo) {
+  const text = [questionText, analysisMemo].map((value) => String(value || '').trim()).filter(Boolean).join('\n');
+  if (!text) return false;
+  const hasOxide = /(?:金屬\s*)?氧化物|metal\s+oxide/i.test(text);
+  const hasPairedOxides = /(?:同一|相同|另一|兩種|兩個).{0,16}(?:金屬\s*)?氧化物|(?:氧化物).{0,40}(?:另一|第二|兩種|兩個)/i.test(text);
+  const oxygenPercentages = text.match(/\d{1,3}(?:\.\d+)?\s*%/g) || [];
+  const hasOxygenMass = /(?:氧(?:元素)?(?:的)?(?:質量|重量)?百分比|氧含量|含\s*\d{1,3}(?:\.\d+)?\s*%\s*(?:重量之)?氧|\d{1,3}(?:\.\d+)?\s*%\s*(?:重量之)?氧)/i.test(text);
+  return hasOxide && hasPairedOxides && oxygenPercentages.length >= 2 && hasOxygenMass
+    && /(?:原子量|原子質量|atomic\s+(?:mass|weight))/i.test(text);
+}
+
 function isClockReaction(questionText, analysisMemo) {
   const text = [questionText, analysisMemo].map((value) => String(value || '').trim()).filter(Boolean).join('\n');
   if (!text) return false;
@@ -259,6 +281,7 @@ function isChemicalEquilibrium(questionText, analysisMemo) {
 function buildLocalAuditCardBlock(questionText, analysisMemo) {
   const cards = [];
   if (isClockReaction(questionText, analysisMemo)) cards.push(CLOCK_REACTION_RULE_CARD);
+  if (cards.length < 3 && isPairedMetalOxideAtomicMass(questionText, analysisMemo)) cards.push(PAIRED_METAL_OXIDE_ATOMIC_MASS_RULE_CARD);
   if (cards.length < 3 && isStoichiometryLimitingReagent(questionText, analysisMemo)) cards.push(STOICHIOMETRY_LIMITING_REAGENT_RULE_CARD);
   if (cards.length < 3 && isThermochemistry(questionText, analysisMemo)) cards.push(THERMOCHEMISTRY_RULE_CARD);
   if (cards.length < 3 && isOrganicFunctionalGroupTests(questionText, analysisMemo)) cards.push(ORGANIC_FUNCTIONAL_GROUP_TESTS_RULE_CARD);
@@ -295,7 +318,23 @@ window.buildQuestionAnalysisUserText = function (questionText) {
 window.parseQuestionAnalysis = function (raw, fallbackQuestion = '') {
   try {
     const text = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-    const parsed = JSON.parse(text);
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_) {
+      // Some providers still prepend a short sentence before an otherwise valid
+      // schema response. Recover only a complete JSON object, never partial text.
+      const start = text.indexOf('{');
+      if (start < 0) return null;
+      for (let end = text.length - 1; end > start; end--) {
+        if (text[end] !== '}') continue;
+        try {
+          parsed = JSON.parse(text.slice(start, end + 1));
+          break;
+        } catch (_) { /* try the previous closing brace */ }
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    }
     const questionText = String(parsed?.questionText || fallbackQuestion || '').trim();
     const memo = String(parsed?.memo || '').trim();
     if (!questionText || !memo) return null;
@@ -316,6 +355,9 @@ window.assembleSolveUserContent = function (questionText, analysisMemo, advanced
     `【原題】\n${questionBody}`,
     `【本題解題備忘錄｜僅供內部參考】\n${memoBlock}`
   ];
+  if (opts.mayHaveChoices) {
+    parts.push('【選項要求】若原題文字或圖片中有選項，必須以原標籤逐項輸出 choice 並分析；不可只在 answer 寫選項組合，也不可自行補造不存在的選項。');
+  }
   const advanced = String(advancedBlock || '').trim();
   if (advanced) parts.push(`【使用者啟用的進階設定】\n${advanced}`);
 
@@ -355,7 +397,7 @@ window.getSystemPromptForSolve = async function () {
 };
 
 window.getSystemPromptForFollowUp = async function () {
-  return '';
+  return window.SolutionCore?.buildSystem?.() || '';
 };
 
 var buildSolveUserText = window.buildSolveUserText;

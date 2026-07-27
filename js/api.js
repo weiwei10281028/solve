@@ -84,6 +84,26 @@ function recordTokenUsage(usage, cfg, genOpts, round) {
   });
 }
 
+const GEMINI_RESPONSE_MIME_TYPES = new Set([
+  'text/plain',
+  'application/json',
+  'application/xml',
+  'application/yaml',
+  'text/x.enum'
+]);
+
+function getGeminiResponseMimeType(genOpts = {}) {
+  const schema = genOpts.responseFormat?.text?.schema || genOpts.responseSchema;
+  // responseJsonSchema only produces JSON. Do not forward an accidental or
+  // provider-neutral MIME value that Gemini would reject.
+  if (schema) return 'application/json';
+
+  const requested = genOpts.responseFormat?.text?.mimeType || genOpts.responseMimeType;
+  if (!requested) return '';
+  const mimeType = String(requested).split(';', 1)[0].trim().toLowerCase();
+  return GEMINI_RESPONSE_MIME_TYPES.has(mimeType) ? mimeType : '';
+}
+
 async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
   const apiKey = cleanKey(cfg.key); cfg.key = apiKey;
   const contents = apiMessages.map(msg => {
@@ -99,6 +119,8 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
     } else parts.push({ text: msg.content });
     return { role, parts };
   });
+  const structuredSchema = genOpts.responseFormat?.text?.schema || genOpts.responseSchema;
+  const responseMimeType = getGeminiResponseMimeType(genOpts);
   const payload = {
     model: cfg.model,
     system_instruction: { parts: [{ text: systemText }] },
@@ -107,9 +129,10 @@ async function callGemini(cfg, apiMessages, systemText, genOpts = {}) {
       maxOutputTokens: genOpts.maxOutputTokens ?? 8192,
       temperature: genOpts.temperature ?? 0.1,
       ...(genOpts.temperature === 0 ? { seed: 0 } : {}),
-      ...(genOpts.responseFormat ? { responseFormat: genOpts.responseFormat } : {}),
-      ...(!genOpts.responseFormat && genOpts.responseMimeType ? { responseMimeType: genOpts.responseMimeType } : {}),
-      ...(!genOpts.responseFormat && genOpts.responseSchema ? { responseSchema: genOpts.responseSchema } : {})
+      // Gemini uses responseMimeType/responseJsonSchema; responseFormat is only our
+      // provider-neutral input shape and is not a Gemini API field.
+      ...(responseMimeType ? { responseMimeType } : {}),
+      ...(structuredSchema ? { responseJsonSchema: structuredSchema } : {})
     }
   };
   const controller = new AbortController(); const timeoutMs = genOpts.timeoutMs ?? 120000;
@@ -217,7 +240,8 @@ function looksIncomplete(text, finishReason) {
     }
     try {
       const parsed = JSON.parse(t);
-      if (parsed && Array.isArray(parsed.blocks)) return false;
+      if (parsed && (Array.isArray(parsed.blocks)
+        || (typeof parsed.questionText === 'string' && typeof parsed.memo === 'string'))) return false;
     } catch (_) { /* fallthrough */ }
     return true;
   }

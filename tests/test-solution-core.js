@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 const renderer = fs.readFileSync(path.join(root, 'js', 'ascii-solution-render.js'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'js', 'app.js'), 'utf8');
 const prompts = fs.readFileSync(path.join(root, 'js', 'prompts.js'), 'utf8');
+const api = fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const board = fs.readFileSync(path.join(root, 'css', 'board.css'), 'utf8');
 
@@ -22,7 +23,22 @@ const result = Core.prepare(JSON.stringify({
   answer: 'A'
 }));
 assert(result.ok && result.document.answer === 'A', '結構化回覆失敗');
+assert(result.document.blocks[0].type === 'heading' && result.document.blocks[0].text === '題意', '詳解未強制以題意開頭');
+assert(result.document.blocks.some((block) => block.type === 'heading' && block.text === '依據與推導'), '詳解未補回依據與推導橫幅');
 assert(result.document.blocks.some((block) => block.type === 'heading' && block.text === '選項分析'), '選擇題未自動補回選項分析橫幅');
+assert(result.document.blocks.filter((block) => block.type === 'heading').map((block) => block.text).join('、') === '題意、依據與推導、選項分析', '選擇題三個章節未固定為正確順序');
+const nonChoiceResult = Core.prepare(JSON.stringify({
+  blocks: [
+    { type: 'heading', text: '題意' },
+    { type: 'heading', text: '依據與推導' },
+    { type: 'calculation', expression: 'A = 54.88' },
+    { type: 'heading', text: '選項分析' },
+    { type: 'choice', label: 'A', text: '不應出現。' }
+  ],
+  answer: '54.88'
+}), { allowChoices: false });
+assert(nonChoiceResult.ok && nonChoiceResult.document.answer === '54.88', '非選題未保留直接答案');
+assert(!nonChoiceResult.document.blocks.some((block) => block.type === 'choice' || (block.type === 'heading' && block.text === '選項分析')), '非選題未移除腦補的選項分析');
 const ppmCompile = Core.compile({
   blocks: [
     { type: 'heading', text: '依據與推導' },
@@ -36,11 +52,19 @@ assert(/input\/asciimath/.test(renderer) && /mathjax@4\/startup\.js/.test(render
 assert(/DISPLAY_RE/.test(renderer) && /am-display-scroll/.test(renderer), '整行公式與橫滑規則缺失');
 assert(/am-choice/.test(renderer) && /am-derivation/.test(renderer) && /am-reaction-table/.test(renderer), '既有詳解版面元件缺失');
 assert(/AsciiSolutionRender\.renderInto/.test(app) && /setMainSolution\(prepared\.document\)/.test(app), '主詳解未改走新 renderer');
+const followupStart = app.indexOf('async function sendFollowUp()');
+const followupFlow = app.slice(followupStart, app.indexOf('onProviderChange();', followupStart));
+assert(/getSystemPromptForFollowUp/.test(prompts) && /SolutionCore\?\.buildSystem\?\.\(\)/.test(prompts), '追問未沿用首次作答的格式規則');
+assert(/responseFormat/.test(followupFlow) && /APPLICATION_JSON/.test(followupFlow) && /buildSolveResponseSchema\(\)/.test(followupFlow), '追問未要求與首次作答相同的結構化回覆');
+assert(/SolutionCore\.prepare\(rawReply\)/.test(followupFlow) && /fillFollowupReply\(block, prepared\.document\)/.test(followupFlow), '追問未經既有正規化與渲染管線');
+assert(/hasImage \|\| hasExplicitChoiceOptions/.test(app) && !/\[A-E\]/.test(app.slice(app.indexOf('function hasExplicitChoiceOptions'), app.indexOf('function normalizeNumericExpression'))), '主解題仍以 A–E 限制選項分析或會刪除圖片題的 choice');
+assert(/若原題文字或圖片中有選項，必須以原標籤逐項輸出 choice 並分析/.test(prompts), '解題提示未要求有選項時逐項分析且保留原標籤');
 assert(!/js\/render\.js/.test(index) && !/katex\.min\.js/.test(index) && !/formula-tools\.js/.test(index), '舊詳解依賴仍被載入');
 assert(/background-image: none/.test(board) && /am-display-scroll mjx-frac mjx-frac/.test(board), '深色網格或分式樣式缺失');
 assert(/openai:\s*\{/.test(app) && /gpt-5-nano/.test(app) && /gpt-5-mini/.test(app), 'OpenAI GPT provider 或推薦模型未加入');
 assert(/reasoning_effort:\s*openAIReasoningEffort/.test(fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8')), 'OpenAI 未設定低推理量，容易出現 length 無輸出');
 assert(/cfg\?\.provider === 'openai' \? callOpenAI : callGemini/.test(fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8')), 'callAPI 未依 provider 分流 OpenAI/Gemini');
+assert(/responseMimeType/.test(api) && /responseJsonSchema/.test(api), 'Gemini 結構化輸出未使用正式 JSON schema 欄位');
 assert(/<option value="openai">OpenAI GPT<\/option>/.test(index), '連線設定缺少 OpenAI GPT 選項');
 
 const renderContext = { window: {} };
@@ -64,10 +88,22 @@ const unitHtml = renderContext.window.AsciiSolutionRender.renderDocument({
     { type: 'calculation', expression: 'W(C) = 12 g' }
   ], answer: 'D'
 });
+const equilibriumHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'chemical_equation', text: 'CH_3COOH + H_2O <-> H_3O^+ + CH_3COO^-' }],
+  answer: ''
+});
+assert(/class="am-equilibrium-arrow"[^>]*>⇌<\//.test(equilibriumHtml) && !/rightleftharpoons/.test(equilibriumHtml), '可逆反應箭頭必須在 MathJax 外獨立顯示，不能被拆成文字');
 assert(/class="am-unit">ppm<\/span>/.test(unitHtml), 'ppm 未從 AsciiMath 運算式中拆為一般文字單位');
 assert(!/\\mathrm|text\(&quot;/.test(unitHtml), '單位不應輸出 LaTeX 指令或帶引號的 text()');
 assert(!/`500p(?:m|\\pm)`/.test(unitHtml), 'ppm 仍可能被 AsciiMath 拆成 p 與 pm');
 assert(/`W_\(C\)\s*=/.test(unitHtml), 'W(C) 未統一為下標量符號');
+const quantityChemistryHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'paragraph', text: '將0.10MNaCl30mL與0.20MAgNO3 10mL混合。' }],
+  answer: ''
+});
+assert((quantityChemistryHtml.match(/class="am-unit">M<\/span>/g) || []).length === 2, '莫耳濃度單位未拆成可見文字節點');
+assert((quantityChemistryHtml.match(/class="am-unit">mL<\/span>/g) || []).length === 2, '體積單位未拆成可見文字節點');
+assert((quantityChemistryHtml.match(/class="am-token-gap"/g) || []).length >= 1, '黏連化學式與後接量值未補上可見間距');
 const molecularMassHtml = renderContext.window.AsciiSolutionRender.renderDocument({
   blocks: [
     { type: 'paragraph', text: '溶解度為280 g/L。分子量約為7*12+15*1+3*14 = 84+15+42 = 141 g/mol，但若依原題化學式(C7H14N3)n計算。' },
@@ -78,6 +114,16 @@ const molecularMassHtml = renderContext.window.AsciiSolutionRender.renderDocumen
 assert(/`7 xx 12 \+ 15 xx 1 \+ 3 xx 14\s*=/.test(molecularMassHtml), '分子量乘法算式未正規化為 MathJax 乘號');
 assert((molecularMassHtml.match(/class="am-unit">g\/mol<\/span>/g) || []).length === 2, 'g/mol 或 g/(mol) 未保護為一般單位文字');
 assert(/class="am-unit">g\/L<\/span>/.test(molecularMassHtml), 'g/L 未保護為一般單位文字');
+const energyUnitHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'calculation', expression: 'DeltaH = 2.51 kJ/(mol)' }],
+  answer: ''
+});
+assert(/class="am-unit">kJ\/\(mol\)<\/span>/.test(energyUnitHtml), 'kJ/(mol) 未保護為完整能量莫耳單位');
+const wrappedFormulaHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'calculation', expression: 'a = b + c + d + e + f + g + h + i + j + k + l + m + n = p + q + r + s + t + u + v + w + x + y + z = final_value' }],
+  answer: ''
+});
+assert(/am-display-content--wrapped/.test(wrappedFormulaHtml) && (wrappedFormulaHtml.match(/am-display-line/g) || []).length === 4, '過長連等式未依等號安全分行');
 const molecularMassMathBodies = [...molecularMassHtml.matchAll(/`([^`]*)`/g)].map((match) => match[1]).join('\n');
 assert(!/g\s*\/\s*(?:m|L)|(?:^|[^A-Za-z])ol(?:$|[^A-Za-z])/.test(molecularMassMathBodies), 'g/mol 或 g/L 仍可能留在 AsciiMath 公式內');
 assert(/`C_7H_\(14\)N_3`/.test(renderContext.window.AsciiSolutionRender.renderDocument({
@@ -96,28 +142,38 @@ const tolerantResultHtml = renderContext.window.AsciiSolutionRender.renderDocume
   answer: 'H2'
 });
 assert((tolerantResultHtml.match(/class="am-result-item"/g) || []).length === 2 && /第一項未編號/.test(tolerantResultHtml), '結果漏號容錯會遺失前段文字');
-assert(/`H_2 &lt;-&gt; 2H`/.test(tolerantResultHtml), 'Unicode 可逆箭頭未正規化為 AsciiMath');
-assert(/單向反應（→）只寫 ->；可逆或平衡反應（⇌）只寫 <->/.test(Core.buildSystem()), '主提示詞缺少箭頭對照');
-assert(/務必實際完成必要計算與驗算/.test(Core.buildSystem()), '第二段提示詞未強制實際計算與驗算');
-assert(/題意請簡短敘述本題要求，必要時完整寫完/.test(Core.buildSystem()), '第二段提示詞未要求題意簡短但完整');
+assert(/class="am-equilibrium-arrow"[^>]*>⇌<\//.test(tolerantResultHtml), 'Unicode 可逆箭頭應獨立顯示為 ⇌');
+assert(/單向反應直接寫 ->；可逆或平衡反應直接寫 ⇌/.test(Core.buildSystem()), '主提示詞缺少箭頭對照');
+assert(/固定結構/.test(Core.buildSystem()) && /題意」→「依據與推導」→「選項分析/.test(Core.buildSystem()), '主提示詞未固定選擇題三步驟');
+assert(/可橫向閱讀的短等式鏈/.test(Core.buildSystem()) && /不可把同一鏈拆成左式、等號、分式、結果/.test(Core.buildSystem()), '主提示詞未要求同一計算鏈維持橫式');
+assert(/計算題只保留判斷所需的公式、代入與結果/.test(Core.buildSystem()), '主提示詞未要求計算題保持精簡');
+assert(/觀念或圖表型選項可用一到三句完整交代機制/.test(Core.buildSystem()) && /不可只用整體趨勢代替逐項驗證/.test(Core.buildSystem()), '主提示詞未區分觀念題的逐項機制說明');
+assert(/數值加單位後若接化學式、物種名稱或其他符號，也必須保留一個空格/.test(Core.buildSystem()) && /0\.10 M NaCl/.test(Core.buildSystem()), '主提示詞未規範數值單位與後接化學式的空格');
+assert(/完成推理與驗算後才開始輸出/.test(Core.buildSystem()), '第二段提示詞未要求先完成推理再輸出');
+assert(/不得出現「檢驗／重新檢驗／核對/.test(Core.buildSystem()), '第二段提示詞未禁止輸出重複檢驗');
+assert(/題意用一兩句交代所求/.test(Core.buildSystem()), '第二段提示詞未要求題意簡短但完整');
 assert(!/題意須 30 字以內/.test(Core.buildSystem()), '第二段提示詞不應限制題意字數');
 assert(/現象成立條件/.test(Core.buildSystem()), '第二段提示詞未要求先判定現象成立條件');
-assert(/守恆與反應係數比 → 限量\/過量 → 混合後條件與單位/.test(Core.buildSystem()), '第二段提示詞未固定逐項推導優先序');
-assert(/CARD=秒錶\/碘鐘/.test(Core.buildSystem()), '第二段提示詞未要求執行秒錶通則卡');
-assert(/answer 與「選項分析」必須對齊/.test(Core.buildSystem()), '第二段提示詞未保留參考答案對齊');
+assert(/守恆與反應係數比、限量／過量、混合後條件與單位/.test(Core.buildSystem()), '第二段提示詞未固定逐項推導優先序');
+assert(/參考答案.*相容時對齊/.test(Core.buildSystem()), '第二段提示詞未保留參考答案對齊');
 
 const promptContext = { window: { SolutionCore: Core } };
 vm.runInNewContext(prompts, promptContext);
-assert(/審題壓縮器/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未改為壓縮器定位');
-assert(/最多 5 行/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 行數');
-assert(/少於 220 字/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 長度');
-assert(/省略「主張、必查、可能推翻點」/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題仍可能輸出長標籤');
+assert(/審題與資料擷取器/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未改為資料擷取定位');
+assert(/最多 10 行/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 行數');
+assert(/少於 700 字/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 長度');
+assert(/DATA:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /DIAGRAM:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /DERIVE:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /CHECK:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題缺少通用資料擷取欄位');
+assert(/UNCERTAIN:原因/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /成對座標/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未要求圖表讀值與不確定性標記');
 assert(/守恆\/係數比 > 限量\/過量 > 混合後條件\/單位/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未固定通用檢查優先序');
 assert(/TYPE=秒錶反應/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未標示秒錶題型');
 assert(
   Object.keys(promptContext.window.QuestionAnalysisPrompt.SCHEMA.properties).join(',') === 'questionText,memo',
   '第一段審題格式應只保留完整題目與自由備忘錄'
 );
+const recoveredQuestionAnalysis = promptContext.window.parseQuestionAnalysis(
+  '審題結果如下：\n```json\n{"questionText":"題幹","memo":"TYPE=化學計量；MUST=先配平再比 n/係數"}\n```'
+);
+assert(recoveredQuestionAnalysis?.questionText === '題幹' && /TYPE=化學計量/.test(recoveredQuestionAnalysis.memo), '審題 JSON 夾帶前後文字時未能安全解析');
 const latexLeak = Core.prepare(JSON.stringify({
   blocks: [
     { type: 'heading', text: '題意' },
@@ -162,6 +218,14 @@ const clockEnrichedUserText = promptContext.window.assembleSolveUserContent(cloc
 assert(/CARD=秒錶\/碘鐘/.test(clockEnrichedUserText), '第二段組裝未自動附加秒錶通則卡');
 assert(!/CARD=酸鹼計算/.test(clockAuditBlock), '秒錶題不得只因 pH 字樣誤掛酸鹼通則卡');
 assert(promptContext.window.buildLocalAuditCardBlock('請比較酸鹼強弱。', '') === '', '非秒錶題不應附加秒錶通則卡');
+
+const oxideAtomicMassStem = '某金屬氧化物含 22.6% 重量之氧，同一金屬的另一氧化物含 50.5% 重量之氧，求此金屬的原子量。';
+const oxideAtomicMassCard = promptContext.window.buildLocalAuditCardBlock(oxideAtomicMassStem, 'TYPE=兩種金屬氧化物；MUST=由兩個氧質量百分比求金屬原子量。');
+assert(/CARD=兩種金屬氧化物與原子量/.test(oxideAtomicMassCard), '兩種氧化物原子量題未命中專用卡');
+assert(/A\/x/.test(oxideAtomicMassCard) && /M_2O_x/.test(oxideAtomicMassCard), '氧化物原子量卡未提供共用原子量的比例流程');
+assert(/x\/y = \(A\/y\)\/\(A\/x\)/.test(oxideAtomicMassCard) && /x=2、y=7、A≈54.8/.test(oxideAtomicMassCard), '氧化物原子量卡未固定正確的整數比推導');
+assert(/不可改用 MO_x、MO_y/.test(oxideAtomicMassCard), '氧化物原子量卡未禁止不必要的第二套假設');
+assert(!/CARD=兩種金屬氧化物與原子量/.test(promptContext.window.buildLocalAuditCardBlock('某金屬氧化物中氧的質量百分比為 22.6%。', '求氧的質量。')), '單一氧化物題不應掛兩氧化物原子量卡');
 
 const acidBaseStem = '弱酸以強鹼滴定，已知 Ka、濃度與體積，求不同加入體積下的 pH，並判斷緩衝區、當量點與過量區。';
 const acidBaseAuditBlock = promptContext.window.buildLocalAuditCardBlock(acidBaseStem, 'TYPE=酸鹼計算；MUST=先判滴定區段再選公式');
@@ -273,4 +337,7 @@ const solveFlow = app.slice(app.indexOf('async function startSolve()'), app.inde
 assert((solveFlow.match(/callAPI\(/g) || []).length === 2, '主解題流程必須固定只有審題與詳解兩次 AI 呼叫');
 assert(!/QuestionIngest|ANSWER_VERIFICATION|alignPrompt|ChemistryEnginePipeline|ChemRuleCards/.test(solveFlow), '主解題仍受舊擷取、驗證、對齊、通則卡或解題引擎影響');
 assert(!/question-ingest|chemistry-engine|engine-adapter|engine-catalog|chem-rule-cards/.test(index), '主頁仍載入已略過的通則卡或解題引擎');
+assert(/id="questionNumberInput"/.test(index) && /id="refAnswerCheckToggle"/.test(index), '題號與加強核對控制項必須位於主輸入區');
+assert(/function getQuestionNumberScope/.test(app) && /【指定題號】只解第/.test(app), '指定題號必須明確傳入解題流程');
+assert(!/加強核對參考答案/.test(index), '加強核對不應保留在進階設定');
 console.log('ASCII_SOLUTION_RENDER_OK');
