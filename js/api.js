@@ -241,7 +241,7 @@ function looksIncomplete(text, finishReason) {
     try {
       const parsed = JSON.parse(t);
       if (parsed && (Array.isArray(parsed.blocks)
-        || (typeof parsed.questionText === 'string' && typeof parsed.memo === 'string'))) return false;
+        || typeof parsed.memo === 'string')) return false;
     } catch (_) { /* fallthrough */ }
     return true;
   }

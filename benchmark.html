@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <title>AI 解題評估</title>
+  <link rel="stylesheet" href="css/app.css?v=20260726-analysis-debug">
+  <style>
+    body { margin: 0; background: #faf7f2; color: #27231d; font-family: "Noto Sans TC", system-ui, sans-serif; }
+    .bench-main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+    .bench-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+    .bench-head h1 { margin: 0 0 8px; font-size: 28px; }
+    .bench-head p { margin: 0; color: #655f55; }
+    .bench-panel { background: #fffdfa; border: 1px solid #ded6c9; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .bench-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .bench-controls label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
+    .bench-controls input[type="text"] { min-width: 220px; padding: 9px 10px; border: 1px solid #cfc6b8; border-radius: 6px; }
+    .bench-btn { border: 0; border-radius: 6px; padding: 10px 14px; font-weight: 700; cursor: pointer; background: #2f6b55; color: white; }
+    .bench-btn.secondary { background: #e8e1d7; color: #352f27; }
+    .bench-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .bench-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+    .bench-stat { border: 1px solid #e2d9cc; border-radius: 8px; padding: 12px; background: #fff; }
+    .bench-stat b { display: block; font-size: 22px; margin-top: 3px; }
+    .bench-status { margin-top: 12px; color: #7a4a14; min-height: 24px; }
+    .bench-table-wrap { overflow: auto; border: 1px solid #ded6c9; border-radius: 8px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 920px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #eee7dc; text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; background: #f2ede5; z-index: 1; }
+    tr.ok { background: #f4fbf6; }
+    tr.bad { background: #fff6f5; }
+    tr.error { background: #fff3e8; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+    details pre { white-space: pre-wrap; max-width: 540px; max-height: 280px; overflow: auto; background: #f8f5ee; padding: 10px; border-radius: 6px; }
+    .muted { color: #746d62; }
+  </style>
+</head>
+<body>
+  <main class="bench-main">
+    <section class="bench-head">
+      <div>
+        <h1>AI 解題評估</h1>
+        <p>內建使用你提供的 1–19 題圖片，不需要在此頁上傳題目；用來比較「直接解題」與「審題 + 解題」。</p>
+      </div>
+      <a class="bench-btn secondary" href="index.html">回主頁</a>
+    </section>
+
+    <section class="bench-panel">
+      <div class="bench-controls">
+        <label><input type="checkbox" id="modeDirect" checked> 直接解題</label>
+        <label><input type="checkbox" id="modeTwoStage" checked> 審題 + 解題</label>
+        <label><input type="checkbox" id="plainOutputMode" checked> 純文字評估</label>
+        <label>題號 <input type="text" id="caseFilter" placeholder="例：1,2,8-10；空白跑全部"></label>
+        <button class="bench-btn" id="runBtn" type="button">開始評估</button>
+        <button class="bench-btn secondary" id="stopBtn" type="button" disabled>停止</button>
+        <button class="bench-btn secondary" id="downloadBtn" type="button" disabled>下載結果 JSON</button>
+      </div>
+      <div class="bench-status" id="benchStatus">題目已內建；先輸入少量題號測試，例如 12,14,19。</div>
+    </section>
+
+    <section class="bench-panel bench-summary" id="benchSummary"></section>
+
+    <section class="bench-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>模式</th>
+            <th>題號</th>
+            <th>標準</th>
+            <th>AI 答案</th>
+            <th>結果</th>
+            <th>耗時</th>
+            <th>細節</th>
+          </tr>
+        </thead>
+        <tbody id="benchRows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    function cleanKey(value) {
+      return String(value || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+    }
+  </script>
+  <script src="js/solve-spec.js?v=20260730-benchmark"></script>
+  <script src="js/prompts.js?v=20260730-benchmark"></script>
+  <script src="js/solution-core.js?v=20260730-benchmark"></script>
+  <script src="js/api.js?v=20260730-benchmark"></script>
+  <script src="js/benchmark.js?v=20260730-benchmark"></script>
+</body>
+</html>

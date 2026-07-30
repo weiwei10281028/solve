@@ -143,37 +143,54 @@ const tolerantResultHtml = renderContext.window.AsciiSolutionRender.renderDocume
 });
 assert((tolerantResultHtml.match(/class="am-result-item"/g) || []).length === 2 && /第一項未編號/.test(tolerantResultHtml), '結果漏號容錯會遺失前段文字');
 assert(/class="am-equilibrium-arrow"[^>]*>⇌<\//.test(tolerantResultHtml), 'Unicode 可逆箭頭應獨立顯示為 ⇌');
-assert(/單向反應直接寫 ->；可逆或平衡反應直接寫 ⇌/.test(Core.buildSystem()), '主提示詞缺少箭頭對照');
-assert(/固定結構/.test(Core.buildSystem()) && /題意」→「依據與推導」→「選項分析/.test(Core.buildSystem()), '主提示詞未固定選擇題三步驟');
-assert(/可橫向閱讀的短等式鏈/.test(Core.buildSystem()) && /不可把同一鏈拆成左式、等號、分式、結果/.test(Core.buildSystem()), '主提示詞未要求同一計算鏈維持橫式');
-assert(/計算題只保留判斷所需的公式、代入與結果/.test(Core.buildSystem()), '主提示詞未要求計算題保持精簡');
-assert(/觀念或圖表型選項可用一到三句完整交代機制/.test(Core.buildSystem()) && /不可只用整體趨勢代替逐項驗證/.test(Core.buildSystem()), '主提示詞未區分觀念題的逐項機制說明');
-assert(/數值加單位後若接化學式、物種名稱或其他符號，也必須保留一個空格/.test(Core.buildSystem()) && /0\.10 M NaCl/.test(Core.buildSystem()), '主提示詞未規範數值單位與後接化學式的空格');
-assert(/完成推理與驗算後才開始輸出/.test(Core.buildSystem()), '第二段提示詞未要求先完成推理再輸出');
-assert(/不得出現「檢驗／重新檢驗／核對/.test(Core.buildSystem()), '第二段提示詞未禁止輸出重複檢驗');
-assert(/題意用一兩句交代所求/.test(Core.buildSystem()), '第二段提示詞未要求題意簡短但完整');
-assert(!/題意須 30 字以內/.test(Core.buildSystem()), '第二段提示詞不應限制題意字數');
-assert(/現象成立條件/.test(Core.buildSystem()), '第二段提示詞未要求先判定現象成立條件');
-assert(/守恆與反應係數比、限量／過量、混合後條件與單位/.test(Core.buildSystem()), '第二段提示詞未固定逐項推導優先序');
-assert(/參考答案.*相容時對齊/.test(Core.buildSystem()), '第二段提示詞未保留參考答案對齊');
+assert(/所有公式使用 AsciiMath/.test(Core.buildSystem()), '主提示詞未保留 AsciiMath 輸出規則');
+assert(/有選項時依序輸出「題意」「依據與推導」「選項分析/.test(Core.buildSystem()), '主提示詞未固定選擇題三步驟');
+assert(/題意不用列式、代入數字或重抄條件；用一兩句說明核心概念、系統條件與所求關係/.test(Core.buildSystem()), '題意未限制為概念與所求的文字摘要');
+assert(/中文說明寫 paragraph；calculation 只放一條完整 AsciiMath 算式/.test(Core.buildSystem()), '推導未分開中文說明與完整算式');
+assert(/公式量名只用拉丁字母與下標，如 n_A、W_A；中文杯別或物種名稱放在相鄰 paragraph，不放入 AsciiMath/.test(Core.buildSystem()), '公式未避免中文量名造成 AsciiMath 拆行');
+assert(/不可把同一等式拆成零碎區塊或讓等號單獨成行/.test(Core.buildSystem()), '推導未限制零碎等式');
+assert(/已有直接比例或守恆式時，不再引入額外未知量或重算同一量/.test(Core.buildSystem()), '推導未要求使用最短等價關係');
+assert(/先依 TARGET\/CHECKS 找出會影響子問或選項的共用關係與量，只計算必要者；在判斷前完成相關 CHECKS/.test(Core.buildSystem()), '第二段未把審題完成清單用於推導');
+assert(/共用結果若用於多個結論，先以適用的守恆、定義、單位或題圖條件核對一次/.test(Core.buildSystem()), '第二段未要求核對共用結果');
+assert(!/最多保留兩個等號|短等式鏈/.test(Core.buildSystem()), '主提示詞仍保留過度壓縮的計算格式限制');
+assert(/比較、排序、比例、百分率或速率題，須列出足以判定正誤的量或關係/.test(Core.buildSystem()), '主提示詞未要求比較題的判定依據');
+assert(/依據與推導保留必要的原理、計算與結果/.test(Core.buildSystem()) && /選項分析逐項判正誤並以已完成的關係、數值或條件說明依據/.test(Core.buildSystem()), '主提示詞未保留推導與逐項選項分析');
 
 const promptContext = { window: { SolutionCore: Core } };
 vm.runInNewContext(prompts, promptContext);
-assert(/審題與資料擷取器/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未改為資料擷取定位');
-assert(/最多 10 行/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 行數');
-assert(/少於 700 字/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 長度');
-assert(/DATA:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /DIAGRAM:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /DERIVE:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /CHECK:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題缺少通用資料擷取欄位');
-assert(/UNCERTAIN:原因/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /成對座標/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未要求圖表讀值與不確定性標記');
-assert(/守恆\/係數比 > 限量\/過量 > 混合後條件\/單位/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未固定通用檢查優先序');
-assert(/TYPE=秒錶反應/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未標示秒錶題型');
+assert(/單題證據擷取器/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未改為證據擷取');
+assert(/最多 5 行、360 字/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制 memo 長度');
+assert(/CARD=<下列標題/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未改為卡片標題選擇');
+assert(/液柱壓差與定溫封閉氣體/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /密閉容器液氣共存與 P-T 圖/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題缺少氣體卡片標題');
+assert(/非揮發性溶液蒸氣壓平衡/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題缺少溶液蒸氣壓平衡卡片標題');
+assert(/FACTS:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /TARGET:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && /CHECKS:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題缺少事實、目標或完成清單欄位');
+assert(/CHECKS 不重抄選項、不寫公式或答案/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題未限制完成清單的內容');
+assert(/不重抄題目、不解題、不列答案/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題仍會重抄題目或提前解題');
+assert(!/ROUTE=primary:/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM) && !/GATE:先判條件/.test(promptContext.window.QuestionAnalysisPrompt.SYSTEM), '第一段審題仍混入路由代號或卡片規則');
 assert(
-  Object.keys(promptContext.window.QuestionAnalysisPrompt.SCHEMA.properties).join(',') === 'questionText,memo',
-  '第一段審題格式應只保留完整題目與自由備忘錄'
+  Object.keys(promptContext.window.QuestionAnalysisPrompt.SCHEMA.properties).join(',') === 'memo',
+  '第一段審題格式應只保留備忘錄'
 );
 const recoveredQuestionAnalysis = promptContext.window.parseQuestionAnalysis(
-  '審題結果如下：\n```json\n{"questionText":"題幹","memo":"TYPE=化學計量；MUST=先配平再比 n/係數"}\n```'
+  '審題結果如下：\n```json\n{"memo":"CARD=化學計量與限量試劑\\nFACTS=反應物質量與係數已確認\\nTARGET=找出錯誤選項\\nCHECKS=限量試劑、理論產量與剩餘量"}\n```'
 );
-assert(recoveredQuestionAnalysis?.questionText === '題幹' && /TYPE=化學計量/.test(recoveredQuestionAnalysis.memo), '審題 JSON 夾帶前後文字時未能安全解析');
+assert(/CARD=化學計量與限量試劑/.test(recoveredQuestionAnalysis?.memo), '審題 JSON 夾帶前後文字時未能安全解析');
+const vaporCardMemo = 'CARD=非揮發性溶液蒸氣壓平衡\nFACTS=密閉容器內有多杯非揮發性溶液\nTARGET=比較平衡後溶劑量與初始蒸發趨勢\nCHECKS=液體是否耗盡、溶劑分配與初始蒸氣壓順序';
+const vaporAuditBlock = promptContext.window.buildSelectedAuditCardBlock(vaporCardMemo);
+assert(/CARD=非揮發性溶液蒸氣壓平衡/.test(vaporAuditBlock), '卡片標題未命中溶液蒸氣壓平衡短卡');
+assert(/水莫耳分率相等/.test(vaporAuditBlock) && !/PV=nRT/.test(vaporAuditBlock), '溶液蒸氣壓卡誤注入氣體狀態方程');
+assert(/CARD=通用單題核對/.test(promptContext.window.buildSelectedAuditCardBlock('CARD=不存在的卡\nFACTS=資料')), '未知卡片標題未降級為短通用卡');
+const phaseCurveRouteMemo = 'ROUTE=primary:gas_liquid_phase_curve\nSTATE:密閉定容，液體存在時氣相莫耳數可變\nGATE:先判液體耗盡分界';
+const phaseCurveAuditBlock = promptContext.window.buildLocalAuditCardBlock('密閉容器加熱液體，觀察 P-T 圖。', phaseCurveRouteMemo);
+assert(/CARD=密閉容器液氣共存與 P-T 圖/.test(phaseCurveAuditBlock), '相圖路由未命中精簡核對包');
+assert(/液體耗盡後才可用固定 n 的 P\/T/.test(phaseCurveAuditBlock), '相圖路由未保留固定莫耳數門檻');
+assert(!/排水集氣為濕氣/.test(phaseCurveAuditBlock), '相圖路由不應注入完整水上集氣卡');
+const mercuryRouteMemo = 'ROUTE=primary:gas_mercury_column; support:gas_state_law\nDIAGRAM:開口端液面較封閉端高\nSTATE:定溫、管徑固定';
+const mercuryRouteAuditBlock = promptContext.window.buildLocalAuditCardBlock('J 型管以水銀封入空氣，問液面與氣柱變化。', mercuryRouteMemo);
+assert(/CARD=液柱壓差與定溫封閉氣體/.test(mercuryRouteAuditBlock), '液柱路由未命中精簡核對包');
+assert(/CARD=氣體狀態變化/.test(mercuryRouteAuditBlock), '輔助路由未注入第二張精簡核對包');
+assert(!/排水集氣為濕氣/.test(mercuryRouteAuditBlock), '液柱路由不應注入完整水上集氣卡');
+assert(/CARD=通用單題核對/.test(promptContext.window.buildLocalAuditCardBlock('', 'ROUTE=primary:unknown_route')), '無效路由未降級為短通用核對包');
 const latexLeak = Core.prepare(JSON.stringify({
   blocks: [
     { type: 'heading', text: '題意' },
@@ -331,11 +348,17 @@ assert(/id="solveValidation"/.test(index), '結果區缺少審題與解題 token
 assert(/formatTokenAuditLine/.test(app) && /Token（輸入\/輸出\/合計）/.test(app), '頁面未顯示各階段 token 統計');
 assert(/id="questionAnalysisDebug"/.test(index), '結果區缺少審題輸出顯示區');
 assert(/renderQuestionAnalysisDebug/.test(app) && /__lastQuestionAnalysisRaw/.test(app), '頁面未顯示審題 memo/raw JSON');
-assert(/localAuditCardBlock/.test(app) && /buildLocalAuditCardBlock/.test(app), '主流程未建立並傳遞本機通則卡');
+assert(/localAuditCardBlock/.test(app) && /buildSelectedAuditCardBlock/.test(app), '主流程未建立並傳遞選定的短卡');
 
 const solveFlow = app.slice(app.indexOf('async function startSolve()'), app.indexOf('async function sendFollowUp()'));
 assert((solveFlow.match(/callAPI\(/g) || []).length === 2, '主解題流程必須固定只有審題與詳解兩次 AI 呼叫');
 assert(!/QuestionIngest|ANSWER_VERIFICATION|alignPrompt|ChemistryEnginePipeline|ChemRuleCards/.test(solveFlow), '主解題仍受舊擷取、驗證、對齊、通則卡或解題引擎影響');
+assert(!/questionAnalysis\.questionText/.test(solveFlow), '第二段不得以第一段重寫題目取代原題');
+assert(/const questionSource = `\$\{textQuestion\}\$\{questionNumberScope\.directive\}`\.trim\(\) \|\| '請以附圖為原題作答。'/.test(solveFlow), '第二段未直接使用使用者文字或原圖作為原題');
+assert((solveFlow.match(/temperature: 0\.25/g) || []).length >= 2, '兩階段溫度應一致，避免第一段固定為 0');
+assert(/maxOutputTokens: 512/.test(solveFlow) && /timeoutMs: 45000/.test(solveFlow), '審題應限制為短回覆並快速逾時');
+assert(/maxOutputTokens: 4096/.test(solveFlow) && /maxItems: 20/.test(fs.readFileSync(path.join(root, 'js', 'solution-core.js'), 'utf8')), '主解題輸出預算應適合單題詳解');
+assert(/js\/prompts\.js\?v=20260729-target-checks/.test(index) && /js\/solution-core\.js\?v=20260730-clean-asciimath/.test(index), '審題流程更新後未更新瀏覽器快取版本');
 assert(!/question-ingest|chemistry-engine|engine-adapter|engine-catalog|chem-rule-cards/.test(index), '主頁仍載入已略過的通則卡或解題引擎');
 assert(/id="questionNumberInput"/.test(index) && /id="refAnswerCheckToggle"/.test(index), '題號與加強核對控制項必須位於主輸入區');
 assert(/function getQuestionNumberScope/.test(app) && /【指定題號】只解第/.test(app), '指定題號必須明確傳入解題流程');

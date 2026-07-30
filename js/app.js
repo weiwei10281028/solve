@@ -807,28 +807,30 @@ async function startSolve() {
         ]
       }];
     const analysisReply = await callAPI(cfg, analysisMessages, window.QuestionAnalysisPrompt.SYSTEM, {
-      temperature: 0,
-      maxOutputTokens: 2048,
-      timeoutMs: 90000,
+      temperature: 0.25,
+      maxOutputTokens: 512,
+      timeoutMs: 45000,
       maxContinue: 0,
       tokenStage: 'question_analysis',
       responseFormat: {
         text: { mimeType: 'APPLICATION_JSON', schema: window.QuestionAnalysisPrompt.SCHEMA }
       }
     });
-    const questionAnalysis = window.parseQuestionAnalysis(analysisReply.text, textQuestion);
+    const questionAnalysis = window.parseQuestionAnalysis(analysisReply.text);
     if (!questionAnalysis) {
       throw new Error('題目審題備忘錄格式不完整，請重新作答。');
     }
-    const auditCardSource = [questionAnalysis.questionText, textQuestion].filter(Boolean).join('\n');
-    const localAuditCardBlock = typeof window.buildLocalAuditCardBlock === 'function'
-      ? window.buildLocalAuditCardBlock(auditCardSource, questionAnalysis.memo)
-      : '';
+    const questionSource = `${textQuestion}${questionNumberScope.directive}`.trim() || '請以附圖為原題作答。';
+    const auditCardSource = questionSource;
+    const localAuditCardBlock = typeof window.buildSelectedAuditCardBlock === 'function'
+      ? window.buildSelectedAuditCardBlock(questionAnalysis.memo)
+      : (typeof window.buildLocalAuditCardBlock === 'function'
+        ? window.buildLocalAuditCardBlock(auditCardSource, questionAnalysis.memo)
+        : '');
     window.__lastQuestionAnalysis = { ...questionAnalysis, localAuditCardBlock };
     window.__lastQuestionAnalysisRaw = analysisReply.text;
     renderQuestionAnalysisDebug(questionAnalysis, analysisReply.text, localAuditCardBlock);
 
-    const questionSource = `${questionAnalysis.questionText}${questionNumberScope.directive}`;
     const scopeInput = questionNumberScope.directive || (typeof extractExplicitScopePhrase === 'function'
       ? extractExplicitScopePhrase([textQuestion, questionSource].filter(Boolean).join('\n'))
       : '');
@@ -894,7 +896,7 @@ async function startSolve() {
     const responseSchema = buildSolveResponseSchema();
     const mainGenerationOptions = {
       temperature: 0.25,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 4096,
       timeoutMs: 120000,
       maxContinue: 0,
       tokenStage: 'main_solve',

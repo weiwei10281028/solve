@@ -5,32 +5,38 @@ function parseRequestedSolveScope(input) {
   return numbers.length ? { mode: 'partial', numbers } : { mode: 'default', numbers: [] };
 }
 
-const QUESTION_ANALYSIS_SYSTEM = `你是給第二段解題 AI 使用的審題與資料擷取器。使用繁體中文；先讀取題幹、選項、表格、圖表與示意圖，再建立可核對的題目文字與備忘錄。不寫完整詳解或最後答案。
-questionText 必須忠實保留原題的條件、數字、單位、題號與實際屬於該題的選項；只要畫面有選項，必須逐項保留標籤與全文，不可只留下題幹或答案。相鄰題目殘留的文字或選項不可併入。圖表不清楚時保留可辨識內容，不可猜測。
-memo 用機器可讀短句，最多 10 行、總長盡量少於 700 字。只保留會影響答案的已確認資料與最低成本判斷，格式依適用情況使用：
-TYPE=題型；MUST=最優先門檻/計量/現象檢查
-DATA:題幹、表格或圖表中已確認的關鍵數值、單位與來源
-DIAGRAM:軸的物種/量、方向、刻度；關鍵點的成對座標與化學意義
-DERIVE:一至三個可防止誤讀的守恆、莫耳比、臨界條件或換算關係
-CHECK:最容易混用的軸、點位、單位或相鄰題資訊；無法確認時寫 UNCERTAIN:原因
-不得只寫「查圖」、「由圖可知」或「注意單位」；有圖表時必須直接列出本題需要的讀值與單位。雙軸、反向軸或同一點對應兩個物種時，必須同時寫出配對讀值。DATA 是已擷取證據，不可填入題目以外的數字；DERIVE 只做必要的短推論，不可變成完整詳解。
-固定優先序：守恆/係數比 > 限量/過量 > 混合後條件/單位 > 現象成立 > 模型適用 > 數值比較。
-若題目為秒錶/碘鐘反應，memo 第一行必含「TYPE=秒錶反應」，MUST 優先寫混合後莫耳數、顯色門檻、時間比較是否可用。
-若題目為化學平衡移動題，memo 第一行必含「TYPE=化學平衡」，MUST 優先寫擾動瞬間的 Q 與 K 比較；溫度改變時另註明 K 改變。
-若題目為溶度積或沉澱題，memo 第一行必含「TYPE=溶度積與沉澱」，MUST 優先寫反應後、混合後的自由離子濃度與 Qsp/Ksp 比較。
-若題目為氧化還原或電化學題，memo 第一行必含「TYPE=氧化還原/電化學」，MUST 優先寫氧化還原半反應、電極角色或電子守恆。
-若題目為化學計量題，memo 第一行必含「TYPE=化學計量」，MUST 優先寫配平反應式、各反應物莫耳數與 n/係數。
-若題目為氣體狀態或水上集氣題，memo 第一行必含「TYPE=氣體與集氣」，MUST 優先寫目標氣體莫耳數與其乾氣分壓。
-若題目為熱化學題，memo 第一行必含「TYPE=熱化學」，MUST 優先寫目標反應方向、物態與 ΔH 的對應關係。
-若題目為有機反應或官能基檢驗題，memo 第一行必含「TYPE=有機反應」，MUST 優先寫官能基、試劑條件與現象可支持的範圍。
-只回傳指定 JSON，不得輸出 Markdown 或其他文字。`;
+const AUDIT_CARD_TITLES = Object.freeze({
+  clock_reaction: '秒錶/碘鐘',
+  acid_base_calculation: '酸鹼計算',
+  chemical_equilibrium: '化學平衡',
+  solubility_precipitation: '溶度積與沉澱',
+  redox_electrochemistry: '氧化還原與電化學',
+  stoichiometry_limiting: '化學計量與限量試劑',
+  thermochemistry: '熱化學',
+  organic_functional_test: '有機官能基檢驗',
+  organic_acyl_polymer: '有機酸衍生物與聚合',
+  paired_metal_oxide: '兩種金屬氧化物與原子量',
+  gas_mercury_column: '液柱壓差與定溫封閉氣體',
+  gas_water_collection: '水上集氣',
+  gas_liquid_phase_curve: '密閉容器液氣共存與 P-T 圖',
+  gas_state_law: '氣體狀態變化',
+  gas_kinetic_distribution: '氣體分子運動與速率分布',
+  gas_buoyancy: '氣球浮力與氣體密度',
+  solution_vapor_pressure_equilibrium: '非揮發性溶液蒸氣壓平衡',
+  general: '通用單題核對'
+});
+
+const QUESTION_ANALYSIS_SYSTEM = `你是第二段前的單題證據擷取器。讀原題、選項、表格與圖；只回傳短 memo，不重抄題目、不解題、不列答案。
+memo 最多 5 行、360 字。第一行固定：CARD=<下列標題，最多兩張>。可選卡片：${Object.values(AUDIT_CARD_TITLES).join('、')}。
+其餘依序寫：FACTS:已確認的數值、單位、圖表讀值或系統狀態；TARGET:最後任務（找錯選項、求值、比較、作圖或說明）；CHECKS:完成各子問或選項判斷必須取得的量或關係，最多五項；僅在不清楚時寫 UNCERTAIN:原因。
+CHECKS 不重抄選項、不寫公式或答案；它是第二段的完成清單。
+只依題意選卡；無適合卡才填「通用單題核對」。圖表必列實際讀值，不寫「查圖」。原圖最高依據，資訊不明不得猜。只回傳指定 JSON。`;
 
 const QUESTION_ANALYSIS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['questionText', 'memo'],
+  required: ['memo'],
   properties: {
-    questionText: { type: 'string' },
     memo: { type: 'string' }
   }
 };
@@ -278,7 +284,126 @@ function isChemicalEquilibrium(questionText, analysisMemo) {
   return hasEquilibriumCore && hasDecisionSignal;
 }
 
+// 新格式由審題 AI 指定路由；第二段只收到該路由的短核對包，不再整張灌入通則卡。
+const ROUTE_AUDIT_CARDS = Object.freeze({
+  clock_reaction: [
+    'CARD=秒錶/碘鐘',
+    'GATE: 先用混合後莫耳數與係數判顯色門檻，再比較時間或速率。',
+    'CHECK: 未達顯色門檻不可換算變色時間；濃度必用混合後值。'
+  ].join('\n'),
+  acid_base_calculation: [
+    'CARD=酸鹼計算',
+    'GATE: 先做中和並定位當量前、當量點或過量區，再選 pH 模型。',
+    'CHECK: 濃度用反應後莫耳數除總體積；不可平均 pH 或把弱酸鹼當完全解離。'
+  ].join('\n'),
+  chemical_equilibrium: [
+    'CARD=化學平衡',
+    'GATE: 先寫同一反應的 Q/K 式，再用擾動瞬間組成比較 Q 與 K。',
+    'CHECK: 只有溫度改變 K；分開擾動瞬間與新平衡。'
+  ].join('\n'),
+  solubility_precipitation: [
+    'CARD=溶度積與沉澱',
+    'GATE: 先求混合、稀釋與副反應後的自由離子，再比較 Qsp 與 Ksp。',
+    'CHECK: 不可用原液、總濃度或未反應前濃度直接判沉澱。'
+  ].join('\n'),
+  redox_electrochemistry: [
+    'CARD=氧化還原與電化學',
+    'GATE: 先定氧化還原半反應與電子守恆，再判電極角色、流向或產物。',
+    'CHECK: anode 必為氧化、cathode 必為還原；電子不經鹽橋。'
+  ].join('\n'),
+  stoichiometry_limiting: [
+    'CARD=化學計量與限量試劑',
+    'GATE: 先配平並轉成莫耳，比較每個反應物的 n/係數。',
+    'CHECK: 限量試劑決定反應程度與理論產量；不可直接比質量。'
+  ].join('\n'),
+  thermochemistry: [
+    'CARD=熱化學',
+    'GATE: 先對齊目標反應的方向、係數與物態，再處理 ΔH 或熱量守恆。',
+    'CHECK: q_reaction 與周圍熱量符號相反；反轉或倍乘反應式時 ΔH 同步調整。'
+  ].join('\n'),
+  organic_functional_test: [
+    'CARD=有機官能基檢驗',
+    'GATE: 同時核對官能基、試劑、酸鹼環境與加熱/光照條件。',
+    'CHECK: 單一現象只支持有限結論，不可唯一斷定完整物質。'
+  ].join('\n'),
+  organic_acyl_polymer: [
+    'CARD=有機酸衍生物與聚合',
+    'GATE: 先辨認酰基/官能基與試劑條件，再判酯化、水解、皂化或聚合。',
+    'CHECK: 分開酸鹼成鹽與共價反應；水解前後的檢驗不可混用。'
+  ].join('\n'),
+  paired_metal_oxide: [
+    'CARD=兩種金屬氧化物與原子量',
+    'GATE: 兩氧化物用同一金屬原子量與氧質量百分比建立比例。',
+    'CHECK: 指數與氧原子數須由比例求得，不可先猜化學式。'
+  ].join('\n'),
+  gas_mercury_column: [
+    'CARD=液柱壓差與定溫封閉氣體',
+    'GATE: 先以同水平面壓力求氣體絕對壓；管徑固定時 V 與氣柱長成正比。',
+    'CHECK: 定溫才用 P_1V_1=P_2V_2；液面差與兩側位移必須同時追蹤。'
+  ].join('\n'),
+  gas_water_collection: [
+    'CARD=水上集氣',
+    'GATE: 先依液面高低修正總壓，再由濕氣總壓扣同溫水蒸氣壓。',
+    'CHECK: 內外液面等高才可令總壓等於大氣壓。'
+  ].join('\n'),
+  gas_liquid_phase_curve: [
+    'CARD=密閉容器液氣共存與 P-T 圖',
+    'GATE: 先判液體是否仍存在；液氣共存時 P=飽和蒸氣壓，液體耗盡後才可用固定 n 的 P/T。',
+    'CHECK: 先標定相態分界點，不可在持續蒸發區段假設氣相莫耳數固定。'
+  ].join('\n'),
+  gas_state_law: [
+    'CARD=氣體狀態變化',
+    'GATE: 先標出 P、V、T、n 哪些固定或改變，再選 PV=nRT 或比例關係。',
+    'CHECK: 溫度用 K；n 改變時不可直接套 P_1V_1/T_1=P_2V_2/T_2。'
+  ].join('\n'),
+  gas_kinetic_distribution: [
+    'CARD=氣體分子運動與速率分布',
+    'GATE: 先分辨比較的是同溫不同分子量，或同氣體不同溫度。',
+    'CHECK: 分布曲線面積代表總粒子數；不可只比較峰高而忽略曲線位置與條件。'
+  ].join('\n'),
+  gas_buoyancy: [
+    'CARD=氣球浮力與氣體密度',
+    'GATE: 先列浮力、球皮重量與內部氣體重量，再處理平衡條件。',
+    'CHECK: 浮力由外界空氣排開體積決定；不可忽略球皮或內部氣體重量。'
+  ].join('\n'),
+  solution_vapor_pressure_equilibrium: [
+    'CARD=非揮發性溶液蒸氣壓平衡',
+    'GATE: 液態水仍存在的各溶液水蒸氣壓相等；本題近似下等價為水莫耳分率相等。',
+    'CHECK: 純水若蒸乾，終態壓不可當純水蒸氣壓；總水量守恆，初始速率比水莫耳分率，重量百分率用平衡水量。'
+  ].join('\n'),
+  general: [
+    'CARD=通用單題核對',
+    'GATE: 先確認系統、已知量、固定量與所求，再選模型。',
+    'CHECK: 圖像、單位、守恆與比較對象以原題為準；資訊不足不可補猜。'
+  ].join('\n')
+});
+
+function buildRoutedAuditCardBlock(analysisMemo) {
+  const memo = String(analysisMemo || '');
+  const cardLine = memo.match(/(?:^|\n)CARD\s*[:=]\s*([^\n]+)/i);
+  const routeLine = memo.match(/(?:^|\n)ROUTE\s*=\s*([^\n]+)/i);
+  const titledIds = cardLine
+    ? Object.entries(AUDIT_CARD_TITLES)
+      .filter(([, title]) => cardLine[1].includes(title))
+      .map(([id]) => id)
+    : [];
+  const routeIds = routeLine
+    ? (routeLine[1].match(/[a-z][a-z0-9_]*/gi) || [])
+    .map((value) => value.toLowerCase())
+    .filter((value) => Object.prototype.hasOwnProperty.call(ROUTE_AUDIT_CARDS, value))
+    : [];
+  const ids = titledIds.length ? titledIds : routeIds;
+  const cards = [...new Set(ids)].slice(0, 2).map((id) => ROUTE_AUDIT_CARDS[id]);
+  return cards.length ? cards.join('\n\n') : (cardLine || routeLine ? ROUTE_AUDIT_CARDS.general : '');
+}
+
+function buildSelectedAuditCardBlock(analysisMemo) {
+  return buildRoutedAuditCardBlock(analysisMemo) || ROUTE_AUDIT_CARDS.general;
+}
+
 function buildLocalAuditCardBlock(questionText, analysisMemo) {
+  const routed = buildRoutedAuditCardBlock(analysisMemo);
+  if (routed) return routed;
   const cards = [];
   if (isClockReaction(questionText, analysisMemo)) cards.push(CLOCK_REACTION_RULE_CARD);
   if (cards.length < 3 && isPairedMetalOxideAtomicMass(questionText, analysisMemo)) cards.push(PAIRED_METAL_OXIDE_ATOMIC_MASS_RULE_CARD);
@@ -305,6 +430,7 @@ window.isOrganicFunctionalGroupTests = isOrganicFunctionalGroupTests;
 window.isOrganicAcylPolymer = isOrganicAcylPolymer;
 window.isChemicalEquilibrium = isChemicalEquilibrium;
 window.buildLocalAuditCardBlock = buildLocalAuditCardBlock;
+window.buildSelectedAuditCardBlock = buildSelectedAuditCardBlock;
 
 window.buildQuestionAnalysisUserText = function (questionText) {
   const scope = parseRequestedSolveScope(questionText);
@@ -315,7 +441,7 @@ window.buildQuestionAnalysisUserText = function (questionText) {
     : '請完整讀取圖片中的題目，逐一掃描選項或子題，輸出解題前必須注意的高風險問題點。';
 };
 
-window.parseQuestionAnalysis = function (raw, fallbackQuestion = '') {
+window.parseQuestionAnalysis = function (raw) {
   try {
     const text = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     let parsed;
@@ -335,10 +461,9 @@ window.parseQuestionAnalysis = function (raw, fallbackQuestion = '') {
       }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     }
-    const questionText = String(parsed?.questionText || fallbackQuestion || '').trim();
     const memo = String(parsed?.memo || '').trim();
-    if (!questionText || !memo) return null;
-    return { questionText, memo };
+    if (!memo) return null;
+    return { memo };
   } catch (_) {
     return null;
   }
