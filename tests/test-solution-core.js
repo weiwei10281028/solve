@@ -63,7 +63,7 @@ assert(/hasImage \|\| hasExplicitChoiceOptions/.test(app) && !/\[A-E\]/.test(app
 assert(/若原題文字或圖片中有選項，必須以原標籤逐項輸出 choice 並分析/.test(prompts), '解題提示未要求有選項時逐項分析且保留原標籤');
 assert(!/js\/render\.js/.test(index) && !/katex\.min\.js/.test(index) && !/formula-tools\.js/.test(index), '舊詳解依賴仍被載入');
 assert(/background-image: none/.test(board) && /am-display-scroll mjx-frac mjx-frac/.test(board), '深色網格或分式樣式缺失');
-assert(/family=Iansui/.test(index) && /--font:\s*'IansuiScaled',\s*'Iansui'/.test(appCss) && /--font-ui:\s*"IansuiScaled",\s*"Iansui"/.test(studioCss), '首頁與建立題目分析未恢復芫荽字型');
+assert(/family=Iansui/.test(index) && /--font:\s*'Noto Sans TC'/.test(appCss) && /--font-ui:\s*"Noto Sans TC"/.test(studioCss), 'UI 字型應回到舊版 Noto，詳解字型資源仍保留給 board.css 使用');
 assert(/size-adjust:\s*105%/.test(appCss) && /latin-400-normal\.woff2/.test(appCss) && /font-family:\s*"ComputerModernText",\s*"Iansui"/.test(board) && !/Cambria,\s*"Times New Roman"/.test(board), '詳解框未維持 Computer Modern 與芫荽混排');
 assert(/\.am-solution mjx-container \{[^}]*font-size:\s*112%/.test(board) && /\.am-unit \{[^}]*font-size:\s*1\.05em/.test(board), '單位或公式未維持新版顯示比例');
 assert(/font-size:\s*19\.2px/.test(board) && !/line-height:\s*2\.35/.test(board), '板書字級未放大 1.2 倍，或混排行仍保留過寬行距');
@@ -110,6 +110,18 @@ const slashDivisionHtml = renderContext.window.AsciiSolutionRender.renderDocumen
 });
 assert(/frac\(8\.00\)\(100\)/.test(slashDivisionHtml) && !/8\.00\/100/.test(slashDivisionHtml), '數值除法未轉為直式分數');
 assert(/class="am-unit">g\/mol<\/span>/.test(slashDivisionHtml), '單位 g/mol 不應轉為直式分數');
+const unitDenominator = Core.calculation('n_Fe : n_O = (3.92 g/(56.0 g mol^-1)) : 0.08 mol = 7 : 8');
+assert(/\\dfrac\{3\.92\\,\\mathrm\{g\}\}\{56\.0\\,\\mathrm\{g\\,mol\^\{-1\}\}\}/.test(unitDenominator), '含單位括號分母的除式未轉為直式分數');
+const ratioColonHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'calculation', expression: unitDenominator }],
+  answer: ''
+});
+assert((ratioColonHtml.match(/class="am-ratio-colon">：<\/span>/g) || []).length >= 2 && !/`7 : 8`/.test(ratioColonHtml), '比例冒號未以全形冒號與穩定間距顯示');
+const fullwidthColonHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'paragraph', text: '計算如下 :' }],
+  answer: ''
+});
+assert(/計算如下：/.test(fullwidthColonHtml) && !/計算如下\s*:/.test(fullwidthColonHtml), '中文後半形冒號未轉為全形冒號');
 const vaporPressureHtml = renderContext.window.AsciiSolutionRender.renderDocument({
   blocks: [{ type: 'calculation', text: 'P_H_2O + P_N_2 = 600mmHg' }],
   answer: ''

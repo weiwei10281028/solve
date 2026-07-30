@@ -115,8 +115,7 @@
     return parts.join('');
   }
 
-  function math(value, display) {
-    const className = `am-math am-math--${display ? 'display' : 'inline'}`;
+  function mathSegment(value, className) {
     return String(value || '').split(PROTECTED_UNITS_RE).map((part, index) => {
       if (index % 2) return `<span class="am-unit">${escapeHtml(normaliseUnitText(part))}</span>`;
       return part.split(new RegExp(`(${EQUILIBRIUM_ARROW_RE.source})`, 'g')).map((segment) => {
@@ -126,8 +125,23 @@
     }).join('');
   }
 
+  function math(value, display) {
+    const className = `am-math am-math--${display ? 'display' : 'inline'}`;
+    return String(value || '').split(/\s+:\s+/).map((part, index) => {
+      const rendered = mathSegment(part, className);
+      return index ? `<span class="am-ratio-colon">：</span>${rendered}` : rendered;
+    }).join('');
+  }
+
+  function normalizeVisibleText(value) {
+    return String(value || '')
+      .replace(/([\u3400-\u9fff])\s*:\s*/g, '$1：')
+      .replace(/\s+([：；，。])/g, '$1')
+      .replace(/([：；，。])(?=[A-Za-z0-9])/g, '$1 ');
+  }
+
   function renderInline(value) {
-    const source = String(value || '');
+    const source = normalizeVisibleText(value);
     const parts = [];
     let buffer = '';
     let ascii = null;

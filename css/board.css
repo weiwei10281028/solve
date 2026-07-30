@@ -415,6 +415,11 @@ body[data-theme="lunar"] .board {
   font-size: 1.05em;
   font-style: normal;
 }
+.am-ratio-colon {
+  display: inline-block;
+  margin-inline: .24em;
+  font-weight: 700;
+}
 .am-token-gap { display: inline-block; width: .24em; }
 .am-display-scroll,
 .am-table-scroll {

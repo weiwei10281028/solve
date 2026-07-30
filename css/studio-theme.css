@@ -1,7 +1,7 @@
 /* 正式首頁主題：象牙大理石 / 月光鈦銀。所有元件透過語意變數共用色彩。 */
 :root {
-  --font-ui: "IansuiScaled", "Iansui", "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: "IansuiScaled", "Iansui", "Noto Serif TC", Georgia, serif;
+  --font-ui: "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Noto Serif TC", Georgia, serif;
 }
 
 body[data-theme="ivory"] {

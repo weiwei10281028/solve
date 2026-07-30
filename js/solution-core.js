@@ -1076,6 +1076,7 @@
       .replace(/\^\s*(-?\d+)(?![}\d])/g, '^{$1}')
       .replace(/\\?(log|ln)\s*\(\s*([^()]+)\s*\/\s*([^()]+)\s*\)/g, '\\$1\\left(\\dfrac{$2}{$3}\\right)')
       .replace(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*\)/g, '\\dfrac{$1}{$2}')
+      .replace(/(\d+(?:\.\d+)?\\,\\mathrm\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})\s*\/\s*\(\s*([^()]*\\mathrm\{[^()]*\}[^()]*)\s*\)/g, '\\dfrac{$1}{$2}')
       .replace(/\(\s*([^()]+)\s*\)\s*\/\s*(\d+(?:\.\d+)?(?:\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
       .replace(/(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)\s*\/\s*(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
       .replace(/\b([tv])_(\d+)\b/g, '$1_{$2}')
