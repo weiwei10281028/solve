@@ -41,8 +41,8 @@
   const SYSTEM_CORE = `依原題與原圖完整判斷後作答；備忘錄提供卡片、事實與完成清單，衝突時以原題為準，不得提及備忘錄。
 只回傳指定 JSON；所有公式使用 AsciiMath。
 有選項時依序輸出「題意」「依據與推導」「選項分析」；無選項時輸出前兩者。
-題意不用列式、代入數字或重抄條件；用一兩句說明核心概念、系統條件與所求關係。
-依據與推導保留必要的原理、計算與結果。先依 TARGET/CHECKS 找出會影響子問或選項的共用關係與量，只計算必要者；在判斷前完成相關 CHECKS。共用結果若用於多個結論，先以適用的守恆、定義、單位或題圖條件核對一次，再引用於選項分析。中文說明寫 paragraph；calculation 只放一條完整 AsciiMath 算式。公式量名只用拉丁字母與下標，如 n_A、W_A；中文杯別或物種名稱放在相鄰 paragraph，不放入 AsciiMath。每條算式只處理一個目標，包含量名、關係式與結果；長推導按子目標拆成有名稱的短式，不可把同一等式拆成零碎區塊或讓等號單獨成行。優先選用高中層級的最短等價關係；已有直接比例或守恆式時，不再引入額外未知量或重算同一量。
+題意只用一兩句簡述核心考點、主要定義或定律與所求；不可列已知量、設未知數、代入數字、寫方程式或推導。原題條件與必要判斷須放在「依據與推導」中使用。
+依據與推導保留必要的原理、計算與結果。先依 TARGET/CHECKS 找出會影響子問或選項的共用關係與量，只計算必要者；在判斷前完成相關 CHECKS。共用結果若用於多個結論，先以適用的守恆、定義、單位或題圖條件核對一次，再引用於選項分析。中文說明寫 paragraph；calculation 只放一條完整 AsciiMath 算式。公式量名只用拉丁字母與下標，如 n_A、W_A；化學式作下標須分組，如 P_(H_2O)，不可寫 P_H_2O；數字與單位留空格。中文杯別或物種名稱放在相鄰 paragraph，不放入 AsciiMath。每條算式只處理一個目標，包含量名、關係式與結果；長推導按子目標拆成有名稱的短式，不可把同一等式拆成零碎區塊或讓等號單獨成行。優先選用高中層級的最短等價關係；已有直接比例或守恆式時，不再引入額外未知量或重算同一量。
 選項分析逐項判正誤並以已完成的關係、數值或條件說明依據。
 比較、排序、比例、百分率或速率題，須列出足以判定正誤的量或關係。`;
 
@@ -250,8 +250,8 @@
 
   function stripQuantityCommas(value) {
     return String(value || '')
-      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]*[,，、][\s\u00a0\u3000\r\n]*(mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2')
-      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]+(mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2');
+      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]*[,，、][\s\u00a0\u3000\r\n]*(mmHg|mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2')
+      .replace(/(\d+(?:\.\d+)?)[\s\u00a0\u3000]+(mmHg|mmol|mol|mL|mg|kg|atm|kPa|Pa|min|h|A|C|M|L|g|s)\b/g, '$1 $2');
   }
 
   function fullwidth(value) {
@@ -326,7 +326,7 @@
       const acid = abstractAcidLatex(latex);
       if (acid) return keep(math(acid));
       if (isChemicalToken(latex)) return keep(chemistry(latex));
-      if (/[=≈]|(?:mol|mL|L|M|mg|kg|atm|kPa|Pa)\b/i.test(latex)) return keep(math(calculation(latex, state)));
+      if (/[=≈]|(?:mol|mL|L|M|mg|kg|atm|kPa|Pa|mmHg)\b/i.test(latex)) return keep(math(calculation(latex, state)));
       return keep(math(latex));
     })
       // 敘述文字中的化學量也必須顯示下標；唯一轉換規則仍由
@@ -1054,7 +1054,7 @@
       // 跟在分母基線上或與 mol 黏在一起。
       .replace(/(\d+(?:\.\d+)?)\s*g\s*(?:\/\s*mol|mol)(?:\s*\^\s*\{\s*-\s*1\s*\}|\s*\^\s*-\s*1|\s*-\s*1)/gi, '$1\\,\\mathrm{g\\,mol^{-1}}')
       .replace(/(\d+(?:\.\d+)?)\s*(ppm|ppb|ppt)\b/gi, (_, number, unit) => `${number}\\,\\mathrm{${unit.toLowerCase()}}`)
-      .replace(/(\d+(?:\.\d+)?)\s*(mmol|mol|mL|mg|kg|atm|kPa|Pa|L|M|g)\b/g, '$1\\,\\mathrm{$2}')
+      .replace(/(\d+(?:\.\d+)?)\s*(mmHg|mmol|mol|mL|mg|kg|atm|kPa|Pa|L|M|g)\b/g, '$1\\,\\mathrm{$2}')
       .replace(/[（]/g, '(').replace(/[）]/g, ')')
       .replace(/[×＊*]/g, '\\times ')
       .replace(/÷/g, '\\div ')
@@ -1076,8 +1076,8 @@
       .replace(/\^\s*(-?\d+)(?![}\d])/g, '^{$1}')
       .replace(/\\?(log|ln)\s*\(\s*([^()]+)\s*\/\s*([^()]+)\s*\)/g, '\\$1\\left(\\dfrac{$2}{$3}\\right)')
       .replace(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*\)/g, '\\dfrac{$1}{$2}')
-      .replace(/\(\s*([^()]+)\s*\)\s*\/\s*(\d+(?:\.\d+)?(?:\s*(?:mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
-      .replace(/(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)\s*\/\s*(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
+      .replace(/\(\s*([^()]+)\s*\)\s*\/\s*(\d+(?:\.\d+)?(?:\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
+      .replace(/(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)\s*\/\s*(\d+(?:\.\d+)?(?:\s*g\s*mol\s*(?:\^\s*\{?\s*-?1\s*\}?|-1)|\s*(?:mmHg|mol|mL|L|M|g|mg|kg|atm|kPa|Pa|s|min|h|A|C))?)/gi, '\\dfrac{$1}{$2}')
       .replace(/\b([tv])_(\d+)\b/g, '$1_{$2}')
       .replace(/\b([tv])(\d+)\b/g, '$1_{$2}')
       .replace(/\b([tv](?:_\{\d+\})?)\s*\/\s*([tv](?:_\{\d+\})?)/g, '\\dfrac{$1}{$2}');
@@ -1087,6 +1087,7 @@
     // 僅正規化已有 \\ce；裸化學式交給 render
     body = body.replace(/\\ce\{([^{}]+)\}/g, (whole, token) => `\\ce{${normalizeChemToken(token)}}`);
     body = normalizeQuantityNotation(body);
+    body = normalizeSpeciesVariableSubscripts(body);
     body = body.replace(/\[([^\]]+)\]/g, (whole, token) => {
       const acid = abstractAcidLatex(token);
       return acid ? `[${acid}]` : (!/\\ce\{/.test(token) && isChemicalToken(token) ? `[\\ce{${normalizeChemToken(token)}}]` : whole);
@@ -1124,6 +1125,26 @@
     body = body.replace(/\b([nWV]|m)_([A-Za-z][A-Za-z0-9^+\-]*|[\u4e00-\u9fff]+)/g, (whole, symbol, token) =>
       quantitySubscript(symbol === 'm' ? QUANTITY_NOTATION.mass : symbol, token));
     return body;
+  }
+
+  function speciesSubscriptBody(value) {
+    return String(value || '')
+      .replace(/\s+/g, '')
+      .replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2');
+  }
+
+  function isSpeciesSubscriptCandidate(value) {
+    const raw = String(value || '').replace(/\s+/g, '');
+    const compact = raw.replace(/_/g, '');
+    if (!/\d/.test(compact) && (compact.match(/[A-Z][a-z]?/g) || []).length < 2) return false;
+    return isChemicalToken(compact);
+  }
+
+  function normalizeSpeciesVariableSubscripts(value) {
+    return String(value || '').replace(
+      /\b([A-Za-z])_((?:[A-Z][a-z]?(?:_?\d+)*){1,6})(?=$|[^A-Za-z0-9_(])/g,
+      (whole, symbol, token) => isSpeciesSubscriptCandidate(token) ? `${symbol}_{${speciesSubscriptBody(token)}}` : whole
+    );
   }
 
   /** 濃度顯示一律使用 [物種]；僅改明確的 C(物種)／c(物種)，不碰碳元素 C。 */

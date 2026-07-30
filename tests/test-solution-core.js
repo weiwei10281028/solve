@@ -9,7 +9,9 @@ const app = fs.readFileSync(path.join(root, 'js', 'app.js'), 'utf8');
 const prompts = fs.readFileSync(path.join(root, 'js', 'prompts.js'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const appCss = fs.readFileSync(path.join(root, 'css', 'app.css'), 'utf8');
 const board = fs.readFileSync(path.join(root, 'css', 'board.css'), 'utf8');
+const studioCss = fs.readFileSync(path.join(root, 'css', 'studio-theme.css'), 'utf8');
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -61,6 +63,11 @@ assert(/hasImage \|\| hasExplicitChoiceOptions/.test(app) && !/\[A-E\]/.test(app
 assert(/若原題文字或圖片中有選項，必須以原標籤逐項輸出 choice 並分析/.test(prompts), '解題提示未要求有選項時逐項分析且保留原標籤');
 assert(!/js\/render\.js/.test(index) && !/katex\.min\.js/.test(index) && !/formula-tools\.js/.test(index), '舊詳解依賴仍被載入');
 assert(/background-image: none/.test(board) && /am-display-scroll mjx-frac mjx-frac/.test(board), '深色網格或分式樣式缺失');
+assert(/family=Iansui/.test(index) && /--font:\s*'IansuiScaled',\s*'Iansui'/.test(appCss) && /--font-ui:\s*"IansuiScaled",\s*"Iansui"/.test(studioCss), '首頁與建立題目分析未恢復芫荽字型');
+assert(/size-adjust:\s*105%/.test(appCss) && /latin-400-normal\.woff2/.test(appCss) && /font-family:\s*"ComputerModernText",\s*"Iansui"/.test(board) && !/Cambria,\s*"Times New Roman"/.test(board), '詳解框未維持 Computer Modern 與芫荽混排');
+assert(/\.am-solution mjx-container \{[^}]*font-size:\s*112%/.test(board) && /\.am-unit \{[^}]*font-size:\s*1\.05em/.test(board), '單位或公式未維持新版顯示比例');
+assert(/font-size:\s*19\.2px/.test(board) && !/line-height:\s*2\.35/.test(board), '板書字級未放大 1.2 倍，或混排行仍保留過寬行距');
+assert(/\.am-solution \.am-section-title \{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*font-size:\s*1\.18em;[^}]*line-height:\s*1;/s.test(board) && /am-section-title span \{[^}]*translateY\(0\.1em\)/.test(board), '橫幅標題未垂直置中或未放大');
 assert(/openai:\s*\{/.test(app) && /gpt-5-nano/.test(app) && /gpt-5-mini/.test(app), 'OpenAI GPT provider 或推薦模型未加入');
 assert(/reasoning_effort:\s*openAIReasoningEffort/.test(fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8')), 'OpenAI 未設定低推理量，容易出現 length 無輸出');
 assert(/cfg\?\.provider === 'openai' \? callOpenAI : callGemini/.test(fs.readFileSync(path.join(root, 'js', 'api.js'), 'utf8')), 'callAPI 未依 provider 分流 OpenAI/Gemini');
@@ -97,6 +104,19 @@ assert(/class="am-unit">ppm<\/span>/.test(unitHtml), 'ppm 未從 AsciiMath 運�
 assert(!/\\mathrm|text\(&quot;/.test(unitHtml), '單位不應輸出 LaTeX 指令或帶引號的 text()');
 assert(!/`500p(?:m|\\pm)`/.test(unitHtml), 'ppm 仍可能被 AsciiMath 拆成 p 與 pm');
 assert(/`W_\(C\)\s*=/.test(unitHtml), 'W(C) 未統一為下標量符號');
+const slashDivisionHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'calculation', expression: 'n_CaCO3 = 8.00/100 = 0.08 g/mol' }],
+  answer: ''
+});
+assert(/frac\(8\.00\)\(100\)/.test(slashDivisionHtml) && !/8\.00\/100/.test(slashDivisionHtml), '數值除法未轉為直式分數');
+assert(/class="am-unit">g\/mol<\/span>/.test(slashDivisionHtml), '單位 g/mol 不應轉為直式分數');
+const vaporPressureHtml = renderContext.window.AsciiSolutionRender.renderDocument({
+  blocks: [{ type: 'calculation', text: 'P_H_2O + P_N_2 = 600mmHg' }],
+  answer: ''
+});
+assert(/`P_\(H_2O\)\s*\+\s*P_\(N_2\)\s*=/.test(vaporPressureHtml), '化學式作變數下標時未自動分組');
+assert(/class="am-unit">mmHg<\/span>/.test(vaporPressureHtml), 'mmHg 未從 AsciiMath 運算式中拆為一般單位文字');
+assert(/P_\{H_2O\}/.test(Core.calculation('P_H_2O = 30mmHg')), '核心算式未修正化學式下標');
 const quantityChemistryHtml = renderContext.window.AsciiSolutionRender.renderDocument({
   blocks: [{ type: 'paragraph', text: '將0.10MNaCl30mL與0.20MAgNO3 10mL混合。' }],
   answer: ''
@@ -145,9 +165,11 @@ assert((tolerantResultHtml.match(/class="am-result-item"/g) || []).length === 2 
 assert(/class="am-equilibrium-arrow"[^>]*>⇌<\//.test(tolerantResultHtml), 'Unicode 可逆箭頭應獨立顯示為 ⇌');
 assert(/所有公式使用 AsciiMath/.test(Core.buildSystem()), '主提示詞未保留 AsciiMath 輸出規則');
 assert(/有選項時依序輸出「題意」「依據與推導」「選項分析/.test(Core.buildSystem()), '主提示詞未固定選擇題三步驟');
-assert(/題意不用列式、代入數字或重抄條件；用一兩句說明核心概念、系統條件與所求關係/.test(Core.buildSystem()), '題意未限制為概念與所求的文字摘要');
+assert(/題意只用一兩句簡述核心考點、主要定義或定律與所求/.test(Core.buildSystem()), '題意未限制為一兩句核心摘要');
+assert(/不可列已知量、設未知數、代入數字、寫方程式或推導/.test(Core.buildSystem()), '題意未禁止承載推導內容');
+assert(/原題條件與必要判斷須放在「依據與推導」中使用/.test(Core.buildSystem()), '題意省略的條件未要求移到依據與推導');
 assert(/中文說明寫 paragraph；calculation 只放一條完整 AsciiMath 算式/.test(Core.buildSystem()), '推導未分開中文說明與完整算式');
-assert(/公式量名只用拉丁字母與下標，如 n_A、W_A；中文杯別或物種名稱放在相鄰 paragraph，不放入 AsciiMath/.test(Core.buildSystem()), '公式未避免中文量名造成 AsciiMath 拆行');
+assert(/公式量名只用拉丁字母與下標，如 n_A、W_A；化學式作下標須分組，如 P_\(H_2O\)，不可寫 P_H_2O；數字與單位留空格/.test(Core.buildSystem()), '公式未限制化學式下標與單位間距');
 assert(/不可把同一等式拆成零碎區塊或讓等號單獨成行/.test(Core.buildSystem()), '推導未限制零碎等式');
 assert(/已有直接比例或守恆式時，不再引入額外未知量或重算同一量/.test(Core.buildSystem()), '推導未要求使用最短等價關係');
 assert(/先依 TARGET\/CHECKS 找出會影響子問或選項的共用關係與量，只計算必要者；在判斷前完成相關 CHECKS/.test(Core.buildSystem()), '第二段未把審題完成清單用於推導');

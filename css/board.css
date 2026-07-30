@@ -1,29 +1,15 @@
 /* 詳解板書：現行 Markdown 管線的唯一排版來源。 */
 
 /* CDN 樣式未載入時，仍避免 MathML 與視覺層重疊。 */
-.katex { display: inline-block; }
-.katex .katex-mathml {
-  position: absolute;
-  clip: rect(1px, 1px, 1px, 1px);
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-}
-.katex .katex-html { display: inline-block; }
-
 /*
- * 詳解區拉丁字母／數字：一律 KaTeX_Main（與公式同系，教科書 Roman 風格）。
- * 中文無此字型時自動落到 Noto Sans TC。變數斜體僅限 .mathnormal → KaTeX_Math。
+ * 英數、單位與公式統一採用 New Computer Modern；中文則回退為芫荽。
  */
 .board,
 .board-reply,
 .board .chem-markdown,
 .board-reply .chem-markdown {
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
-  font-variant-numeric: lining-nums;
-  font-synthesis: none;
+  font-family: "ComputerModernText", "Iansui", "Noto Serif TC", PMingLiU, serif;
+  font-kerning: normal;
 }
 
 .board {
@@ -58,8 +44,8 @@
   overflow-wrap: break-word;
   color: inherit;
   background: transparent;
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 19.2px;
+  line-height: 1.72;
 }
 
 .chem-markdown > :first-child { margin-top: 0; }
@@ -71,21 +57,22 @@
 }
 .chem-markdown h2,
 .chem-markdown .solve-section-title {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  min-height: 3rem;
   box-sizing: border-box;
   margin: 1.35rem 0 0.85rem;
-  padding: 0.55rem 0.9rem;
+  padding: 0 0.9rem;
   border: none;
   border-left: 4px solid #3D5C48;
   border-radius: 0 10px 10px 0;
   background: #E8F0EB;
   color: #2F4A3A;
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
-  font-size: 0.95rem;
+  font-size: 1.18em;
   font-weight: 700;
   letter-spacing: 0.08em;
-  line-height: 1.4;
+  line-height: 1;
 }
 .chem-markdown > h2:first-child,
 .chem-markdown > .solve-section-title:first-child {
@@ -93,6 +80,7 @@
 }
 .chem-markdown .solve-section-title-text {
   display: inline-block;
+  transform: translateY(0.1em);
 }
 .chem-markdown ul {
   margin: 0.95rem 0;
@@ -125,7 +113,6 @@
   margin: 0;
   padding: 0;
   white-space: nowrap;
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
   font-style: normal;
   font-weight: 700;
   line-height: inherit;
@@ -153,17 +140,16 @@
 .chem-markdown .markdown-derivation-bullet {
   display: block;
   padding-top: 0.08em;
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
   font-size: 1.05em;
   font-weight: 700;
-  line-height: 1.8;
+  line-height: 1.72;
 }
 .chem-markdown .markdown-derivation-body {
   min-width: 0;
 }
 .chem-markdown .markdown-derivation-text {
   margin: 0;
-  line-height: 1.8;
+  line-height: 1.72;
   overflow-wrap: break-word;
 }
 .chem-markdown .markdown-derivation-text + .markdown-derivation-text {
@@ -172,7 +158,7 @@
 .chem-markdown .markdown-derivation-formula {
   min-width: 0;
   margin: 0.42rem 0 0;
-  line-height: 1.8;
+  line-height: 1.72;
 }
 
 
@@ -180,8 +166,7 @@
   display: inline;
   margin-inline: 0.04em;
   padding: 0;
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
-  font-size: 1em;
+  font-size: 1.05em;
   font-style: normal;
   font-weight: inherit;
   line-height: inherit;
@@ -192,28 +177,24 @@
   max-height: none;
   overflow: visible;
   color: inherit;
-  font-family: KaTeX_Main, serif;
-  font-size: 1em;
+  font-size: 1.05em;
   line-height: inherit;
   vertical-align: baseline;
 }
 /* 僅數學變數用斜體；數字、運算子、\\mathrm／\\ce 一律 KaTeX_Main 直立 */
 .chem-markdown .katex :is(.mathnormal, .mord.mathnormal) {
-  font-family: KaTeX_Math, KaTeX_Main, serif;
   font-style: italic;
   font-weight: 400;
 }
 .chem-markdown .katex :is(.mord:not(.mathnormal), .mord.text, .mathrm, .textup, .textbf),
 .chem-markdown .katex :is(.mrel, .mbin, .mopen, .mclose, .mpunct, .minner, .mop, .mspace) {
   color: inherit;
-  font-family: KaTeX_Main, serif;
   font-style: normal;
   font-weight: 400;
   opacity: 1;
 }
 .chem-markdown .katex .sizing,
 .chem-markdown .katex .fontsize-ensurer {
-  font-family: KaTeX_Main, serif;
 }
 .chem-markdown .katex :is(.katex-html, .msupsub, .msupsub .vlist-t),
 .katex :is(.mfrac, .vlist-t, .vlist-b) {
@@ -242,7 +223,6 @@
 .chem-markdown .answer-box { margin-top: 1.25rem; }
 .chem-markdown .answer-box,
 .chem-markdown .answer-box-value {
-  font-family: KaTeX_Main, 'Noto Sans TC', sans-serif;
 }
 
 /* 純長公式的唯一橫滑層；沒有額外箭頭或第二條捲軸。 */
@@ -362,28 +342,28 @@ body[data-theme="lunar"] .board {
   width: 100%;
   min-width: 0;
   color: inherit;
-  font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 16px;
-  line-height: 1.8;
-  font-variant-numeric: lining-nums;
+  font-size: 19.2px;
+  line-height: 1.72;
 }
 .am-solution > :first-child { margin-top: 0; }
 .am-solution > :last-child { margin-bottom: 0; }
 .am-solution p { min-width: 0; margin: 0 0 .9rem; overflow-wrap: break-word; }
 .am-solution .am-section-title {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
   margin: 1.35rem 0 .85rem;
-  padding: .55rem .9rem;
+  padding: 0 .9rem;
   border-left: 4px solid var(--accent, #3d5c48);
   border-radius: 0 10px 10px 0;
   background: var(--accent-soft, #e8f0eb);
   color: var(--accent, #2f4a3a);
-  font-family: 'Noto Serif TC', 'Noto Sans TC', serif;
-  font-size: 1.05rem;
+  font-size: 1.18em;
   font-weight: 700;
   letter-spacing: .04em;
-  line-height: 1.45;
+  line-height: 1;
 }
-.am-solution .am-section-title span { display: inline-block; }
+.am-solution .am-section-title span { display: inline-block; transform: translateY(0.1em); }
 .am-solution .am-choice {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -405,7 +385,7 @@ body[data-theme="lunar"] .board {
   align-items: start;
   margin: .95rem 0 1.05rem;
 }
-.am-solution .am-derivation-bullet { padding-top: .08em; font-size: 1.05em; font-weight: 700; line-height: 1.8; }
+.am-solution .am-derivation-bullet { padding-top: .08em; font-size: 1.05em; font-weight: 700; line-height: 1.72; }
 .am-solution .am-derivation-body { min-width: 0; }
 .am-solution .am-derivation-text { margin: 0; }
 .am-solution .am-derivation-body .am-display-scroll { margin: .55rem 0 .8rem; }
@@ -423,12 +403,18 @@ body[data-theme="lunar"] .board {
 .am-solution p:has(mjx-frac),
 .am-solution .am-choice:has(mjx-frac),
 .am-solution .am-result-item:has(mjx-frac) {
-  line-height: 2.35;
+  line-height: 1.72;
 }
 .am-solution p:has(mjx-frac) {
-  margin-bottom: 1.05rem;
+  margin-bottom: .9rem;
 }
-.am-unit { display: inline-block; margin-inline: .14em; white-space: nowrap; font-style: normal; }
+.am-unit {
+  display: inline-block;
+  margin-inline: .14em;
+  white-space: nowrap;
+  font-size: 1.05em;
+  font-style: normal;
+}
 .am-token-gap { display: inline-block; width: .24em; }
 .am-display-scroll,
 .am-table-scroll {
@@ -476,14 +462,12 @@ body[data-theme="lunar"] .board {
 }
 .am-display-equals {
   flex: 0 0 1.2em;
-  font-family: "Cambria Math", "STIX Two Math", serif;
   font-size: 1.08em;
   text-align: center;
 }
 .am-equilibrium-arrow {
   display: inline-block;
   margin: 0 .24em;
-  font-family: "Cambria Math", "STIX Two Math", serif;
   font-size: 1.2em;
   line-height: 1;
   vertical-align: middle;
@@ -495,12 +479,11 @@ body[data-theme="lunar"] .board {
 .am-display-scroll mjx-frac mjx-frac *,
 .am-display-scroll mjx-script mjx-frac,
 .am-display-scroll mjx-script mjx-frac * { font-size: 100% !important; }
-.am-solution mjx-container { color: inherit; font-size: 1em; line-height: inherit; }
+.am-solution mjx-container { color: inherit; font-size: 112%; line-height: 1; }
 .am-solution .am-math--inline mjx-container {
   display: inline-block;
-  font-size: .96em !important;
   vertical-align: baseline !important;
-  transform: translateY(-.01em);
+  transform: translateY(-.015em);
 }
 .am-reaction-table { min-width: max-content; border-collapse: collapse; font-size: .94em; }
 .am-reaction-table :is(th, td) { padding: .45rem .65rem; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); text-align: center; }
@@ -532,7 +515,7 @@ body[data-theme="lunar"] .board .chem-markdown .answer-box {
 }
 .board .chem-markdown .answer-box-inline {
   display: inline;
-  font-size: 1.15rem;
+  font-size: 1.15em;
   font-weight: 700;
   line-height: 1.55;
   white-space: normal;

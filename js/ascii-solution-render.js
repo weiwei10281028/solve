@@ -10,7 +10,7 @@
   let mathJaxPromise = null;
 
   // AsciiMath 會把 pm 視為 ±，也會把 g/mol、g/L 等單位誤排成數學分式；單位保留為一般文字節點。
-  const PROTECTED_UNITS_RE = /(\b(?:g|mg|kg|J|kJ|mol|mmol)\s*\/\s*\(?\s*(?:mol|mmol|L|mL)\s*\)?|\b(?:ppm|ppb|ppt)\b)/gi;
+  const PROTECTED_UNITS_RE = /(\b(?:g|mg|kg|J|kJ|mol|mmol)\s*\/\s*\(?\s*(?:mol|mmol|L|mL)\s*\)?|\b(?:mmHg|ppm|ppb|ppt)\b)/gi;
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
@@ -36,9 +36,22 @@
       && (DISPLAY_RE.test(text) || text.length > 32);
   }
 
+  // 單位會先由 math() 拆出保護；其餘可辨識的算式除法統一為直式分數。
+  function normaliseInlineDivisions(value) {
+    const number = String.raw`[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?`;
+    const symbol = String.raw`[A-Za-z][A-Za-z0-9]*(?:_(?:\([^()]*\)|[A-Za-z0-9]+))?`;
+    const parenthesized = String.raw`\([^()]+\)`;
+    const operand = String.raw`(?:${number}|${symbol}|${parenthesized})`;
+    const boundary = String.raw`(?=$|[\s=+\-,;:])`;
+    return String(value || '').replace(
+      new RegExp(String.raw`(${operand})\s*\/\s*(${operand})${boundary}`, 'g'),
+      'frac($1)($2)'
+    );
+  }
+
   // AI 偶爾把水溶態寫成 ^(aq)；本詳解固定將其排為化學式下標。
   function normaliseAsciiMath(value) {
-    return String(value || '')
+    return normaliseInlineDivisions(String(value || '')
       // 顯示端容錯：即使模型誤用 Unicode 箭頭，也統一交給 AsciiMath。
       .replace(/\s*(?:⇌|↔|⇄|⟷|<->|<=>|\\leftrightarrow|\\rightleftharpoons)\s*/g, ' rightleftharpoons ')
       .replace(/\s*[→⟶]\s*/g, ' -> ')
@@ -49,6 +62,13 @@
       // AsciiMath 將 Fe^2+ 視為「Fe 的 2 次方再加 1」，使 + 留在基線。
       // 化學離子的數字電荷須包成同一組上標；一般 x^2 + y 不受影響。
       .replace(/([A-Z][A-Za-z0-9_()]*)\^(\d+)([+-])(?=\s|$|[),.;:])/g, '$1^($2$3)')
+      .replace(/\b([A-Za-z])_((?:[A-Z][a-z]?(?:_?\d+)*){1,6})(?=$|[^A-Za-z0-9_(])/g, (whole, symbol, token) => {
+        const compact = token.replace(/_/g, '');
+        const elementCount = (compact.match(/[A-Z][a-z]?/g) || []).length;
+        return (/\d/.test(compact) || elementCount > 1)
+          ? `${symbol}_(${token.replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2')})`
+          : whole;
+      })
       // 將舊式函數記號收斂為本專案的下標量符號。
       .replace(/([nVW])\(\s*([A-Z][A-Za-z0-9]*)\s*\)/g, (_, quantity, species) =>
         `${quantity}_(${species.replace(/([A-Z][a-z]?)(\d+)/g, '$1_$2')})`)
@@ -56,7 +76,7 @@
       .replace(/\+(?!\))/g, ' + ')
       // AsciiMath 不接受在既有上標後直接再接 _(aq)。以空白基底承接物態下標；
       // 雙層括號保留可見的 (aq)，並讓 aq 維持 AsciiMath 變數斜體。
-      .replace(/_\(\s*(aq|l|s|g)\s*\)/gi, '""_(($1))');
+      .replace(/_\(\s*(aq|l|s|g)\s*\)/gi, '""_(($1))'));
   }
 
   function normaliseUnitText(value) {
@@ -67,7 +87,7 @@
 
   // AsciiMath 會忽略一般空白；將量值與單位拆成可見的 HTML 節點，
   // 才能確保「0.10 M NaCl」不會在畫面上黏成「0.10MNaCl」。
-  const QUANTITY_UNIT_RE = /(\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*(mmol|mol|mL|mg|kg|atm|kPa|Pa|ppm|ppb|ppt|L|M|g)(?=$|[^a-z])/g;
+  const QUANTITY_UNIT_RE = /(\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*(mmHg|mmol|mol|mL|mg|kg|atm|kPa|Pa|ppm|ppb|ppt|L|M|g)(?=$|[^a-z])/g;
 
   function mathToken(value, className) {
     const body = escapeHtml(normaliseAsciiMath(value).trim());
